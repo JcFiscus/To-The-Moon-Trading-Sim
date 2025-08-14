@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>To‑The‑Moon Trading Sim — Modular v6 baseline</title>
+  <title>To‑The‑Moon Trading Sim — Modular v6 + Summary + Auto‑Risk</title>
   <link rel="stylesheet" href="./css/main.css" />
 </head>
 <body>
 <header class="hdr">
-  <div class="brand">🛰️ To‑The‑Moon <small>modular v6 baseline</small></div>
+  <div class="brand">🛰️ To‑The‑Moon <small>v6 modular + summary + auto‑risk</small></div>
   <div class="stats">
     <div class="pill">Day <b id="dayNum">0</b> • <span class="kbd" id="dayTimer">—s</span></div>
     <div class="pill">Cash: <b id="cash">$0.00</b></div>
@@ -61,18 +61,28 @@
       <div class="asset-news" id="assetNews"></div>
     </div>
 
+    <div class="card" id="riskTools"></div>
+
     <div class="card">
       <div class="row" style="justify-content:space-between;">
-        <div>News & Events (global stream)</div>
-        <div class="mini">Global risk: <b id="globalRisk">—</b> • Demand: <b id="globalDemand">—</b></div>
+        <div>News & Events — <b id="newsSymbol"></b></div>
+        <div class="mini">Follow the selected asset</div>
       </div>
-      <div class="feed" id="feed"></div>
+      <div id="newsTable"></div>
     </div>
   </section>
 </div>
 
-<!-- Toast container -->
+<!-- Toasts -->
 <div class="toast-stack" id="toastStack"></div>
+
+<!-- Summary Modal -->
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal">
+    <div id="modalContent"></div>
+    <div class="actions" id="modalActions"></div>
+  </div>
+</div>
 
 <script type="module" src="./js/app.js"></script>
 </body>
