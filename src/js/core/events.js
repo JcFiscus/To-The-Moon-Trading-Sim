@@ -1,5 +1,48 @@
-// event definitions, generators, decay
-export function generateEvents(state) {
-  // TODO: implement events
-  return [];
+import { clamp } from '../util/math.js';
+
+export const EVENT_POOL = [
+  {scope:"global", title:"Solar flare jitters", type:"regulation", mu:+0.0000, sigma:+0.010, demand:-0.07, days:2, severity:"minor", blurb:"Satcom latency spikes; risk surges."},
+  {scope:"global", title:"Liquidity wave",      type:"demand",     mu:+0.0008, sigma:-0.004, demand:+0.08, days:3, severity:"major", blurb:"Sovereign rotation lifts all boats."},
+  {scope:"global", title:"Margin rules review", type:"regulation", mu:-0.0003, sigma:+0.006, demand:-0.04, days:2, severity:"minor", blurb:"Leverage scrutiny rising."},
+  {scope:"asset", sym:"QNTM", title:"3‑nm breakthrough", type:"tech",     mu:+0.0017, sigma:+0.004, demand:+0.10, days:4, severity:"major", blurb:"Quantum array yields surge."},
+  {scope:"asset", sym:"MWR",  title:"Aquifer mapped",    type:"tech",     mu:+0.0013, sigma:-0.003, demand:+0.06, days:3, severity:"minor", blurb:"Stable access lowers risk."},
+  {scope:"asset", sym:"GAT",  title:"Prototype implodes",type:"recall",   mu:-0.0022, sigma:+0.013, demand:-0.12, days:2, severity:"major", blurb:"Confidence shaken."},
+  {scope:"asset", sym:"H3",   title:"Lunar strike",      type:"tech",     mu:+0.0011, sigma:+0.007, demand:+0.09, days:3, severity:"major", blurb:"New regolith vein found."},
+  {scope:"asset", sym:"CYB",  title:"Zero‑day frenzy",   type:"demand",   mu:+0.0010, sigma:+0.010, demand:+0.09, days:2, severity:"minor", blurb:"Urgent cyber spend."},
+  {scope:"asset", sym:"SOL",  title:"Sail tear recall",  type:"recall",   mu:-0.0011, sigma:+0.012, demand:-0.10, days:2, severity:"major", blurb:"Retrofit program announced."}
+];
+
+export function randomEvent(rng, newsLevel=0){
+  const ev = { ...EVENT_POOL[Math.floor(rng() * EVENT_POOL.length)] };
+  const nScale = 1 + newsLevel * 0.05;
+  const sev = ev.severity === 'major' ? 1.75 : 1.0;
+  ev.mu    *= nScale * (0.85 + rng()*0.45) * sev;
+  ev.sigma *= nScale * (0.75 + rng()*0.60) * sev;
+  ev.demand*= nScale * (0.80 + rng()*0.60) * sev;
+  return ev;
+}
+
+export function randomSupplyEvent(assets, rng){
+  const a = assets[Math.floor(rng()*assets.length)];
+  const up = rng() < 0.5;
+  const frac = (0.02 + rng()*0.05) * (up?1:-1);
+  a.supply = Math.max(50_000, Math.floor(a.supply*(1+frac)));
+  const verb = up ? "Secondary issuance" : "Buyback/retirement";
+  return {scope:"asset", sym:a.sym, title:verb, type:"supply", mu:(up?-0.0006:+0.0006), sigma:+0.003, demand:(up?-0.06:+0.06), days:2,
+          severity:(Math.abs(frac)>0.05 ? "major":"minor"), blurb:`Supply ${up?"+":""}${Math.round(frac*100)}%.`};
+}
+
+export function pushAssetNews(newsByAsset, ev, whenLabel){
+  const targets = ev.scope === 'asset' ? [ev.sym] : null;
+  if (targets) {
+    newsByAsset[ev.sym] = newsByAsset[ev.sym] || [];
+    newsByAsset[ev.sym].unshift({ when: whenLabel, ev, remaining: ev.days || 2 });
+    if (newsByAsset[ev.sym].length > 50) newsByAsset[ev.sym].pop();
+  } else {
+    // global → copy into each asset stream
+    Object.keys(newsByAsset).forEach(sym => {
+      newsByAsset[sym].unshift({ when: whenLabel, ev, remaining: ev.days || 2 });
+      if (newsByAsset[sym].length > 50) newsByAsset[sym].pop();
+    });
+  }
 }
