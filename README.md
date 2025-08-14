@@ -4,11 +4,49 @@ HTML/Javascript trading sim game.
 
 ## Project Structure
 
-- `src/` - Application source files.
-  - `index.html` - Entry point HTML.
-  - `css/` - Stylesheets.
-  - `js/` - JavaScript modules.
-- `docs/` - Goals, ideas, context, and version notes.
+```
+.
+├─ docs/
+│  ├─ versions/
+│  ├─ context.md
+│  ├─ goals.md
+│  └─ ideas.md
+├─ src/
+│  ├─ index.html
+│  ├─ css/
+│  │  └─ main.css
+│  ├─ js/
+│  │  ├─ app.js
+│  │  ├─ config.js
+│  │  ├─ util/
+│  │  │  ├─ rng.js
+│  │  │  ├─ math.js
+│  │  │  └─ format.js
+│  │  ├─ core/
+│  │  │  ├─ types.js
+│  │  │  ├─ state.js
+│  │  │  ├─ priceModel.js
+│  │  │  ├─ events.js
+│  │  │  ├─ trading.js
+│  │  │  ├─ risk.js
+│  │  │  ├─ cycle.js
+│  │  │  └─ persist.js
+│  │  ├─ ui/
+│  │  │  ├─ dom.js
+│  │  │  ├─ table.js
+│  │  │  ├─ chart.js
+│  │  │  ├─ insight.js
+│  │  │  ├─ newsGlobal.js
+│  │  │  ├─ toast.js
+│  │  │  ├─ modal.js
+│  │  │  └─ hud.js
+│  │  └─ test/
+│  │     ├─ engine.spec.js
+│  │     └─ cycle.spec.js
+├─ package.json
+├─ README.md
+└─ .gitignore
+```
 
 ## Scripts
 
