@@ -1,13 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>To The Moon Trading Sim</title>
-  <link rel="stylesheet" href="css/main.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>To‑The‑Moon Trading Sim — Modular v6 baseline</title>
+  <link rel="stylesheet" href="./css/main.css" />
 </head>
 <body>
-  <h1>To The Moon Trading Sim</h1>
-  <script src="js/app.js" type="module"></script>
+<header class="hdr">
+  <div class="brand">🛰️ To‑The‑Moon <small>modular v6 baseline</small></div>
+  <div class="stats">
+    <div class="pill">Day <b id="dayNum">0</b> • <span class="kbd" id="dayTimer">—s</span></div>
+    <div class="pill">Cash: <b id="cash">$0.00</b></div>
+    <div class="pill">Debt: <b id="debt">$0.00</b></div>
+    <div class="pill">Assets: <b id="assets">$0.00</b></div>
+    <div class="pill">Net: <b id="net">$0.00</b></div>
+    <div class="pill">Risk: <b id="riskPct">0%</b></div>
+  </div>
+</header>
+
+<div class="grid">
+  <section class="card">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div class="mini">10‑second days • After‑hours news drives tomorrow</div>
+      <div class="row">
+        <button id="startBtn" class="accent">▶ Start Day</button>
+        <button id="saveBtn">Save</button>
+        <button id="resetBtn" class="bad">Hard Reset</button>
+      </div>
+    </div>
+    <table id="marketTable">
+      <thead>
+        <tr>
+          <th>Asset</th><th>Price</th><th>Δ</th><th>Analyst</th><th>Holdings</th><th>Value</th><th>Trade</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </section>
+
+  <section class="right-col">
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div>Chart: <b id="chartTitle"></b></div>
+        <div class="row">
+          <span class="tag">Prev close = dashed</span>
+          <span class="tag">Boundaries = day ends</span>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="chart" width="820" height="300"></canvas></div>
+      <div class="statgrid" id="chartStats"></div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div>Asset Insight</div>
+        <div class="mini">Tomorrow (μ ± σ) • expected gap • recent news</div>
+      </div>
+      <div class="row mini" id="analystLine"></div>
+      <div class="asset-news" id="assetNews"></div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div>News & Events (global stream)</div>
+        <div class="mini">Global risk: <b id="globalRisk">—</b> • Demand: <b id="globalDemand">—</b></div>
+      </div>
+      <div class="feed" id="feed"></div>
+    </div>
+  </section>
+</div>
+
+<!-- Toast container -->
+<div class="toast-stack" id="toastStack"></div>
+
+<script type="module" src="./js/app.js"></script>
 </body>
 </html>
