@@ -4,6 +4,8 @@ export const EVENT_POOL = [
   {scope:"global", title:"Solar flare jitters", type:"regulation", mu:+0.0000, sigma:+0.010, demand:-0.07, days:2, severity:"minor", blurb:"Satcom latency spikes; risk surges."},
   {scope:"global", title:"Liquidity wave",      type:"demand",     mu:+0.0008, sigma:-0.004, demand:+0.08, days:3, severity:"major", blurb:"Sovereign rotation lifts all boats."},
   {scope:"global", title:"Margin rules review", type:"regulation", mu:-0.0003, sigma:+0.006, demand:-0.04, days:2, severity:"minor", blurb:"Leverage scrutiny rising."},
+  {scope:"global", title:"Bear Market Rumours", type:"sentiment", mu:-0.0015, sigma:+0.008, demand:-0.12, days:6, severity:"major", blurb:"Persistent whispers of downturn."},
+  {scope:"global", title:"Regulatory Crackdown", type:"regulation", mu:-0.0013, sigma:+0.010, demand:-0.15, days:7, severity:"major", blurb:"Authorities tighten screws."},
   {scope:"asset", sym:"QNTM", title:"3‑nm breakthrough", type:"tech",     mu:+0.0017, sigma:+0.004, demand:+0.10, days:4, severity:"major", blurb:"Quantum array yields surge."},
   {scope:"asset", sym:"MWR",  title:"Aquifer mapped",    type:"tech",     mu:+0.0013, sigma:-0.003, demand:+0.06, days:3, severity:"minor", blurb:"Stable access lowers risk."},
   {scope:"asset", sym:"GAT",  title:"Prototype implodes",type:"recall",   mu:-0.0022, sigma:+0.013, demand:-0.12, days:2, severity:"major", blurb:"Confidence shaken."},
@@ -16,9 +18,15 @@ export function randomEvent(rng, newsLevel=0){
   const ev = { ...EVENT_POOL[Math.floor(rng() * EVENT_POOL.length)] };
   const nScale = 1 + newsLevel * 0.05;
   const sev = ev.severity === 'major' ? 1.75 : 1.0;
+  const negBias = rng() < 0.35; // chance of persistent negative shock
   ev.mu    *= nScale * (0.85 + rng()*0.45) * sev;
   ev.sigma *= nScale * (0.75 + rng()*0.60) * sev;
   ev.demand*= nScale * (0.80 + rng()*0.60) * sev;
+  ev.days   = Math.round(ev.days * (negBias ? (1.5 + rng()*0.7) : (0.8 + rng()*0.6)));
+  if (negBias) {
+    ev.mu = -Math.abs(ev.mu);
+    ev.demand = -Math.abs(ev.demand);
+  }
   return ev;
 }
 

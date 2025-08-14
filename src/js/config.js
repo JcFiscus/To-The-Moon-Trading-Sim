@@ -2,16 +2,21 @@ export const CFG = {
   START_CASH: 10000,
   DAY_TICKS: 10,
 
-  VALUATION_DRAG: 0.0012,
-  FAIR_DRIFT_BASE: 0.00040,
+  VALUATION_DRAG: 0.0040,    // strength of log‑valuation mean reversion
+  FAIR_DRIFT_BASE: 0.00040,  // baseline growth of fair value
   REGIME_P: 0.0005,
 
   IMPACT_SCALE: 30,
   DEMAND_IMPULSE_SCALE: 9,
   OPP_COST_SPILL: 0.35,
 
-  RUN_CAP_MULTIPLE: 10.0,
+  RUN_CAP_MULTIPLE: 5.0,     // soft cap for runaway rallies
   FLOW_WINDOW_DAYS: 7,
+
+  STREAK_FATIGUE: 0.0004,    // extra drift per streak day beyond threshold
+  STREAK_REVERSION: 0.0008,  // overnight reversion strength when over/under fair
+  CAPITAL_ROTATION_INTENSITY: 0.0010, // cross‑asset rotation intensity
+  NPC_MOMENTUM_FADE: 0.015,  // NPC momentum decay per extra streak day
 
   AH_EVENT_P: 0.45,
   AH_SUPPLY_EVENT_P: 0.25,

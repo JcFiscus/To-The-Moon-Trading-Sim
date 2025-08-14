@@ -16,7 +16,10 @@ export function demandDrift(market, rng, era=1, prestige=0){
 export function npcFlow(a, rng){
   const h=a.history, n=Math.min(20,h.length-1);
   const ret=(h[h.length-1]-h[h.length-1-n])/Math.max(1e-9,h[h.length-1-n]);
-  const mom=clamp(ret*2,-0.1,0.1), noise=rng.normal()*0.008; return mom+noise;
+  let mom=clamp(ret*2,-0.1,0.1);
+  const fatigue = Math.max(0, Math.abs(a.streak)-4) * CFG.NPC_MOMENTUM_FADE;
+  mom = mom>0 ? Math.max(0, mom - fatigue) : Math.min(0, mom + fatigue);
+  const noise=rng.normal()*0.008; return mom+noise;
 }
 export function eventImpactIntraday(market, sym){
   let mu=0, sigma=0;
@@ -54,21 +57,27 @@ export function applyOvernightOutlook(ctx){
     const fairDrift = CFG.FAIR_DRIFT_BASE;
     a.fair *= (1 + fairDrift);
 
-    const valuation = -0.0014*Math.log(Math.max(0.2,a.price)/Math.max(0.2,a.fair));
+    const valuation = -CFG.VALUATION_DRAG * Math.log(Math.max(0.2,a.price)/Math.max(0.2,a.fair));
     const streakMR  = (a.streak>=2 && a.price>a.fair*1.15 ? -0.0012 : 0)
                     + (a.streak<=-2 && a.price<a.fair*0.85 ? +0.0012 : 0);
     const demandTerm = 0.0007*(a.localDemand-1) + 0.0005*(ctx.market.demand-1 + gDem + evDem);
+    let reversion = 0; let bias="continuation";
+    if (a.streak>3 && a.price>a.fair){ reversion = -CFG.STREAK_REVERSION*(a.streak-3); bias="reversion"; }
+    if (a.streak<-3 && a.price<a.fair){ reversion = CFG.STREAK_REVERSION*(-a.streak-3); bias="reversion"; }
 
-    const mu    = gMu + evMu + valuation + streakMR + demandTerm;
+    const mu    = gMu + evMu + valuation + streakMR + demandTerm + reversion;
     const sigma = clamp(0.006 + evVol*0.6 + Math.abs(gDem)*0.15, 0.006, 0.10);
     const gap   = clamp( (gMu*CFG.DAY_TICKS*0.35) + (evMu*CFG.DAY_TICKS*0.75) + (evDem*0.55), -CFG.OPEN_GAP_CAP, CFG.OPEN_GAP_CAP);
 
     a.daySigma = sigma;
     a.outlook = { mu, sigma, gap };
-    a.outlookDetail = { gMu, evMu, evDem, valuation, streakMR, demandTerm };
+    a.outlookDetail = { gMu, evMu, evDem, valuation, streakMR, demandTerm, reversion, bias };
 
     if (evDem !== 0) {
       a.evDemandBias = clamp(a.evDemandBias + evDem, -0.6, 0.6);
+      if (evDem > 0){
+        for(const b of assets){ if(b!==a) b.evDemandBias = clamp(b.evDemandBias - evDem*CFG.OPP_COST_SPILL, -0.6, 0.6); }
+      }
     }
   }
 
@@ -89,21 +98,47 @@ export function applyOpeningGaps(ctx, hooks){
 
 export function updatePrices(ctx, rng){
   const { assets, market, state } = ctx;
-  for (const a of assets){
+
+  // apply event demand and cross‑asset siphoning once per event
+  for(const ev of market.activeEvents){
+    if(ev._applied) continue;
+    if(ev.scope === "asset"){
+      const target = assets.find(x=>x.sym===ev.sym);
+      if(target){
+        target.localDemand = clamp(target.localDemand + ev.demand, 0.5, 2.5);
+        if(ev.demand>0){
+          for(const o of assets){ if(o!==target) o.localDemand = clamp(o.localDemand - ev.demand*CFG.OPP_COST_SPILL, 0.5,2.5); }
+        }
+      }
+    } else {
+      for(const a of assets){ a.localDemand = clamp(a.localDemand + ev.demand, 0.5,2.5); }
+    }
+    ev._applied = true;
+  }
+
+  // recent performance for capital rotation
+  const perfs = assets.map(a=>{ const h=a.history; const look=Math.min(5,h.length-1); return look>0 ? (a.price/h[h.length-1-look]-1) : 0; });
+  const avgPerf = perfs.reduce((s,x)=>s+x,0)/Math.max(1,perfs.length);
+
+  for (let i=0; i<assets.length; i++){
+    const a = assets[i];
     // small regime nudge
     if (rng() < CFG.REGIME_P) {
       a.regime = { mu:(rng()*0.0022-0.0011), sigma:(rng()*0.012-0.006) };
     }
 
-    // valuation/streak/demand + intraday events
+    // valuation/streak/demand + rotation + intraday events
     const valuation  = -CFG.VALUATION_DRAG * Math.log(Math.max(0.2,a.price)/Math.max(0.2,a.fair));
     const streakMR   = (a.streak>=2 && a.price>a.fair*1.15 ? -0.0012 : 0)
                      + (a.streak<=-2 && a.price<a.fair*0.85 ? +0.0012 : 0);
+    const fatigue    = (a.streak>3 && a.price>a.fair ? -CFG.STREAK_FATIGUE*(a.streak-3) : 0)
+                     + (a.streak<-3 && a.price<a.fair ? CFG.STREAK_FATIGUE*(-a.streak-3) : 0);
+    const rotation   = -CFG.CAPITAL_ROTATION_INTENSITY * (perfs[i] - avgPerf);
     const demandBias = 0.0006*(market.demand-1) + 0.0005*(a.localDemand-1) + 0.0008*(a.evDemandBias);
 
     const { mu:emu, sigma:esig } = eventImpactIntraday(market, a.sym);
 
-    const baseMu    = a.mu + a.regime.mu + (a.outlook?.mu||0) + valuation + streakMR + demandBias + emu;
+    const baseMu    = a.mu + a.regime.mu + (a.outlook?.mu||0) + valuation + streakMR + fatigue + rotation + demandBias + emu;
     const baseSigma = clamp(a.sigma + a.regime.sigma + (a.outlook?.sigma||a.daySigma) + esig, 0.006, 0.12);
 
     // liquidity & impact

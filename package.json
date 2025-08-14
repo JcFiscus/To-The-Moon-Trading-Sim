@@ -2,7 +2,8 @@
   "name": "to-the-moon-trading-sim",
   "version": "0.1.0",
   "description": "Trading simulation game framework with HTML, CSS, and JavaScript.",
+  "type": "module",
   "scripts": {
-    "test": "echo \"No tests specified\""
+    "test": "node src/js/test/engine.spec.js"
   }
 }
