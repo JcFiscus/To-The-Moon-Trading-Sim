@@ -1,6 +1,5 @@
 import { CFG } from '../config.js';
 
-/** Initialize market, state, and assets from asset definitions. */
 export function createInitialState(assetDefs){
   const assets = assetDefs.map(d => ({
     ...d,
@@ -21,10 +20,25 @@ export function createInitialState(assetDefs){
     analyst: { tone:"Neutral", cls:"neu", score:0, conf:0.5 }
   }));
 
+  const positions = Object.fromEntries(assets.map(a => [a.sym, 0]));
+  const costBasis = Object.fromEntries(assets.map(a => [a.sym, {qty:0, avg:0}]));
+  const newsByAsset = Object.fromEntries(assets.map(a => [a.sym, []]));
+
   const state = {
     cash: CFG.START_CASH, debt: 0,
-    positions: Object.fromEntries(assets.map(a => [a.sym, 0])),
-    feeRate: 0.001, minFee: 1
+    positions, costBasis,
+    realizedPnL: 0,
+    feeRate: 0.001, minFee: 1,
+    riskTools: {
+      enabled: false,
+      trailing: 0.12,     // 12% trailing
+      hardStop: 0.18,     // 18% hard
+      stopSellFrac: 1.0,  // sell 100% on stop
+      tp1: 0.20, tp1Frac: 0.25,
+      tp2: 0.40, tp2Frac: 0.25,
+      tp3: 0.80, tp3Frac: 0.50,
+      posCap: 0.35        // max 35% of net worth in a single asset
+    }
   };
 
   const market = {
@@ -42,5 +56,7 @@ export function createInitialState(assetDefs){
     startPrices:{}, startHoldings:{}, feesPaid:0, realized:0, midEventFired:false
   };
 
-  return { assets, state, market, day };
+  // Misc runtime trackers
+  const ctx = { assets, state, market, day, newsByAsset, riskTrack: {} };
+  return ctx;
 }
