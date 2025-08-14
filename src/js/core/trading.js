@@ -1,4 +1,5 @@
 import { clamp } from '../util/math.js';
+import { CFG } from '../config.js';
 
 export function buy(ctx, sym, qty, hooks){
   qty = Math.max(1, Math.floor(qty));
@@ -28,6 +29,7 @@ export function buy(ctx, sym, qty, hooks){
   // player impact
   const share = qty / a.supply;
   a.localDemand = clamp(a.localDemand + share * 9, 0.5, 2.5);
+  for (const o of ctx.assets){ if (o !== a) o.localDemand = clamp(o.localDemand - share * CFG.OPP_COST_SPILL, 0.5, 2.5); }
   a.flowToday += qty;
 
   hooks?.log?.(`Bought ${qty} ${sym} @ $${price.toFixed(2)} (+fee $${fee.toFixed(2)})`);
