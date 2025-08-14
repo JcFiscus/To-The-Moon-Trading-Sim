@@ -20,23 +20,33 @@
 </header>
 
 <div class="grid">
-  <section class="card">
-    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div class="mini">10‑second days • After‑hours news drives tomorrow</div>
-      <div class="row">
-        <button id="startBtn" class="accent">▶ Start Day</button>
-        <button id="saveBtn">Save</button>
-        <button id="resetBtn" class="bad">Hard Reset</button>
+  <section class="left-col">
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div class="mini">10‑second days • After‑hours news drives tomorrow</div>
+        <div class="row">
+          <button id="startBtn" class="accent">▶ Start Day</button>
+          <button id="saveBtn">Save</button>
+          <button id="resetBtn" class="bad">Hard Reset</button>
+        </div>
       </div>
+      <table id="marketTable">
+        <thead>
+          <tr>
+            <th>Asset</th><th>Price</th><th>Δ</th><th>Analyst</th><th>Holdings</th><th>Value</th><th>Trade</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
     </div>
-    <table id="marketTable">
-      <thead>
-        <tr>
-          <th>Asset</th><th>Price</th><th>Δ</th><th>Analyst</th><th>Holdings</th><th>Value</th><th>Trade</th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div>News & Events — <b id="newsSymbol"></b></div>
+        <div class="mini">Follow the selected asset</div>
+      </div>
+      <div id="newsTable"></div>
+    </div>
   </section>
 
   <section class="right-col">
@@ -62,14 +72,6 @@
     </div>
 
     <div class="card" id="riskTools"></div>
-
-    <div class="card">
-      <div class="row" style="justify-content:space-between;">
-        <div>News & Events — <b id="newsSymbol"></b></div>
-        <div class="mini">Follow the selected asset</div>
-      </div>
-      <div id="newsTable"></div>
-    </div>
   </section>
 </div>
 
