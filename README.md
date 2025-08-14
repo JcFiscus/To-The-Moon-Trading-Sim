@@ -6,6 +6,7 @@ HTML/Javascript trading sim game.
 
 ```
 .
+├─ index.html
 ├─ docs/
 │  ├─ versions/
 │  ├─ context.md
@@ -51,3 +52,8 @@ HTML/Javascript trading sim game.
 ## Scripts
 
 - `npm test` - placeholder test script.
+
+## Deployment
+
+The root `index.html` references assets from the `src/` directory so the
+game can run directly on static hosts like GitHub Pages without a build step.
