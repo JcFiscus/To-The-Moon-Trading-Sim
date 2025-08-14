@@ -13,7 +13,7 @@ import { initToaster } from './ui/toast.js';
 import { buildMarketTable, renderMarketTable } from './ui/table.js';
 import { drawChart } from './ui/chart.js';
 import { renderInsight } from './ui/insight.js';
-import { renderAssetNewsTable } from './ui/newsAsset.js';
+import { renderAssetNewsTable } from './ui/newsAssets.js';
 import { showSummary } from './ui/modal.js';
 import { initRiskTools } from './ui/risktools.js';
 
