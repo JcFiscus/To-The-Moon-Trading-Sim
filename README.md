@@ -6,6 +6,7 @@ HTML/Javascript trading sim game.
 
 ```
 .
+├─ index.html
 ├─ docs/
 │  ├─ versions/
 │  ├─ context.md
