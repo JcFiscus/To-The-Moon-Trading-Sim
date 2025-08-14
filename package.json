@@ -1,0 +1,8 @@
+{
+  "name": "to-the-moon-trading-sim",
+  "version": "0.1.0",
+  "description": "Trading simulation game framework with HTML, CSS, and JavaScript.",
+  "scripts": {
+    "test": "echo \"No tests specified\""
+  }
+}
