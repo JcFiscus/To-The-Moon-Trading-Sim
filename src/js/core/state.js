@@ -44,6 +44,7 @@ export function createInitialState(assetDefs){
     cooldowns: { insider:0 },
     ui: { lastLev: {} },
     marginPositions: [],
+    optionPositions: [],
     insiderTip: null
   };
 

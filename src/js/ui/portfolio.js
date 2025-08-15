@@ -48,5 +48,22 @@ export function renderPortfolio(ctx){
       ${mRows.length ? `<table><thead><tr><th>Sym</th><th>Qty</th><th>Entry</th><th>Lev</th><th>Liq Price</th><th>Maint</th><th>P/L</th><th>Value</th></tr></thead><tbody>${mRows.join('')}</tbody></table>` : '<div class="mini">No margin positions.</div>'}
     </div>`):'';
 
-  root.innerHTML = holdSection + marginSection;
+  const oRows = [];
+  for (const opt of ctx.state.optionPositions) {
+    const a = ctx.assets.find(x => x.sym === opt.sym);
+    if (!a) continue;
+    const pl = (opt.mark - opt.premium) * opt.qty;
+    const val = opt.mark * opt.qty;
+    oRows.push(`<tr><td>${opt.sym}</td><td>${opt.type}</td><td>${fmt(opt.strike)}</td><td>${Math.max(0,Math.round(opt.dte))}</td><td>${opt.qty}</td><td>${fmt(opt.premium)}</td><td>${fmt(opt.mark)}</td><td class="${pl>=0?'up':'down'}">${fmt(pl)}</td><td>${fmt(val)}</td></tr>`);
+  }
+  const optionsSection = (ctx.state.upgrades.options || oRows.length) ? (`
+    <div class="section">
+      <div class="row" style="justify-content:space-between;">
+        <div>Options</div>
+        <div class="mini">Options positions</div>
+      </div>
+      ${oRows.length ? `<table><thead><tr><th>Sym</th><th>Type</th><th>Strike</th><th>DTE</th><th>Qty</th><th>Premium</th><th>Mark</th><th>P/L</th><th>Value</th></tr></thead><tbody>${oRows.join('')}</tbody></table>` : '<div class="mini">No options positions.</div>'}
+    </div>`):'';
+
+  root.innerHTML = holdSection + marginSection + optionsSection;
 }

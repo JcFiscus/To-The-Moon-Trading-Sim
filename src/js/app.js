@@ -7,6 +7,7 @@ import { createInitialState } from './core/state.js';
 import { startDay, stepTick, endDay, enqueueAfterHours } from './core/cycle.js';
 import { computeAnalyst } from './core/priceModel.js';
 import { buy, sell } from './core/trading.js';
+import { buyOption } from './core/options.js';
 import { evaluateRisk } from './core/risk.js';
 
 import { initToaster } from './ui/toast.js';
@@ -34,19 +35,20 @@ document.getElementById('chartTitle').textContent =
   `${ctx.selected} — ${ctx.assets.find(a => a.sym === ctx.selected).name}`;
 
 // Build market table with module trading
-buildMarketTable({
-  tbody: document.getElementById('tbody'),
-  assets: ctx.assets,
-  state: ctx.state,
-  onSelect: (sym) => {
-    ctx.selected = sym;
-    document.getElementById('chartTitle').textContent =
-      `${sym} — ${ctx.assets.find(a => a.sym === sym).name}`;
-    renderAll();
-  },
-  onBuy: (sym, qty, lev) => { buy(ctx, sym, qty, { leverage: lev, log }); renderAll(); },
-  onSell: (sym, qty, lev) => { sell(ctx, sym, qty, { leverage: lev, log }); renderAll(); }
-});
+  buildMarketTable({
+    tbody: document.getElementById('tbody'),
+    assets: ctx.assets,
+    state: ctx.state,
+    onSelect: (sym) => {
+      ctx.selected = sym;
+      document.getElementById('chartTitle').textContent =
+        `${sym} — ${ctx.assets.find(a => a.sym === sym).name}`;
+      renderAll();
+    },
+    onBuy: (sym, qty, lev) => { buy(ctx, sym, qty, { leverage: lev, log }); renderAll(); },
+    onSell: (sym, qty, lev) => { sell(ctx, sym, qty, { leverage: lev, log }); renderAll(); },
+    onOption: (sym, opt) => { buyOption(ctx, sym, opt.type, opt.strike, opt.dte, opt.qty, { log }); renderAll(); }
+  });
 
 // Chart type toggle
 ctx.chartMode = 'line';
