@@ -41,15 +41,15 @@ export function initRiskTools(root, ctx, toast){
         <div class="statgrid">
           <div class="stat">
             <label for="rt-trailing" class="mini" title="Sell after price falls from peak by this percent">Trailing stop</label>
-            <div class="slider"><input id="rt-trailing" type="range" min="0" max="50" step="1"><span class="mini" id="rt-trailing-val"></span></div>
+            <div class="slider"><input id="rt-trailing" type="range" min="0" max="50" step="1" title="Sell after price falls from peak by this percent"><span class="mini" id="rt-trailing-val"></span></div>
           </div>
           <div class="stat">
             <label for="rt-hard" class="mini" title="Maximum loss tolerated on a position">Hard stop</label>
-            <div class="slider"><input id="rt-hard" type="range" min="0" max="60" step="1"><span class="mini" id="rt-hard-val"></span></div>
+            <div class="slider"><input id="rt-hard" type="range" min="0" max="60" step="1" title="Maximum loss tolerated on a position"><span class="mini" id="rt-hard-val"></span></div>
           </div>
           <div class="stat">
             <label for="rt-stopfrac" class="mini" title="Fraction of position sold when a stop triggers">Stop sell fraction</label>
-            <div class="slider"><input id="rt-stopfrac" type="range" min="5" max="100" step="5"><span class="mini" id="rt-stopfrac-val"></span></div>
+            <div class="slider"><input id="rt-stopfrac" type="range" min="5" max="100" step="5" title="Fraction of position sold when a stop triggers"><span class="mini" id="rt-stopfrac-val"></span></div>
           </div>
         </div>
       </fieldset>
@@ -58,27 +58,27 @@ export function initRiskTools(root, ctx, toast){
         <div class="statgrid">
           <div class="stat">
             <label for="rt-tp1" class="mini" title="Gain needed to trigger the first take profit">TP1 threshold</label>
-            <div class="slider"><input id="rt-tp1" type="range" min="5" max="200" step="5"><span class="mini" id="rt-tp1-val"></span></div>
+            <div class="slider"><input id="rt-tp1" type="range" min="5" max="200" step="5" title="Gain needed to trigger the first take profit"><span class="mini" id="rt-tp1-val"></span></div>
           </div>
           <div class="stat">
             <label for="rt-tp1f" class="mini" title="Percent of position sold at TP1">TP1 sell fraction</label>
-            <div class="slider"><input id="rt-tp1f" type="range" min="5" max="100" step="5"><span class="mini" id="rt-tp1f-val"></span></div>
+            <div class="slider"><input id="rt-tp1f" type="range" min="5" max="100" step="5" title="Percent of position sold at TP1"><span class="mini" id="rt-tp1f-val"></span></div>
           </div>
           <div class="stat">
             <label for="rt-tp2" class="mini" title="Gain needed to trigger the second take profit">TP2 threshold</label>
-            <div class="slider"><input id="rt-tp2" type="range" min="5" max="200" step="5"><span class="mini" id="rt-tp2-val"></span></div>
+            <div class="slider"><input id="rt-tp2" type="range" min="5" max="200" step="5" title="Gain needed to trigger the second take profit"><span class="mini" id="rt-tp2-val"></span></div>
           </div>
           <div class="stat">
             <label for="rt-tp2f" class="mini" title="Percent of position sold at TP2">TP2 sell fraction</label>
-            <div class="slider"><input id="rt-tp2f" type="range" min="5" max="100" step="5"><span class="mini" id="rt-tp2f-val"></span></div>
+            <div class="slider"><input id="rt-tp2f" type="range" min="5" max="100" step="5" title="Percent of position sold at TP2"><span class="mini" id="rt-tp2f-val"></span></div>
           </div>
           <div class="stat">
             <label for="rt-tp3" class="mini" title="Gain needed to trigger the third take profit">TP3 threshold</label>
-            <div class="slider"><input id="rt-tp3" type="range" min="5" max="200" step="5"><span class="mini" id="rt-tp3-val"></span></div>
+            <div class="slider"><input id="rt-tp3" type="range" min="5" max="200" step="5" title="Gain needed to trigger the third take profit"><span class="mini" id="rt-tp3-val"></span></div>
           </div>
           <div class="stat">
             <label for="rt-tp3f" class="mini" title="Percent of position sold at TP3">TP3 sell fraction</label>
-            <div class="slider"><input id="rt-tp3f" type="range" min="5" max="100" step="5"><span class="mini" id="rt-tp3f-val"></span></div>
+            <div class="slider"><input id="rt-tp3f" type="range" min="5" max="100" step="5" title="Percent of position sold at TP3"><span class="mini" id="rt-tp3f-val"></span></div>
           </div>
         </div>
       </fieldset>
@@ -87,7 +87,7 @@ export function initRiskTools(root, ctx, toast){
         <div class="statgrid">
           <div class="stat">
             <label for="rt-cap" class="mini" title="Maximum portfolio allocation to a single position">Position cap</label>
-            <div class="slider"><input id="rt-cap" type="range" min="5" max="100" step="5"><span class="mini" id="rt-cap-val"></span></div>
+            <div class="slider"><input id="rt-cap" type="range" min="5" max="100" step="5" title="Maximum portfolio allocation to a single position"><span class="mini" id="rt-cap-val"></span></div>
           </div>
         </div>
       </fieldset>
