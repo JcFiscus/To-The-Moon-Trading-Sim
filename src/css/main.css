@@ -129,6 +129,10 @@ td.scope.global{color:var(--warn)}
 td.scope.asset{color:var(--accent)}
 .section{margin-top:8px}
 .section-title{margin-bottom:4px;display:block}
+fieldset.rt-group{border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:8px}
+fieldset.rt-group legend{padding:0 4px}
+.upgrade-card{border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:8px;background:#0a1017}
+.upgrade-card button{margin-top:6px}
 /* ===== Summary modal ===== */
 .overlay{position:fixed;inset:0;background:rgba(11,15,20,.8);display:none;align-items:center;justify-content:center;z-index:100}
 .modal{width:min(960px,94vw);background:#0f151d;border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 15px 50px rgba(0,0,0,.45)}

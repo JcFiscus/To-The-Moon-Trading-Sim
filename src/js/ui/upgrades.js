@@ -21,47 +21,62 @@ function tierUnlocked(ctx, tier){
 export function renderUpgrades(ctx, toast){
   const root = document.getElementById('upgrades');
   if(!root) return;
-  const sections = [];
+  root.innerHTML = '';
+  const header = document.createElement('div');
+  header.className = 'row';
+  header.style.justifyContent = 'space-between';
+  header.innerHTML = `<div>Upgrades</div><div class="mini">${ctx.day.active?'Market Open':'After Hours'}</div>`;
+  root.appendChild(header);
+
+  let any = false;
   for(const def of UPGRADES){
     if(!tierUnlocked(ctx, def.tier)) continue;
+    any = true;
     const bought = ctx.state.upgradePurchases[def.id] || 0;
     const cost = upgradeCost(def, bought);
-    let disabled, label;
+    let disabled = false, label = '', reason = '';
     if (def.id === 'insider') {
       const tip = ctx.state.insiderTip;
       const cd = ctx.state.cooldowns.insider || 0;
       disabled = ctx.day.active || cost > ctx.state.cash || tip || cd > 0;
-      label = tip ? `Active ${tip.bias>0?'Bullish':'Bearish'} (${tip.daysLeft}d)` : (cd > 0 ? `Cooldown ${cd}d` : 'Buy Tip');
+      if(ctx.day.active) reason = 'Market open';
+      else if(cost > ctx.state.cash) reason = 'Insufficient cash';
+      else if(tip) reason = 'Tip active';
+      else if(cd > 0) reason = `Cooldown ${cd}d`;
+      label = tip ? `Active ${tip.bias>0?'Bullish':'Bearish'} (${tip.daysLeft}d)` : 'Buy Tip';
     } else {
       const owned = ctx.state.upgrades[def.id];
       disabled = ctx.day.active || cost > ctx.state.cash || (def.id !== 'leverage' && owned);
+      if(ctx.day.active) reason = 'Market open';
+      else if(cost > ctx.state.cash) reason = 'Insufficient cash';
+      else if(def.id !== 'leverage' && owned) reason = 'Already owned';
       label = (def.id === 'leverage') ?
         (owned ? `Level ${owned}` : 'Unlock') :
         (owned ? 'Owned' : 'Unlock');
     }
-    sections.push(`<div class="section">
-      <div class="row" style="justify-content:space-between;">
-        <div>${def.name}</div>
-        <div class="mini">${fmt(cost)}</div>
-      </div>
-      <div class="mini" ${def.tip?`title="${def.tip}"`:''}>${def.desc}</div>
-      <button id="upg-${def.id}" ${disabled?'disabled':''}>${label}</button>
-    </div>`);
-  }
-  if(!sections.length){
-    let msg = 'Tier 2 upgrades appear after at least one Tier 1.';
-    if(highestTierOwned(ctx) < 1) msg = 'Tier 1 upgrades appear first.';
-    root.innerHTML = `<div class="mini">${msg}</div>`;
-    return;
-  }
-  root.innerHTML = `<div class="row" style="justify-content:space-between;">
-    <div>Upgrades</div>
-    <div class="mini">${ctx.day.active?'Market Open':'After Hours'}</div>
-  </div>${sections.join('')}`;
+    const card = document.createElement('div');
+    card.className = 'upgrade-card';
+    card.innerHTML = `<div class="row" style="justify-content:space-between;"><div>${def.name}</div><div class="mini">${fmt(cost)}</div></div>`;
+    const desc = document.createElement('div');
+    desc.className = 'mini';
+    if(def.tip) desc.title = def.tip;
+    desc.textContent = def.desc;
+    card.appendChild(desc);
+    const btn = document.createElement('button');
+    btn.id = `upg-${def.id}`;
+    btn.textContent = label;
+    btn.disabled = disabled;
+    btn.setAttribute('aria-label', `${label} ${def.name} for ${fmt(cost)}`);
+    if(reason) btn.title = reason;
+    card.appendChild(btn);
+    if(disabled && reason){
+      const note = document.createElement('div');
+      note.className = 'mini';
+      note.textContent = reason;
+      card.appendChild(note);
+    }
+    root.appendChild(card);
 
-  for(const def of UPGRADES){
-    const btn = document.getElementById(`upg-${def.id}`);
-    if(!btn) continue;
     btn.addEventListener('click', () => {
       const bought = ctx.state.upgradePurchases[def.id] || 0;
       const cost = upgradeCost(def, bought);
@@ -101,5 +116,14 @@ export function renderUpgrades(ctx, toast){
       if(ctx.renderAll) ctx.renderAll();
       else renderUpgrades(ctx, toast);
     });
+  }
+
+  if(!any){
+    let msg = 'Tier 2 upgrades appear after at least one Tier 1.';
+    if(highestTierOwned(ctx) < 1) msg = 'Tier 1 upgrades appear first.';
+    const info = document.createElement('div');
+    info.className = 'mini';
+    info.textContent = msg;
+    root.appendChild(info);
   }
 }
