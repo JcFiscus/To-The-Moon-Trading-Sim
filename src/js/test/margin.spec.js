@@ -1,7 +1,7 @@
 import assert from 'assert';
 import { CFG, ASSET_DEFS } from '../config.js';
 import { createInitialState } from '../core/state.js';
-import { buy, sell } from '../core/trading.js';
+import { buy, sell, checkMargin } from '../core/trading.js';
 
 (function testMarginBuy(){
   const ctx = createInitialState(ASSET_DEFS.slice(0,1));
@@ -24,4 +24,24 @@ import { buy, sell } from '../core/trading.js';
   sell(ctx, 'H3', 10);
   assert.strictEqual(ctx.state.marginPositions.length, 0, 'margin lot removed after sell');
   assert(ctx.state.cash > 10000 - 1, 'cash increased after profitable sell');
+})();
+
+(function testLiquidation(){
+  const ctx = createInitialState(ASSET_DEFS.slice(0,1));
+  ctx.state.cash = 1000;
+  buy(ctx, 'H3', 10, { leverage:10 });
+  const lot = ctx.state.marginPositions[0];
+  ctx.assets[0].price = lot.liqPrice - 0.01;
+  checkMargin(ctx);
+  assert.strictEqual(ctx.state.marginPositions.length, 0, 'margin lot liquidated');
+})();
+
+(function test100xGameOver(){
+  const ctx = createInitialState(ASSET_DEFS.slice(0,1));
+  ctx.state.cash = 1000;
+  buy(ctx, 'H3', 1, { leverage:100 });
+  const lot = ctx.state.marginPositions[0];
+  ctx.assets[0].price = lot.liqPrice - 0.01;
+  checkMargin(ctx);
+  assert.strictEqual(ctx.gameOver, true, 'game over on 100x liquidation');
 })();
