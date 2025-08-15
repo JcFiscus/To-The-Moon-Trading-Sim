@@ -40,7 +40,16 @@
   <section class="mid-col">
     <div class="card">
       <div class="row" style="justify-content:space-between;">
-        <div>Chart: <b id="chartTitle"></b> <button id="chartToggle" aria-label="Toggle chart type">Candles</button></div>
+        <div class="row" style="align-items:center;">
+          <span>Chart: <b id="chartTitle"></b></span>
+          <button id="chartToggle" aria-label="Toggle chart type">Candles</button>
+          <div id="chartIntervals" class="row" style="margin-left:8px;">
+            <button class="chip-btn" data-interval="hour" aria-pressed="true">1H</button>
+            <button class="chip-btn" data-interval="day" aria-pressed="false">1D</button>
+            <button class="chip-btn" data-interval="week" aria-pressed="false">1W</button>
+            <button class="chip-btn" data-interval="month" aria-pressed="false">1M</button>
+          </div>
+        </div>
         <div class="row">
           <span class="tag">Prev close = dashed</span>
           <span class="tag">Boundaries = day ends</span>

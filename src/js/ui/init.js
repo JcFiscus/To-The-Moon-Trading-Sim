@@ -1,6 +1,7 @@
 import { initToaster } from './toast.js';
 import { buildMarketTable, renderMarketTable } from './table.js';
 import { drawChart, initChart } from './chart.js';
+import { CFG } from '../config.js';
 import { renderInsight } from './insight.js';
 import { renderAssetNewsTable, initNewsControls } from './newsAssets.js';
 import { renderHUD } from './hud.js';
@@ -78,6 +79,7 @@ export function initUI(ctx, handlers) {
   initNewsControls(ctx);
 
   ctx.chartMode = 'line';
+  ctx.chartInterval = 'hour';
   initChart(ctx);
   const chartToggle = document.getElementById('chartToggle');
   chartToggle.setAttribute('aria-pressed', false);
@@ -87,6 +89,32 @@ export function initUI(ctx, handlers) {
     chartToggle.setAttribute('aria-pressed', ctx.chartMode === 'candles');
     drawChart(ctx);
   });
+
+  const intervalBtns = document.querySelectorAll('#chartIntervals button');
+  intervalBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      ctx.chartInterval = btn.dataset.interval;
+      intervalBtns.forEach(b => b.setAttribute('aria-pressed', b === btn));
+      autoScaleChart();
+      drawChart(ctx);
+    });
+  });
+
+  function autoScaleChart(){
+    const parent = document.getElementById('chart').parentElement;
+    const w = parent.clientWidth;
+    let view;
+    switch(ctx.chartInterval){
+      case 'hour': view = CFG.DAY_TICKS; break;
+      case 'day': view = CFG.DAY_TICKS * 14; break;
+      case 'week': view = CFG.DAY_TICKS * 7 * 8; break;
+      case 'month': view = CFG.DAY_TICKS * 30 * 12; break;
+      default: view = CFG.DAY_TICKS; break;
+    }
+    ctx.chartZoom = (w / 2) / view;
+    ctx.chartOffset = 0;
+  }
+  autoScaleChart();
 
   const contrastBtn = document.getElementById('contrastBtn');
   if (contrastBtn) {
