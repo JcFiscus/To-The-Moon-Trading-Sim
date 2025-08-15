@@ -2,99 +2,225 @@ import { fmt, pct } from '../util/format.js';
 import { CFG } from '../config.js';
 import { openOptionsDialog } from './options.js';
 
-export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell, onOption }){
-  tbody.innerHTML = '';
-  for (const a of assets){
-    const tr = document.createElement('tr'); tr.dataset.sym = a.sym; if (a.isCrypto) tr.dataset.crypto = '1';
+export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell, onOption }) {
+  table.innerHTML = '';
+
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  ['Symbol', 'Name', 'Price', 'Δ', 'Analyst', 'Holdings', 'Value', 'Actions'].forEach(h => {
+    const th = document.createElement('th');
+    th.textContent = h;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+
+  const rows = [];
+  for (const a of assets) {
+    const tr = document.createElement('tr');
+    tr.dataset.sym = a.sym;
     tr.tabIndex = 0;
     tr.setAttribute('aria-label', `Select ${a.sym}`);
-    tr.innerHTML = `
-      <td><b>${a.sym}</b> <span class="mini">• ${a.name}</span></td>
-      <td class="price" id="p-${a.sym}"></td>
-      <td class="change" id="c-${a.sym}"></td>
-      <td id="an-${a.sym}"><span class="analyst neu">Neutral</span></td>
-      <td class="holdings" id="h-${a.sym}">0</td>
-      <td class="value" id="v-${a.sym}">$0.00</td>
-      <td class="trade">
-        <div class="trade-inputs">
-          <input class="qty" type="number" min="1" step="1" value="10" id="q-${a.sym}" />
-          ${state.upgrades.leverage>0 ? `<select class="lev" id="lv-${a.sym}" title="Leverage multiplier"></select>` : `<span class="lock" id="lv-${a.sym}" title="Unlock Leverage in Upgrades">\uD83D\uDD12</span>`}
-        </div>
-        <div class="trade-buttons">
-          <button class="accent" id="b-${a.sym}">Buy</button>
-          <button class="accent" id="bm-${a.sym}">Buy Max</button>
-          <button class="bad" id="s-${a.sym}">Sell</button>
-          ${state.upgrades.options ? `<button class="accent" id="o-${a.sym}">Opt</button>` : ''}
-        </div>
-      </td>`;
+
+    const symTd = document.createElement('td');
+    symTd.textContent = a.sym;
+    tr.appendChild(symTd);
+
+    const nameTd = document.createElement('td');
+    nameTd.textContent = a.name;
+    tr.appendChild(nameTd);
+
+    const priceTd = document.createElement('td');
+    priceTd.className = 'price';
+    priceTd.id = `p-${a.sym}`;
+    tr.appendChild(priceTd);
+
+    const changeTd = document.createElement('td');
+    changeTd.className = 'change';
+    changeTd.id = `c-${a.sym}`;
+    tr.appendChild(changeTd);
+
+    const analystTd = document.createElement('td');
+    analystTd.id = `an-${a.sym}`;
+    analystTd.innerHTML = '<span class="analyst neu">Neutral</span>';
+    tr.appendChild(analystTd);
+
+    const holdingsTd = document.createElement('td');
+    holdingsTd.className = 'holdings';
+    holdingsTd.id = `h-${a.sym}`;
+    holdingsTd.textContent = '0';
+    tr.appendChild(holdingsTd);
+
+    const valueTd = document.createElement('td');
+    valueTd.className = 'value';
+    valueTd.id = `v-${a.sym}`;
+    valueTd.textContent = '$0.00';
+    tr.appendChild(valueTd);
+
+    const tradeTd = document.createElement('td');
+    tradeTd.className = 'trade';
+
+    const tradeInputs = document.createElement('div');
+    tradeInputs.className = 'trade-inputs';
+
+    const qtyId = `q-${a.sym}`;
+    const qtyLabel = document.createElement('label');
+    qtyLabel.htmlFor = qtyId;
+    qtyLabel.textContent = 'Quantity';
+    qtyLabel.className = 'sr-only';
+    const qtyInput = document.createElement('input');
+    qtyInput.className = 'qty';
+    qtyInput.type = 'number';
+    qtyInput.min = '1';
+    qtyInput.step = '1';
+    qtyInput.value = '10';
+    qtyInput.id = qtyId;
+    qtyInput.setAttribute('aria-label', `Quantity for ${a.sym}`);
+    tradeInputs.append(qtyLabel, qtyInput);
+
+    let levSel;
+    if (state.upgrades.leverage > 0) {
+      const levId = `lv-${a.sym}`;
+      const levLabel = document.createElement('label');
+      levLabel.htmlFor = levId;
+      levLabel.textContent = 'Leverage';
+      levLabel.className = 'sr-only';
+      levSel = document.createElement('select');
+      levSel.className = 'lev';
+      levSel.id = levId;
+      levSel.setAttribute('aria-label', `Leverage for ${a.sym}`);
+      const levels = CFG.LEVERAGE_LEVELS.slice(0, state.upgrades.leverage + 1);
+      const last = state.ui?.lastLev?.[a.sym] || 1;
+      levels.forEach(lv => {
+        const opt = document.createElement('option');
+        opt.value = lv;
+        opt.textContent = lv + 'x';
+        if (lv === last) opt.selected = true;
+        levSel.appendChild(opt);
+      });
+      levSel.addEventListener('change', e => {
+        state.ui.lastLev[a.sym] = parseInt(e.target.value, 10);
+      });
+      tradeInputs.append(levLabel, levSel);
+    } else {
+      const lock = document.createElement('span');
+      lock.className = 'lock';
+      lock.id = `lv-${a.sym}`;
+      lock.setAttribute('aria-label', 'Unlock leverage in Upgrades');
+      lock.textContent = '\uD83D\uDD12';
+      tradeInputs.appendChild(lock);
+    }
+
+    tradeTd.appendChild(tradeInputs);
+
+    const tradeButtons = document.createElement('div');
+    tradeButtons.className = 'trade-buttons';
+
+    const buyBtn = document.createElement('button');
+    buyBtn.className = 'accent';
+    buyBtn.id = `b-${a.sym}`;
+    buyBtn.textContent = 'Buy';
+    buyBtn.setAttribute('aria-label', `Buy ${a.sym}`);
+    tradeButtons.appendChild(buyBtn);
+
+    const buyMaxBtn = document.createElement('button');
+    buyMaxBtn.className = 'accent';
+    buyMaxBtn.id = `bm-${a.sym}`;
+    buyMaxBtn.textContent = 'Buy Max';
+    buyMaxBtn.setAttribute('aria-label', `Buy max ${a.sym}`);
+    tradeButtons.appendChild(buyMaxBtn);
+
+    const sellBtn = document.createElement('button');
+    sellBtn.className = 'bad';
+    sellBtn.id = `s-${a.sym}`;
+    sellBtn.textContent = 'Sell';
+    sellBtn.setAttribute('aria-label', `Sell ${a.sym}`);
+    tradeButtons.appendChild(sellBtn);
+
+    let optBtn;
+    if (state.upgrades.options) {
+      optBtn = document.createElement('button');
+      optBtn.className = 'accent';
+      optBtn.id = `o-${a.sym}`;
+      optBtn.textContent = 'Opt';
+      optBtn.setAttribute('aria-label', `Options for ${a.sym}`);
+      tradeButtons.appendChild(optBtn);
+      optBtn.addEventListener('click', () => {
+        openOptionsDialog(a, opt => {
+          onOption && onOption(a.sym, opt);
+        });
+      });
+    }
+
+    tradeTd.appendChild(tradeButtons);
+    tr.appendChild(tradeTd);
     tbody.appendChild(tr);
-    tr.addEventListener('click', (e) => {
+
+    tr.addEventListener('click', e => {
       const tag = e.target.tagName;
-      if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT') return;
-      if (e.target.classList.contains('qty')) return;
+      if (['BUTTON', 'INPUT', 'SELECT', 'LABEL'].includes(tag)) return;
       onSelect(a.sym);
     });
-    tr.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
+
+    tr.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = rows[(rows.indexOf(tr) + 1) % rows.length];
+        next.focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = rows[(rows.indexOf(tr) - 1 + rows.length) % rows.length];
+        prev.focus();
+      } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         onSelect(a.sym);
       }
     });
-    if (state.upgrades.leverage>0) {
-      const sel = document.getElementById(`lv-${a.sym}`);
-      const levels = CFG.LEVERAGE_LEVELS.slice(0, state.upgrades.leverage+1);
-      const last = state.ui?.lastLev?.[a.sym] || 1;
-      for (const lv of levels) {
-        const opt = document.createElement('option');
-        opt.value = lv; opt.textContent = lv+'x';
-        if (lv === last) opt.selected = true;
-        sel.appendChild(opt);
-      }
-      sel.addEventListener('change', (e)=>{ state.ui.lastLev[a.sym] = parseInt(e.target.value,10); });
-    }
-    document.getElementById(`b-${a.sym}`).addEventListener('click', () => {
-      const qty = parseInt(document.getElementById(`q-${a.sym}`).value || '0', 10);
-      const lev = state.upgrades.leverage>0 ? parseInt(document.getElementById(`lv-${a.sym}`).value,10) : 1;
+
+    const getLev = () => (state.upgrades.leverage > 0 ? parseInt(levSel.value, 10) : 1);
+    buyBtn.addEventListener('click', () => {
+      const qty = parseInt(qtyInput.value || '0', 10);
+      const lev = getLev();
       onBuy(a.sym, qty, lev);
     });
-    document.getElementById(`bm-${a.sym}`).addEventListener('click', () => {
+    buyMaxBtn.addEventListener('click', () => {
       const price = a.price;
       let qty = Math.floor((state.cash - state.minFee) / price);
       if (qty < 0) qty = 0;
       while (qty > 0) {
         const fee = Math.max(state.minFee, qty * price * state.feeRate);
-        const lev = state.upgrades.leverage>0 ? parseInt(document.getElementById(`lv-${a.sym}`).value,10) : 1;
-        const cost = qty * price * (lev>1?1/lev:1) + fee;
+        const lev = getLev();
+        const cost = qty * price * (lev > 1 ? 1 / lev : 1) + fee;
         if (cost <= state.cash) break;
         qty--;
       }
-      const lev = state.upgrades.leverage>0 ? parseInt(document.getElementById(`lv-${a.sym}`).value,10) : 1;
+      const lev = getLev();
       onBuy(a.sym, qty, lev);
     });
-    document.getElementById(`s-${a.sym}`).addEventListener('click', () => {
-      const qty = parseInt(document.getElementById(`q-${a.sym}`).value || '0', 10);
-      const lev = state.upgrades.leverage>0 ? parseInt(document.getElementById(`lv-${a.sym}`).value,10) : 1;
+    sellBtn.addEventListener('click', () => {
+      const qty = parseInt(qtyInput.value || '0', 10);
+      const lev = getLev();
       onSell(a.sym, qty, lev);
     });
-    if (state.upgrades.options) {
-      document.getElementById(`o-${a.sym}`).addEventListener('click', () => {
-        openOptionsDialog(a, (opt) => { onOption && onOption(a.sym, opt); });
-      });
-    }
+
+    rows.push(tr);
   }
 }
 
-export function renderMarketTable(ctx){
-  for (const a of ctx.assets){
-    const price = a.price, prev = a.history[a.history.length-2] || price;
-    const d = price/prev - 1;
+export function renderMarketTable(ctx) {
+  for (const a of ctx.assets) {
+    const price = a.price, prev = a.history[a.history.length - 2] || price;
+    const d = price / prev - 1;
     const pEl = document.getElementById(`p-${a.sym}`);
     const cEl = document.getElementById(`c-${a.sym}`);
     const hEl = document.getElementById(`h-${a.sym}`);
     const vEl = document.getElementById(`v-${a.sym}`);
     if (pEl) pEl.textContent = fmt(price);
-    if (cEl) { cEl.textContent = pct(d); cEl.className = 'change ' + (d>=0?'up':'down'); }
-    const margin = (ctx.state.marginPositions||[]).filter(l=>l.sym===a.sym).reduce((s,l)=>s+l.qty,0);
+    if (cEl) { cEl.textContent = pct(d); cEl.className = 'change ' + (d >= 0 ? 'up' : 'down'); }
+    const margin = (ctx.state.marginPositions || []).filter(l => l.sym === a.sym).reduce((s, l) => s + l.qty, 0);
     const have = (ctx.state.positions[a.sym] || 0) + margin;
     if (hEl) hEl.textContent = have.toLocaleString();
     if (vEl) vEl.textContent = fmt(have * price);
@@ -104,13 +230,11 @@ export function renderMarketTable(ctx){
     const conf = Math.round((a.analyst?.conf || 0.5) * 100);
     if (badge) badge.innerHTML = `<span class="analyst ${cls}">${t}</span> <span class="mini">(${conf}% conf)</span>`;
 
-    const tr = document.querySelector(`tr[data-sym="${a.sym}"]`);
+    const tr = document.querySelector(`#marketTable tr[data-sym="${a.sym}"]`);
     if (tr) {
-      if (a.isCrypto) {
-        tr.style.display = (ctx.state.upgrades.crypto && ctx.marketTab === 'crypto') ? '' : 'none';
-      } else {
-        tr.style.display = (ctx.marketTab === 'crypto') ? 'none' : '';
-      }
+      tr.classList.toggle('selected', ctx.selected === a.sym);
+      tr.setAttribute('aria-selected', ctx.selected === a.sym);
     }
   }
 }
+
