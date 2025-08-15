@@ -46,15 +46,49 @@ export function applyOvernightOutlook(ctx){
   const { market, assets } = ctx;
   const global = market.tomorrow.filter(e=>e.scope==="global");
   const assetEvs = market.tomorrow.filter(e=>e.scope==="asset");
-  const gMu  = global.reduce((s,e)=>s+e.mu,0);
-  const gDem = global.reduce((s,e)=>s+e.demand,0);
-  market.lastGmu = gMu; market.lastGdem = gDem;
+
+  let gGapMu=0, gGapDem=0, gCarryMu=0, gCarryDem=0, gDays=0;
+  for(const ev of global){
+    const gapMu = ev.mu*0.5;
+    const gapDem = ev.demand*0.5;
+    gGapMu += gapMu;
+    gGapDem += gapDem;
+    gCarryMu += ev.mu - gapMu;
+    gCarryDem += ev.demand - gapDem;
+    gDays = Math.max(gDays, ev.days||0);
+  }
+
+  const perAsset = new Map();
+  for(const ev of assetEvs){
+    const gapMu = ev.mu*0.5;
+    const gapDem = ev.demand*0.5;
+    const carryMu = ev.mu - gapMu;
+    const carryDem = ev.demand - gapDem;
+    const arr = perAsset.get(ev.sym) || [];
+    arr.push({gapMu, gapDem, carryMu, carryDem, sigma:ev.sigma, days:ev.days});
+    perAsset.set(ev.sym, arr);
+    const src = assets.find(a=>a.sym===ev.sym);
+    if (src){
+      const peers = assets.filter(a=>a.sector===src.sector && a.sym!==ev.sym);
+      for(const p of peers){
+        const arrN = perAsset.get(p.sym) || [];
+        arrN.push({gapMu:0, gapDem:0, carryMu:carryMu/3, carryDem:carryDem/3, sigma:ev.sigma/3, days:ev.days});
+        perAsset.set(p.sym, arrN);
+      }
+    }
+  }
+
+  market.lastGmu = gCarryMu; market.lastGdem = gCarryDem;
 
   for(const a of assets){
-    const evs = assetEvs.filter(e=>e.sym===a.sym);
-    const evMu   = evs.reduce((s,e)=>s+e.mu,0);
-    const evDem  = evs.reduce((s,e)=>s+e.demand,0);
-    const evVol  = evs.reduce((s,e)=>s+Math.abs(e.sigma),0) + Math.abs(gMu)*0.5;
+    const evs = perAsset.get(a.sym) || [];
+    const assetGapMu = evs.reduce((s,e)=>s+e.gapMu,0);
+    const assetGapDem = evs.reduce((s,e)=>s+e.gapDem,0);
+    const assetCarryMu = evs.reduce((s,e)=>s+e.carryMu,0);
+    const assetCarryDem = evs.reduce((s,e)=>s+e.carryDem,0);
+    const evVol = evs.reduce((s,e)=>s+Math.abs(e.sigma),0) + Math.abs(gGapMu)*0.5;
+    const evDays = evs.reduce((m,e)=>Math.max(m,e.days||0),0);
+    const totalDays = Math.max(evDays, gDays);
 
     // fair drift
     const fairDrift = CFG.FAIR_ACCEL * CFG.DAY_TICKS;
@@ -65,13 +99,31 @@ export function applyOvernightOutlook(ctx){
     if (ratio > 1.2 || ratio < 0.8){
       valuation = -CFG.MR_K_OVERNIGHT * Math.log(ratio) * CFG.DAY_TICKS;
     }
-    const demandTerm = (0.0007*(a.localDemand-1) + 0.0005*(ctx.market.demand-1 + gDem + evDem)) * CFG.DAY_TICKS;
+    const demandTerm = (0.0007*(a.localDemand-1) + 0.0005*(ctx.market.demand-1 + gCarryDem + assetCarryDem)) * CFG.DAY_TICKS;
     const L = x => (1/(1+Math.exp(-CFG.STREAK_FATIGUE_K*x)) - 0.5) * 2;
     const dist = Math.abs(Math.log(Math.max(0.2,a.price)/Math.max(0.2,a.fair)));
     const fatigue = Math.sign(a.streak) * L(Math.abs(a.streak)) * L(dist) * CFG.STREAK_FATIGUE_MAX * CFG.DAY_TICKS;
 
-    let mu    = gMu + evMu + valuation - fatigue + demandTerm;
-    let sigma = clamp(0.006 + evVol*0.6 + Math.abs(gDem)*0.15, 0.006, 0.10);
+    const carryMu = gCarryMu + assetCarryMu;
+    const carryDem = gCarryDem + assetCarryDem;
+
+    a.evMuCarry = clamp(a.evMuCarry + carryMu, -0.02, 0.02);
+    if (carryMu !== 0){
+      const d = Math.max(2, Math.min(5, totalDays || 3));
+      a.evMuDays = Math.max(a.evMuDays, d);
+    }
+
+    if (carryDem !== 0){
+      a.evDemandBias = clamp(a.evDemandBias + carryDem, -0.6, 0.6);
+      const d = Math.max(2, Math.min(5, totalDays || 3));
+      a.evDemandDays = Math.max(a.evDemandDays, d);
+      if (carryDem > 0){
+        for(const b of assets){ if(b!==a && b.sector !== a.sector) b.evDemandBias = clamp(b.evDemandBias - carryDem*CFG.OPP_COST_SPILL, -0.6,0.6); }
+      }
+    }
+
+    let mu = a.evMuCarry + valuation - fatigue + demandTerm;
+    let sigma = clamp(0.006 + evVol*0.6 + Math.abs(gCarryDem)*0.15, 0.006, 0.10);
 
     // Moon coin burst dynamics
     if (a.sym === 'MOON') {
@@ -104,18 +156,11 @@ export function applyOvernightOutlook(ctx){
       sigma += tip.sigma * mult;
       sigma = clamp(sigma, 0.006, 0.12);
     }
-    const gap   = clamp( (gMu*CFG.DAY_TICKS*0.35) + (evMu*CFG.DAY_TICKS*0.75) + (evDem*0.55), -CFG.OPEN_GAP_CAP, CFG.OPEN_GAP_CAP);
+    const gap = clamp( (gGapMu*CFG.DAY_TICKS*0.35) + (assetGapMu*CFG.DAY_TICKS*0.75) + ((gGapDem+assetGapDem)*0.55), -CFG.OPEN_GAP_CAP, CFG.OPEN_GAP_CAP);
 
     a.daySigma = sigma;
     a.outlook = { mu, sigma, gap };
-    a.outlookDetail = { gMu, evMu, evDem, valuation, fatigue, demandTerm };
-
-    if (evDem !== 0) {
-      a.evDemandBias = clamp(a.evDemandBias + evDem, -0.6, 0.6);
-      if (evDem > 0){
-        for(const b of assets){ if(b!==a) b.evDemandBias = clamp(b.evDemandBias - evDem*CFG.OPP_COST_SPILL, -0.6, 0.6); }
-      }
-    }
+    a.outlookDetail = { gMu: gCarryMu, evMu: assetCarryMu, evDem: assetCarryDem, valuation, fatigue, demandTerm };
   }
 
   market.tomorrow = [];

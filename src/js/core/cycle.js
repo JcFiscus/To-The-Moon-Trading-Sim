@@ -3,6 +3,7 @@ import { randomEvent, randomSupplyEvent, pushAssetNews } from './events.js';
 import { CFG } from '../config.js';
 import { checkMargin } from './trading.js';
 import { updateOptions } from './options.js';
+import { clamp } from '../util/math.js';
 
 export function startDay(ctx, cfg=CFG, hooks){
   if (ctx.state.insiderTip && ctx.state.insiderTip.daysLeft > 0) {
@@ -45,6 +46,9 @@ export function stepTick(ctx, cfg, rng, hooks){
 
   if (!ctx.day.midEventFired && Math.random() < cfg.INTRADAY_EVENT_P){
     const ev = randomEvent(ctx, rng); ev.mu *= cfg.INTRADAY_IMPACT_SCALE; ev.sigma *= cfg.INTRADAY_IMPACT_SCALE;
+    const cap = cfg.OPEN_GAP_CAP * 0.5;
+    ev.mu = clamp(ev.mu, -cap, cap);
+    ev.demand = clamp(ev.demand, -cap, cap);
     ev.timing = 'intraday'; ev.t = cfg.DAY_TICKS * 2;
     ctx.market.activeEvents.push(ev);
     hooks?.log?.(`${ev.scope==='global'?'GLOBAL':ev.sym}: ${ev.title} (intraday) — ${ev.blurb}`);
@@ -81,7 +85,16 @@ export function endDay(ctx, cfg=CFG, hooks){
     const startIdx = a.dayBounds[Math.max(0, a.dayBounds.length - span)] || 0;
     const recentMin = Math.min(...a.history.slice(startIdx));
     a.runStart = recentMin;
-    a.evDemandBias *= cfg.EVENT_DEMAND_DECAY;
+    if (a.evMuDays > 0){
+      a.evMuCarry *= cfg.EVENT_MU_DECAY;
+      a.evMuDays--;
+      if (a.evMuDays <= 0) a.evMuCarry = 0;
+    }
+    if (a.evDemandDays > 0){
+      a.evDemandBias *= cfg.EVENT_DEMAND_DECAY;
+      a.evDemandDays--;
+      if (a.evDemandDays <= 0) a.evDemandBias = 0;
+    }
 
     // Only include positions actually held; gate crypto behind upgrade
     const hadPosition = startHold > 0 || endHold > 0;
