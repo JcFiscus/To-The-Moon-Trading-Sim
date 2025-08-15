@@ -1,7 +1,5 @@
 import { CFG, ASSET_DEFS } from './config.js';
 import { createRNG } from './util/rng.js';
-import { fmt } from './util/format.js';
-import { clamp } from './util/math.js';
 
 import { createInitialState } from './core/state.js';
 import { startDay, stepTick, endDay, enqueueAfterHours } from './core/cycle.js';
@@ -9,6 +7,7 @@ import { computeAnalyst } from './core/priceModel.js';
 import { buy, sell } from './core/trading.js';
 import { buyOption } from './core/options.js';
 import { evaluateRisk } from './core/risk.js';
+import { save as saveGame, load as loadGame, SAVE_VERSION } from './core/persist.js';
 
 import { initToaster } from './ui/toast.js';
 import { buildMarketTable, renderMarketTable } from './ui/table.js';
@@ -19,6 +18,7 @@ import { showSummary, showGameOver } from './ui/modal.js';
 import { initRiskTools } from './ui/risktools.js';
 import { renderPortfolio } from './ui/portfolio.js';
 import { renderUpgrades } from './ui/upgrades.js';
+import { renderHUD } from './ui/hud.js';
 
 const toast = initToaster();
 const log = (msg)=>console.log(msg);
@@ -87,10 +87,7 @@ document.getElementById('chartToggle').addEventListener('click', () => {
 // Controls
 document.getElementById('startBtn').addEventListener('click', () => start());
 document.getElementById('saveBtn').addEventListener('click', () => {
-  localStorage.setItem('ttm_save', JSON.stringify({
-    version: 6, state: ctx.state, market: ctx.market,
-    assets: ctx.assets.map(a => ({ ...a, history: a.history.slice(-700) }))
-  }));
+  saveGame(ctx.state, ctx.market, ctx.assets, SAVE_VERSION);
   log('Save complete.');
 });
 document.getElementById('resetBtn').addEventListener('click', () => {
@@ -100,21 +97,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
 });
 
 // Load if present
-try {
-  const raw = localStorage.getItem('ttm_save');
-  if (raw) {
-    const s = JSON.parse(raw);
-    Object.assign(ctx.state, s.state || {});
-    Object.assign(ctx.market, s.market || {});
-    for (const a of ctx.assets) {
-      const m = (s.assets || []).find(x => x.sym === a.sym);
-      if (!m) continue;
-      Object.assign(a, m);
-      a.history = Array.isArray(m.history) && m.history.length ? m.history : a.history;
-    }
-    log('Save loaded.');
-  }
-} catch { /* ignore */ }
+if (loadGame(ctx, SAVE_VERSION)) log('Save loaded.');
 
 // Risk Tools UI
 initRiskTools(document.getElementById('riskTools'), ctx, toast);
@@ -170,30 +153,8 @@ function start() {
   }, 1000);
 }
 
-// Derived values
-function portfolioValue() {
-  let v = 0;
-  for (const a of ctx.assets) v += (ctx.state.positions[a.sym] || 0) * a.price;
-  for (const m of ctx.state.marginPositions){
-    const a = ctx.assets.find(x => x.sym === m.sym);
-    if (a) v += m.qty * a.price;
-  }
-  return v;
-}
-function netWorth() { return ctx.state.cash + portfolioValue() - ctx.state.debt; }
-
-function renderHUD() {
-  document.getElementById('dayNum').textContent = ctx.day.idx;
-  document.getElementById('dayTimer').textContent = ctx.day.active ? String(ctx.day.ticksLeft).padStart(2, '0') + 's' : '—s';
-  document.getElementById('cash').textContent = fmt(ctx.state.cash);
-  document.getElementById('debt').textContent = fmt(ctx.state.debt);
-  document.getElementById('assets').textContent = fmt(portfolioValue());
-  document.getElementById('net').textContent = fmt(netWorth());
-  const riskPct = clamp((ctx.market.risk - 0.05) / 1.15 * 100, 0, 100);
-  document.getElementById('riskPct').textContent = Math.round(riskPct) + '%';
-}
 function renderAll() {
-  renderHUD();
+  renderHUD(ctx);
   renderMarketTable(ctx);
   drawChart(ctx);
   renderInsight(ctx);
