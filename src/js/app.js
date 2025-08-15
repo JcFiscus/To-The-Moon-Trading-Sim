@@ -35,21 +35,25 @@ ctx.marketTab = 'stocks';
 document.getElementById('chartTitle').textContent =
   `${ctx.selected} — ${ctx.assets.find(a => a.sym === ctx.selected).name}`;
 
-// Build market table with module trading
-  buildMarketTable({
-    tbody: document.getElementById('tbody'),
-    assets: ctx.assets,
-    state: ctx.state,
-    onSelect: (sym) => {
-      ctx.selected = sym;
-      document.getElementById('chartTitle').textContent =
-        `${sym} — ${ctx.assets.find(a => a.sym === sym).name}`;
-      renderAll();
-    },
-    onBuy: (sym, qty, lev) => { buy(ctx, sym, qty, { leverage: lev, log }); renderAll(); },
-    onSell: (sym, qty, lev) => { sell(ctx, sym, qty, { leverage: lev, log }); renderAll(); },
-    onOption: (sym, opt) => { buyOption(ctx, sym, opt.type, opt.strike, opt.dte, opt.qty, { log }); renderAll(); }
-  });
+// Build market table with modular trading
+  function rebuildMarketTable(){
+    buildMarketTable({
+      tbody: document.getElementById('tbody'),
+      assets: ctx.assets,
+      state: ctx.state,
+      onSelect: (sym) => {
+        ctx.selected = sym;
+        document.getElementById('chartTitle').textContent =
+          `${sym} — ${ctx.assets.find(a => a.sym === sym).name}`;
+        renderAll();
+      },
+      onBuy: (sym, qty, lev) => { buy(ctx, sym, qty, { leverage: lev, log }); renderAll(); },
+      onSell: (sym, qty, lev) => { sell(ctx, sym, qty, { leverage: lev, log }); renderAll(); },
+      onOption: (sym, opt) => { buyOption(ctx, sym, opt.type, opt.strike, opt.dte, opt.qty, { log }); renderAll(); }
+    });
+  }
+  ctx.rebuildMarketTable = rebuildMarketTable;
+  rebuildMarketTable();
 
   const tabs = document.createElement('div');
   tabs.id = 'marketTabs';
@@ -198,6 +202,7 @@ function renderAll() {
   renderUpgrades(ctx, toast);
   ctx.renderMarketTabs();
 }
+ctx.renderAll = renderAll;
 
 // Initial render
 document.getElementById('chartTitle').textContent =
