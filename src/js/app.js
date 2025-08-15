@@ -30,11 +30,6 @@ const btnHardReset = $('#btn-hard-reset');
 const chartCanvas = $('#price-chart');
 let lastNet = netWorth(state);
 
-// Safely set textContent when element exists
-const setText = (el, txt) => {
-  if (el) el.textContent = txt;
-};
-
 // --- Utils
 const fmtMoney = (n) =>
   (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -46,14 +41,14 @@ const fmtCompact = (n) =>
 function startDay() {
   if (tickTimer) return;
   dayLeft = state.secondsPerDay;
-  if (btnStart) btnStart.textContent = '⏸ Pause';
+  btnStart.textContent = '⏸ Pause';
   tickTimer = setInterval(tick, 1000);
 }
 
 function pauseDay() {
   clearInterval(tickTimer);
   tickTimer = null;
-  if (btnStart) btnStart.textContent = '▶ Start Day';
+  btnStart.textContent = '▶ Start Day';
 }
 
 function tick() {
@@ -66,7 +61,7 @@ function tick() {
 
   // 3) countdown
   dayLeft -= 1;
-  setText(hudTime, `${dayLeft}s`);
+  hudTime.textContent = `${dayLeft}s`;
 
   if (dayLeft <= 0) endOfDay();
 }
@@ -93,13 +88,13 @@ function endOfDay() {
   persist(state);
 
   // modal summary
-  setText(eodDay, state.day);
-  setText(eodNetChange, `${delta >= 0 ? '+' : ''}${fmtMoney(delta)} (Net: ${fmtCompact(nw)})`);
-  if (eodNetChange) eodNetChange.className = delta >= 0 ? 'pos' : 'neg';
-  setText(eodBest, `${best.sym} ${best.change >= 0 ? '▲' : '▼'} ${fmtMoney(best.change)}`);
-  setText(eodWorst, `${worst.sym} ${worst.change >= 0 ? '▲' : '▼'} ${fmtMoney(worst.change)}`);
+  eodDay.textContent = state.day;
+  eodNetChange.textContent = `${delta >= 0 ? '+' : ''}${fmtMoney(delta)} (Net: ${fmtCompact(nw)})`;
+  eodNetChange.className = delta >= 0 ? 'pos' : 'neg';
+  eodBest.textContent = `${best.sym} ${best.change >= 0 ? '▲' : '▼'} ${fmtMoney(best.change)}`;
+  eodWorst.textContent = `${worst.sym} ${worst.change >= 0 ? '▲' : '▼'} ${fmtMoney(worst.change)}`;
 
-  if (eodModal && typeof eodModal.showModal === 'function') eodModal.showModal();
+  if (typeof eodModal.showModal === 'function') eodModal.showModal();
   else alert(`Day ${state.day} • Net change: ${delta >= 0 ? '+' : ''}${fmtMoney(delta)}`);
 }
 
@@ -107,12 +102,12 @@ function refreshHUD() {
   const assetsValue = state.assets.reduce((s, a) => s + a.qty * a.price, 0);
   const nw = netWorth(state);
 
-  setText(hudDay, state.day);
-  setText(hudCash, fmtMoney(state.cash));
-  setText(hudDebt, fmtMoney(state.debt));
-  setText(hudAssets, fmtMoney(assetsValue));
-  setText(hudNet, fmtMoney(nw));
-  setText(hudRisk, `${riskPct(state)}%`);
+  hudDay.textContent = state.day;
+  hudCash.textContent = fmtMoney(state.cash);
+  hudDebt.textContent = fmtMoney(state.debt);
+  hudAssets.textContent = fmtMoney(assetsValue);
+  hudNet.textContent = fmtMoney(nw);
+  hudRisk.textContent = `${riskPct(state)}%`;
 
   drawChart(chartCanvas, state);
 }
@@ -189,26 +184,23 @@ function drawChart(canvas, s) {
 }
 
 // --- Buttons & wiring
-btnStart && btnStart.addEventListener('click', () => (tickTimer ? pauseDay() : startDay()));
-btnSave && btnSave.addEventListener('click', () => persist(state));
-btnHelp &&
-  btnHelp.addEventListener('click', () =>
-    alert('Buy low, sell high, sip coffee. Days are short; news hits after hours. Autosave at day end.')
-  );
-btnContrast &&
-  btnContrast.addEventListener('click', () => {
-    document.documentElement.classList.toggle('high-contrast');
-  });
-btnHardReset &&
-  btnHardReset.addEventListener('click', () => {
-    if (confirm('Hard reset and clear local save?')) {
-      pauseDay();
-      state = hardReset();
-      lastNet = netWorth(state);
-      refreshHUD();
-      renderTable(state, onSelectAsset, onTrade);
-    }
-  });
+btnStart.addEventListener('click', () => (tickTimer ? pauseDay() : startDay()));
+btnSave.addEventListener('click', () => persist(state));
+btnHelp.addEventListener('click', () =>
+  alert('Buy low, sell high, sip coffee. Days are short; news hits after hours. Autosave at day end.')
+);
+btnContrast.addEventListener('click', () => {
+  document.documentElement.classList.toggle('high-contrast');
+});
+btnHardReset.addEventListener('click', () => {
+  if (confirm('Hard reset and clear local save?')) {
+    pauseDay();
+    state = hardReset();
+    lastNet = netWorth(state);
+    refreshHUD();
+    renderTable(state, onSelectAsset, onTrade);
+  }
+});
 
 // Table event delegation
 bindTableHandlers(onSelectAsset, onTrade);
