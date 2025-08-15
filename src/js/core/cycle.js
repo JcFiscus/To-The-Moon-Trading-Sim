@@ -2,6 +2,7 @@ import { applyOvernightOutlook, applyOpeningGaps, updatePrices, riskDrift, deman
 import { randomEvent, randomSupplyEvent, pushAssetNews } from './events.js';
 import { CFG } from '../config.js';
 import { checkMargin } from './trading.js';
+import { updateOptions } from './options.js';
 
 export function startDay(ctx, cfg=CFG, hooks){
   if (ctx.state.insiderTip && ctx.state.insiderTip.daysLeft > 0) {
@@ -52,6 +53,7 @@ export function stepTick(ctx, cfg, rng, hooks){
   }
 
   updatePrices(ctx, rng);
+  updateOptions(ctx, cfg);
   checkMargin(ctx, hooks);
   ctx.market.activeEvents = ctx.market.activeEvents.map(ev => ({...ev, t:(ev.t||10)-1})).filter(ev => ev.t > 0);
 

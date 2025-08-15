@@ -1,7 +1,8 @@
 import { fmt, pct } from '../util/format.js';
 import { CFG } from '../config.js';
+import { openOptionsDialog } from './options.js';
 
-export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell }){
+export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell, onOption }){
   tbody.innerHTML = '';
   for (const a of assets){
     const tr = document.createElement('tr'); tr.dataset.sym = a.sym;
@@ -19,6 +20,7 @@ export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell
           <button class="accent" id="b-${a.sym}">Buy</button>
           <button class="accent" id="bm-${a.sym}">Buy Max</button>
           <button class="bad" id="s-${a.sym}">Sell</button>
+          ${state.upgrades.options ? `<button class="accent" id="o-${a.sym}">Opt</button>` : ''}
         </div>
       </td>`;
     tbody.appendChild(tr);
@@ -62,6 +64,11 @@ export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell
       const lev = state.upgrades.leverage>0 ? parseInt(document.getElementById(`lv-${a.sym}`).value,10) : 1;
       onSell(a.sym, qty, lev);
     });
+    if (state.upgrades.options) {
+      document.getElementById(`o-${a.sym}`).addEventListener('click', () => {
+        openOptionsDialog(a, (opt) => { onOption && onOption(a.sym, opt); });
+      });
+    }
   }
 }
 
