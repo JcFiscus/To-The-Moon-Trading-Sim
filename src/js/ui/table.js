@@ -1,6 +1,4 @@
 // src/js/ui/table.js
-const tbody = document.getElementById('assets-body');
-
 const fmtPrice = (n) => '$' + n.toFixed(2);
 const fmtQty = (n) => n.toLocaleString();
 const fmtVal = (n) =>
@@ -8,7 +6,9 @@ const fmtVal = (n) =>
 const deltaClass = (d) => (d > 0 ? 'pos' : d < 0 ? 'neg' : '');
 
 export function renderTable(state, onSelect, onTrade) {
+  const tbody = document.getElementById('assets-body'); // ← query at render time
   if (!tbody) return;
+
   tbody.innerHTML = '';
   for (const a of state.assets) {
     const tr = document.createElement('tr');
@@ -47,7 +47,6 @@ export function renderTable(state, onSelect, onTrade) {
     if (t.classList.contains('select')) {
       const sym = t.dataset.sym;
       onSelect && onSelect(sym);
-      // visual select
       [...tbody.children].forEach((row) => row.classList.toggle('selected', row.dataset.sym === sym));
       return;
     }
@@ -62,11 +61,10 @@ export function renderTable(state, onSelect, onTrade) {
   function computeMaxBuy(sym) {
     const a = state.assets.find((x) => x.sym === sym);
     if (!a) return 0;
-    return Math.max(0, Math.floor((state.cash / a.price) * 0.95)); // keep a bit of cash
+    return Math.max(0, Math.floor((state.cash / a.price) * 0.95));
   }
 }
 
-export function bindTableHandlers(onSelect, onTrade) {
-  // Placeholder: kept for symmetry if you later add keyboard handlers, sorting, etc.
-  // Currently all events are bound via event delegation inside renderTable.
+export function bindTableHandlers(/* onSelect, onTrade */) {
+  // placeholder for future hotkeys / sort wiring
 }
