@@ -14,6 +14,8 @@ export const EVENT_POOL = [
   {scope:"asset", sym:"SOL",  title:"Sail tear recall",  type:"recall",   mu:-0.0011, sigma:+0.012, demand:-0.10, days:2, severity:"major", blurb:"Retrofit program announced."},
   {scope:'global', title:'Options expiration gamma squeeze', type:'options_flow', mu:+0.0014, sigma:+0.012, demand:+0.06, days:2, severity:'major', blurb:'Dealer gamma flip fuels upside.', requires:['options']},
   {scope:'asset', sym:'BTC', title:'New exchange listing', type:'crypto_flow', mu:+0.0018, sigma:+0.016, demand:+0.09, days:3, severity:'major', blurb:'Liquidity surge from new venue.', requires:['crypto']},
+  {scope:'asset', sym:'ETH', title:'Staking yield spike', type:'crypto_flow', mu:+0.0015, sigma:+0.014, demand:+0.08, days:3, severity:'major', blurb:'Validators flock after upgrade.', requires:['crypto']},
+  {scope:'asset', sym:'MOON', title:'Moonshot social buzz', type:'crypto_flow', mu:+0.0025, sigma:+0.020, demand:+0.12, days:2, severity:'major', blurb:'Viral meme drives FOMO.', requires:['crypto']},
   {scope:'asset', sym:'{TIP_SYM}', title:'Whispers on the street', type:'insider', mu:+0.0010, sigma:+0.010, demand:+0.05, days:2, severity:'minor', blurb:'Unusual chatter favors near‑term upside.', requires:['insider']}
 ];
 

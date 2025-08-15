@@ -30,7 +30,8 @@ const rng = createRNG(seed);
 
 // Engine state
 const ctx = createInitialState(ASSET_DEFS);
-ctx.selected = ctx.assets[0].sym;
+ctx.selected = ctx.assets.find(a => !a.isCrypto)?.sym || ctx.assets[0].sym;
+ctx.marketTab = 'stocks';
 document.getElementById('chartTitle').textContent =
   `${ctx.selected} — ${ctx.assets.find(a => a.sym === ctx.selected).name}`;
 
@@ -49,6 +50,27 @@ document.getElementById('chartTitle').textContent =
     onSell: (sym, qty, lev) => { sell(ctx, sym, qty, { leverage: lev, log }); renderAll(); },
     onOption: (sym, opt) => { buyOption(ctx, sym, opt.type, opt.strike, opt.dte, opt.qty, { log }); renderAll(); }
   });
+
+  const tabs = document.createElement('div');
+  tabs.id = 'marketTabs';
+  tabs.className = 'row tabs';
+  const card = document.querySelector('.market-col .card');
+  card.insertBefore(tabs, document.getElementById('marketTable'));
+
+  function renderTabs(){
+    tabs.innerHTML = '';
+    const mk = (id,label)=>{
+      const btn = document.createElement('button');
+      btn.textContent = label;
+      if (ctx.marketTab === id) btn.classList.add('accent');
+      btn.addEventListener('click', ()=>{ ctx.marketTab = id; renderMarketTable(ctx); renderTabs(); });
+      return btn;
+    };
+    tabs.appendChild(mk('stocks','Stocks'));
+    if (ctx.state.upgrades.crypto) tabs.appendChild(mk('crypto','Crypto'));
+  }
+  ctx.renderMarketTabs = renderTabs;
+  renderTabs();
 
 // Chart type toggle
 ctx.chartMode = 'line';
@@ -174,6 +196,7 @@ function renderAll() {
   renderAssetNewsTable(ctx);
   renderPortfolio(ctx);
   renderUpgrades(ctx, toast);
+  ctx.renderMarketTabs();
 }
 
 // Initial render
