@@ -16,6 +16,7 @@ import { renderInsight } from './ui/insight.js';
 import { renderAssetNewsTable } from './ui/newsAssets.js';
 import { showSummary } from './ui/modal.js';
 import { initRiskTools } from './ui/risktools.js';
+import { renderPortfolio } from './ui/portfolio.js';
 
 const toast = initToaster();
 const log = (msg)=>console.log(msg);
@@ -146,6 +147,7 @@ function renderAll() {
   drawChart(ctx);
   renderInsight(ctx);
   renderAssetNewsTable(ctx);
+  renderPortfolio(ctx);
 }
 
 // Initial render
