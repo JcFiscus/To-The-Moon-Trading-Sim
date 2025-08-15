@@ -190,9 +190,21 @@ export function drawChart(ctx) {
     ['Tomorrow (μ ± σ)', `${((a.outlook?.mu || 0) * 100).toFixed(2)}% ± ${((a.outlook?.sigma || a.daySigma || 0) * 100).toFixed(2)}%`],
     ['Expected Open Gap', `${(a.outlook?.gap || 0) >= 0 ? '+' : ''}${((a.outlook?.gap || 0) * 100).toFixed(1)}%`]
   ];
+  const tips = {
+    'Supply':'Total tradable units available',
+    'Market Cap':'Current price multiplied by supply',
+    'Local Demand':'Investor interest around this asset',
+    'Fair Value':'Model-estimated intrinsic price'
+  };
   for (const [k, v] of rows) {
     const d = document.createElement('div'); d.className = 'stat';
-    d.innerHTML = `<div class="mini">${k}</div><div><b>${v}</b></div>`;
+    const label = document.createElement('div');
+    label.className = 'mini';
+    label.textContent = k;
+    if (tips[k]) label.title = tips[k];
+    const val = document.createElement('div');
+    val.innerHTML = `<b>${v}</b>`;
+    d.append(label, val);
     stats.appendChild(d);
   }
 }

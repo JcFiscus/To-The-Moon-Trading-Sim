@@ -58,6 +58,7 @@ export function renderUpgrades(ctx, toast){
     }
     const card = document.createElement('div');
     card.className = 'upgrade-card';
+    card.title = def.tip ? `${def.desc} — ${def.tip}` : def.desc;
     card.innerHTML = `<div class="row" style="justify-content:space-between;"><div>${def.name}</div><div class="mini">${fmt(cost)}</div></div>`;
     const desc = document.createElement('div');
     desc.className = 'mini';
@@ -69,7 +70,7 @@ export function renderUpgrades(ctx, toast){
     btn.textContent = label;
     btn.disabled = disabled;
     btn.setAttribute('aria-label', `${label} ${def.name} for ${fmt(cost)}`);
-    if(reason) btn.title = reason;
+    btn.title = reason || def.desc;
     card.appendChild(btn);
     if(disabled && reason){
       const note = document.createElement('div');
