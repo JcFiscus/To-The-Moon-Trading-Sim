@@ -73,3 +73,79 @@ export function riskPct(state) {
   const net = Math.max(1, netWorth(state)); // avoid /0
   return Math.min(999, Math.round((exposure / net) * 100));
 }
+
+// Build the initial game context. This replicates the structure expected by
+// tests and other core modules but keeps the game rules unchanged.
+export function createInitialState(assetDefs = []) {
+  const assets = assetDefs.map(def => ({
+    sym: def.sym,
+    name: def.name,
+    price: def.price,
+    fair: def.price,
+    mu: def.mu || 0,
+    sigma: def.sigma || 0.02,
+    k: def.k || 0,
+    supply: def.supply || 1_000_000,
+    isCrypto: !!def.isCrypto,
+    localDemand: 1,
+    impulse: 0,
+    history: Array(100).fill(def.price),
+    dayBounds: [0],
+    flowToday: 0,
+    flowWindow: [],
+    evMuDays: 0,
+    evMuCarry: 0,
+    evDemandDays: 0,
+    evDemandBias: 0,
+    regime: { mu: 0, sigma: 0 },
+    streak: 0,
+    runStart: def.price,
+    analyst: { tone: 'Neutral', cls: 'neu', score: 0, conf: 0 },
+    daySigma: def.sigma || 0.02,
+  }));
+
+  const state = {
+    cash: defaults.cash ?? 0,
+    debt: 0,
+    positions: Object.fromEntries(assetDefs.map(d => [d.sym, 0])),
+    costBasis: Object.fromEntries(assetDefs.map(d => [d.sym, { qty: 0, avg: 0 }])),
+    marginPositions: [],
+    optionPositions: [],
+    upgrades: {},
+    cooldowns: { insider: 0 },
+    riskTools: null,
+    minFee: 1,
+    feeRate: 0.001,
+    realizedPnL: 0,
+    insiderTip: null,
+  };
+
+  const market = {
+    risk: 0.2,
+    demand: 1.0,
+    activeEvents: [],
+    tomorrow: [],
+    lastGmu: 0,
+    lastGdem: 0,
+  };
+
+  const day = {
+    idx: 0,
+    active: false,
+    ticksLeft: 0,
+    startCash: 0,
+    startDebt: 0,
+    startNet: 0,
+    startPortfolio: 0,
+    startPrices: {},
+    startHoldings: {},
+    midEventFired: false,
+    feesPaid: 0,
+    realized: 0,
+  };
+
+  const newsByAsset = {};
+  for (const a of assets) newsByAsset[a.sym] = [];
+
+  return { state, assets, market, day, newsByAsset, riskTrack: {}, gameOver: false };
+}
