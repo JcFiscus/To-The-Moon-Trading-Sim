@@ -17,9 +17,10 @@ export function initUI(ctx, handlers) {
   const log = msg => console.log(msg);
 
   function rebuildMarketTable() {
+    const assets = ctx.assets.filter(a => ctx.marketTab === 'crypto' ? a.isCrypto && ctx.state.upgrades.crypto : !a.isCrypto);
     buildMarketTable({
-      tbody: document.getElementById('tbody'),
-      assets: ctx.assets,
+      table: document.getElementById('marketTable'),
+      assets,
       state: ctx.state,
       onSelect: sym => {
         ctx.selected = sym;
@@ -46,6 +47,7 @@ export function initUI(ctx, handlers) {
   const tabs = document.createElement('div');
   tabs.id = 'marketTabs';
   tabs.className = 'row tabs';
+  tabs.setAttribute('role', 'tablist');
   const card = document.querySelector('.market-col .card');
   card.insertBefore(tabs, document.getElementById('marketTable'));
 
@@ -54,9 +56,14 @@ export function initUI(ctx, handlers) {
     const mk = (id, label) => {
       const btn = document.createElement('button');
       btn.textContent = label;
+      btn.setAttribute('role', 'tab');
+      btn.id = `tab-${id}`;
+      btn.setAttribute('aria-controls', 'marketTable');
+      btn.setAttribute('aria-selected', ctx.marketTab === id);
       if (ctx.marketTab === id) btn.classList.add('accent');
       btn.addEventListener('click', () => {
         ctx.marketTab = id;
+        rebuildMarketTable();
         renderMarketTable(ctx);
         renderTabs();
       });
