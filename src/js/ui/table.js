@@ -6,6 +6,8 @@ export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell
   tbody.innerHTML = '';
   for (const a of assets){
     const tr = document.createElement('tr'); tr.dataset.sym = a.sym; if (a.isCrypto) tr.dataset.crypto = '1';
+    tr.tabIndex = 0;
+    tr.setAttribute('aria-label', `Select ${a.sym}`);
     tr.innerHTML = `
       <td><b>${a.sym}</b> <span class="mini">• ${a.name}</span></td>
       <td class="price" id="p-${a.sym}"></td>
@@ -31,6 +33,12 @@ export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell
       if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT') return;
       if (e.target.classList.contains('qty')) return;
       onSelect(a.sym);
+    });
+    tr.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onSelect(a.sym);
+      }
     });
     if (state.upgrades.leverage>0) {
       const sel = document.getElementById(`lv-${a.sym}`);

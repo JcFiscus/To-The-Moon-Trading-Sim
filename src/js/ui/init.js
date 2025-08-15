@@ -77,6 +77,18 @@ export function initUI(ctx, handlers) {
     drawChart(ctx);
   });
 
+  const contrastBtn = document.getElementById('contrastBtn');
+  if (contrastBtn) {
+    const stored = localStorage.getItem('ttm_contrast') === '1';
+    if (stored) document.body.classList.add('high-contrast');
+    contrastBtn.setAttribute('aria-pressed', stored);
+    contrastBtn.addEventListener('click', () => {
+      const on = document.body.classList.toggle('high-contrast');
+      contrastBtn.setAttribute('aria-pressed', on);
+      localStorage.setItem('ttm_contrast', on ? '1' : '0');
+    });
+  }
+
   document.getElementById('startBtn').addEventListener('click', start);
   document.getElementById('saveBtn').addEventListener('click', save);
   document.getElementById('helpBtn').addEventListener('click', showHelp);
