@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { CFG, ASSET_DEFS } from '../config.js';
+import { ASSET_DEFS } from '../config.js';
 import { createInitialState } from '../core/state.js';
 import { buy, sell, checkMargin } from '../core/trading.js';
 

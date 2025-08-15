@@ -21,7 +21,7 @@ export function drawChart(ctx){
 
   // y labels
   c.fillStyle="#8aa3bf"; c.font="12px ui-monospace,monospace";
-  [min, (min+max)/2, max].forEach((v,idx)=> c.fillText(fmt(v), w-80, y(v)-2) );
+  [min, (min + max) / 2, max].forEach(v => c.fillText(fmt(v), w - 80, y(v) - 2));
 
   // day boundaries
   c.globalAlpha=0.25; c.strokeStyle="#223043";
