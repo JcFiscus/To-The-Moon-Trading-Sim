@@ -176,10 +176,16 @@ export function drawChart(ctx) {
   // stats panel
   const stats = document.getElementById('chartStats');
   stats.innerHTML = '';
+  const demandVal = a.localDemand;
+  let demandCat;
+  if (demandVal < 0.9) demandCat = 'Low';
+  else if (demandVal < 1.1) demandCat = 'Medium';
+  else if (demandVal < 1.5) demandCat = 'High';
+  else demandCat = 'Extreme';
   const rows = [
     ['Supply', a.supply.toLocaleString()],
     ['Market Cap', fmt(last * a.supply)],
-    ['Local Demand', a.localDemand.toFixed(2) + ` (ev ${(a.evDemandBias >= 0 ? '+' : '')}${a.evDemandBias.toFixed(2)})`],
+    ['Local Demand', `${demandCat} (ev ${(a.evDemandBias >= 0 ? '+' : '')}${a.evDemandBias.toFixed(2)})`],
     ['Fair Value', fmt(a.fair)],
     ['Tomorrow (μ ± σ)', `${((a.outlook?.mu || 0) * 100).toFixed(2)}% ± ${((a.outlook?.sigma || a.daySigma || 0) * 100).toFixed(2)}%`],
     ['Expected Open Gap', `${(a.outlook?.gap || 0) >= 0 ? '+' : ''}${((a.outlook?.gap || 0) * 100).toFixed(1)}%`]

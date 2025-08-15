@@ -5,19 +5,15 @@ export function renderInsight(ctx){
   const line = document.getElementById('analystLine');
   const t=a.analyst?.tone||'Neutral', cls=a.analyst?.cls||'neu', conf=Math.round((a.analyst?.conf||0.5)*100);
   const od=a.outlookDetail||{gMu:0, evMu:0, evDem:0, valuation:0, streakMR:0, demandTerm:0};
-  const parts = [
-    `<span class="analyst ${cls}">${t}</span>`,
-    `<span class="mini">Conf ${conf}%</span>`,
-    `<span class="tag">Events μ: ${((od.evMu||0)*CFG.DAY_TICKS*100).toFixed(1)}bp</span>`,
-    `<span class="tag">Event demand: ${((od.evDem||0)*100).toFixed(1)}%</span>`,
-    `<span class="tag">Valuation: ${((od.valuation||0)*100).toFixed(1)}bp</span>`,
-    `<span class="tag">Streak MR: ${((od.streakMR||0)*100).toFixed(1)}bp</span>`
-  ];
+  const eventCount = (ctx.market.tomorrow || []).filter(ev => ev.scope === 'global' || ev.sym === a.sym).length;
+  const netBias = (od.evMu||0)*CFG.DAY_TICKS*100;
+  const detailTip = `Event μ: ${((od.evMu||0)*CFG.DAY_TICKS*100).toFixed(1)}%\nEvent demand: ${((od.evDem||0)*100).toFixed(1)}%\nValuation: ${((od.valuation||0)*100).toFixed(1)}%\nStreak MR: ${((od.streakMR||0)*100).toFixed(1)}%`;
+  let summary = `Analyst: <span class="analyst ${cls}">${t}</span>, Confidence: ${conf}%, <span title="${detailTip}">Upcoming events: ${eventCount} (net bias ${(netBias>=0?'+':'') + netBias.toFixed(1)}%)</span>`;
   if (ctx.state.insiderTip && ctx.state.insiderTip.sym === a.sym && ctx.state.insiderTip.daysLeft > 0) {
     const tip = ctx.state.insiderTip;
-    parts.push(`<span class="tag" title="μ ${(tip.mu*100).toFixed(2)}% σ ${(tip.sigma*100).toFixed(2)}%">Tip ${tip.bias>0?'Bullish':'Bearish'} ${tip.daysLeft}d</span>`);
+    summary += ` <span class="tag" title="μ ${(tip.mu*100).toFixed(2)}% σ ${(tip.sigma*100).toFixed(2)}%">Tip ${tip.bias>0?'Bullish':'Bearish'} ${tip.daysLeft}d</span>`;
   }
-  line.innerHTML = parts.join(' ');
+  line.innerHTML = summary;
 
   const news = document.getElementById('assetNews');
   const list = (ctx.newsByAsset && ctx.newsByAsset[a.sym]) || [];
