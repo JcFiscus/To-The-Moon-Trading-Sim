@@ -30,6 +30,7 @@ export function createGameLoop(ctx, cfg, rng, renderAll, toast, log) {
         interval = null;
         const summary = endDay(ctx, cfg, { log, toast });
         enqueueAfterHours(ctx, cfg, rng, { log, toast });
+        const tomorrow = ctx.market.tomorrow.slice();
         renderAll();
         if (summary.gameOver || ctx.gameOver) {
           showGameOver(() => {
@@ -38,7 +39,7 @@ export function createGameLoop(ctx, cfg, rng, renderAll, toast, log) {
             location.reload();
           });
         } else {
-          showSummary(summary, () => {
+          showSummary(summary, tomorrow, () => {
             document.getElementById('overlay').style.display = 'none';
             start();
           });

@@ -96,18 +96,25 @@ export function initUI(ctx, handlers) {
 
   initRiskTools(document.getElementById('riskTools'), ctx, toast);
 
+  let newsTimer;
+  function renderNews(){
+    clearTimeout(newsTimer);
+    newsTimer = setTimeout(() => renderAssetNewsTable(ctx), 50);
+  }
+
   function renderAll() {
     renderHUD(ctx);
     renderMarketTable(ctx);
     drawChart(ctx);
     renderInsight(ctx);
-    renderAssetNewsTable(ctx);
+    renderNews();
     renderPortfolio(ctx);
     renderUpgrades(ctx, toast);
     ctx.renderMarketTabs();
     ctx.renderRiskStats?.();
   }
   ctx.renderAll = renderAll;
+  ctx.renderNews = renderNews;
 
   document.getElementById('chartTitle').textContent = `${ctx.selected} — ${ctx.assets.find(a => a.sym === ctx.selected).name}`;
   return { renderAll, toast };
