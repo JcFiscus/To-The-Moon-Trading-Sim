@@ -9,16 +9,18 @@ export const defaults = {
   cash: 10000, // meaningful starting capital
   debt: 0,
   assets: [
-    { sym: 'LUNA', name: 'LunaTech', price: 25, prevClose: 25, vol: 0.03, analyst: 'B', qty: 0 },
+    { sym: 'LUNA', name: 'LunaTech', price: 25, prevClose: 25, vol: 0.03,  analyst: 'B', qty: 0 },
     { sym: 'SOLR', name: 'SolRing',  price: 48, prevClose: 48, vol: 0.025, analyst: 'A', qty: 0 },
-    { sym: 'CRTR', name: 'CraterCo', price: 12, prevClose: 12, vol: 0.05, analyst: 'C', qty: 0 },
-    { sym: 'APLO', name: 'Apollo',   price: 90, prevClose: 90, vol: 0.02, analyst: 'B', qty: 0 }
+    { sym: 'CRTR', name: 'CraterCo', price: 12, prevClose: 12, vol: 0.05,  analyst: 'C', qty: 0 },
+    { sym: 'APLO', name: 'Apollo',   price: 90, prevClose: 90, vol: 0.02,  analyst: 'B', qty: 0 }
   ],
   selected: 'LUNA',
 };
 
 export function clone(obj) {
-  return structuredClone ? structuredClone(obj) : JSON.parse(JSON.stringify(obj));
+  // Guard for older browsers: only use structuredClone if it exists
+  if (typeof structuredClone === 'function') return structuredClone(obj);
+  return JSON.parse(JSON.stringify(obj));
 }
 
 export function hydrate() {
@@ -48,7 +50,6 @@ export function hardReset() {
 }
 
 function migrate(old) {
-  // Simple forward migration path
   const merged = mergeDefaults(old, defaults);
   merged.version = SAVE_VERSION;
   return merged;
