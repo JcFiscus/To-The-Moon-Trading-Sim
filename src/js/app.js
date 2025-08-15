@@ -17,6 +17,7 @@ import { renderAssetNewsTable } from './ui/newsAssets.js';
 import { showSummary } from './ui/modal.js';
 import { initRiskTools } from './ui/risktools.js';
 import { renderPortfolio } from './ui/portfolio.js';
+import { renderUpgrades } from './ui/upgrades.js';
 
 const toast = initToaster();
 const log = (msg)=>console.log(msg);
@@ -148,6 +149,7 @@ function renderAll() {
   renderInsight(ctx);
   renderAssetNewsTable(ctx);
   renderPortfolio(ctx);
+  renderUpgrades(ctx, toast);
 }
 
 // Initial render
