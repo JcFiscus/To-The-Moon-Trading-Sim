@@ -23,7 +23,14 @@ export function drawChart(ctx){
 
   // day boundaries
   c.globalAlpha=0.25; c.strokeStyle="#223043";
-  for(const ix of a.dayBounds){ if(ix<off) continue; const rel=ix-off; const x=rel*(w/(data.length-1)); c.beginPath(); c.moveTo(x,0); c.lineTo(x,h); c.stroke(); }
+  for(let di=0; di<a.dayBounds.length; di++){
+    const ix = a.dayBounds[di];
+    if (ix < off) continue;
+    const rel = ix - off;
+    const x = rel * (w / ((data.length-1) || 1));
+    c.beginPath(); c.moveTo(x,0); c.lineTo(x,h); c.stroke();
+    c.fillStyle = "#5c7088"; c.fillText(`D${di+1}`, x+4, 12);
+  }
   c.globalAlpha=1;
 
   if (ctx.chartMode === 'candles') {
@@ -50,10 +57,18 @@ export function drawChart(ctx){
   const ma=[]; for(let i=0;i<data.length;i++){ const s=Math.max(0,i-6); const slice=data.slice(s,i+1); ma.push(slice.reduce((x,y)=>x+y,0)/slice.length); }
   if (ma.length>6){ c.lineWidth=1; c.strokeStyle="#5aa1f0"; c.beginPath(); ma.forEach((v,i)=>{ const px=i*(w/(data.length-1)), py=y(v); if(i===0) c.moveTo(px,py); else c.lineTo(px,py); }); c.stroke(); }
 
-  // prev close
-  const last=data[data.length-1]; const prevClose=a.dayBounds.length? (a.history[(a.dayBounds[a.dayBounds.length-1]-1)] || last) : last;
-  c.setLineDash([4,3]); c.strokeStyle="#3b556e"; c.beginPath(); c.moveTo(0,y(prevClose)); c.lineTo(w,y(prevClose)); c.stroke(); c.setLineDash([]);
+  // prev close and last label
+  const last=data[data.length-1];
+  const prevClose=a.dayBounds.length? (a.history[(a.dayBounds[a.dayBounds.length-1]-1)] || last) : last;
+  c.setLineDash([4,3]);
+  c.strokeStyle="#3b556e"; c.beginPath();
+  c.moveTo(0,y(prevClose)); c.lineTo(w,y(prevClose)); c.stroke();
+  c.setLineDash([]);
   c.fillStyle="#cbd5e1"; c.fillText(`${a.sym} ${fmt(last)}  (prev ${fmt(prevClose)})`, 8, 16);
+  const ly = y(last);
+  c.fillStyle="#0a1017"; c.fillRect(w-68, ly-10, 60, 18);
+  c.strokeStyle="#8ad7a0"; c.strokeRect(w-68, ly-10, 60, 18);
+  c.fillStyle="#8ad7a0"; c.fillText(fmt(last), w-64, ly+4);
 
   // stats panel
   const stats = document.getElementById('chartStats');
@@ -70,4 +85,28 @@ export function drawChart(ctx){
     d.innerHTML = `<div class="mini">${k}</div><div><b>${v}</b></div>`;
     stats.appendChild(d);
   }
+
+  // tooltip for price
+  let tip = document.getElementById('chartTip');
+  if(!tip){
+    tip = document.createElement('div');
+    tip.id = 'chartTip';
+    tip.className = 'chart-tip mini';
+    canvas.parentElement.appendChild(tip);
+  }
+  canvas.onmousemove = (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const idx = Math.round(x/step);
+    const val = data[idx];
+    if(val!=null){
+      tip.style.display='block';
+      tip.style.left = `${x+8}px`;
+      tip.style.top = `${y(val)-10}px`;
+      tip.textContent = fmt(val);
+    } else {
+      tip.style.display='none';
+    }
+  };
+  canvas.onmouseleave = ()=>{ tip.style.display='none'; };
 }

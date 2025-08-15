@@ -1,6 +1,7 @@
 import { fmt } from '../util/format.js';
+import { CFG } from '../config.js';
 
-export function showSummary(summary, onNext){
+export function showSummary(summary, tomorrow, onNext){
   const overlay = document.getElementById('overlay');
   const modalContent = document.getElementById('modalContent');
   const modalActions = document.getElementById('modalActions');
@@ -83,6 +84,30 @@ export function showSummary(summary, onNext){
   }
   rtable.appendChild(rtbody);
   modalContent.appendChild(rtable);
+
+  if (tomorrow && tomorrow.length) {
+    const sec = document.createElement('div');
+    sec.className = 'section';
+    sec.innerHTML = '<span class="section-title"><b>Tomorrow\'s Drivers</b></span>';
+    const t = document.createElement('table');
+    t.innerHTML = '<thead><tr><th>Asset</th><th>Title</th><th>μ</th><th>σ</th><th>Demand</th><th>Gap%</th></tr></thead>';
+    const tb = document.createElement('tbody');
+    for (const ev of tomorrow) {
+      const gap = ((ev.mu||0)*CFG.DAY_TICKS*0.375 + (ev.demand||0)*0.275) * 100;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${ev.sym || 'GLOBAL'}</td>
+        <td>${ev.title}</td>
+        <td>${(ev.mu*10000).toFixed(0)}bp</td>
+        <td>${(ev.sigma*100).toFixed(1)}%</td>
+        <td>${(ev.demand*100).toFixed(1)}%</td>
+        <td>${gap>=0?'+':''}${gap.toFixed(1)}%</td>`;
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb);
+    sec.appendChild(t);
+    modalContent.appendChild(sec);
+  }
 
   modalActions.innerHTML = '';
   const nextBtn = document.createElement('button'); nextBtn.className='accent'; nextBtn.textContent='Start Next Day ▶';
