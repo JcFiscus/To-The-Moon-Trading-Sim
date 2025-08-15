@@ -41,6 +41,7 @@ select.lev{width:60px;background:#0a1118;border:1px solid var(--border);color:va
 .tip-indicator{display:none;font-size:12px;margin-left:4px}
 .tip-indicator.bull{color:var(--accent)}
 .tip-indicator.bear{color:var(--bad)}
+#marketTable tr.tipped{background:rgba(104,211,145,0.12)}
 .trade-bar button{padding:3px 5px;font-size:12px}
 button{background:var(--btn);color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:8px;cursor:pointer;transition:.15s}
 button:hover{background:var(--btn-hover)} button.accent{background:#12301f;border-color:#1e4230}
