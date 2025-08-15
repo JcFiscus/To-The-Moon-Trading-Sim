@@ -1,6 +1,6 @@
 // src/js/app.js
 import { hydrate, persist, hardReset, netWorth, riskPct } from './core/state.js';
-import { renderTable, bindTableHandlers, selectAsset } from './ui/table.js';
+import { renderTable, bindTableHandlers } from './ui/table.js'; // ← removed selectAsset import
 
 let state = hydrate();
 let tickTimer = null;
@@ -96,9 +96,6 @@ function endOfDay() {
 
   if (typeof eodModal.showModal === 'function') eodModal.showModal();
   else alert(`Day ${state.day} • Net change: ${delta >= 0 ? '+' : ''}${fmtMoney(delta)}`);
-
-  // roll simple “after-hours” news hook (placeholder)
-  // In a larger version you’d mutate vols/analyst ratings here based on events.
 }
 
 function refreshHUD() {
@@ -119,7 +116,7 @@ function refreshHUD() {
 function randomWalkPrices(arr) {
   for (const a of arr) {
     const drift = 0.000; // neutral drift
-    const shock = randn_bm() * a.vol; // vol is daily-ish; we’re ticking per second in short “days”
+    const shock = randn_bm() * a.vol;
     const next = Math.max(0.01, a.price * (1 + drift + shock));
     a.price = round2(next);
   }
@@ -158,19 +155,21 @@ function onSelectAsset(sym) {
 // --- Chart (minimal; safe no-op if canvas missing)
 function drawChart(canvas, s) {
   if (!canvas || !canvas.getContext) return;
+  // Ensure canvas has width; fall back to parent size if needed
+  const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+  const w = canvas.width = Math.max(300, canvas.clientWidth || parentW || 600);
+  const h = canvas.height; // preserve the height attribute set in HTML (220)
   const ctx = canvas.getContext('2d');
-  const w = canvas.width = canvas.clientWidth;
-  const h = canvas.height = canvas.clientHeight;
+
   ctx.clearRect(0, 0, w, h);
 
-  // tiny sparkline of selected asset price vs prevClose
   const a = s.assets.find((x) => x.sym === s.selected) || s.assets[0];
   if (!a) return;
 
-  // draw prevClose dashed
+  // dashed prev close
   ctx.setLineDash([4, 3]);
   ctx.strokeStyle = 'gray';
-  const yClose = h - (a.prevClose / (a.price * 1.25)) * h; // crude normalize
+  const yClose = h - (a.prevClose / (a.price * 1.25)) * h;
   ctx.beginPath();
   ctx.moveTo(0, yClose);
   ctx.lineTo(w, yClose);
