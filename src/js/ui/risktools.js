@@ -1,7 +1,13 @@
 function loadSaved(){
   try{ return JSON.parse(localStorage.getItem('ttm_risktools')||'null') || null; }catch{ return null; }
 }
-function save(cfg){ try{ localStorage.setItem('ttm_risktools', JSON.stringify(cfg)); }catch{} }
+function save(cfg){
+  try {
+    localStorage.setItem('ttm_risktools', JSON.stringify(cfg));
+  } catch {
+    // ignore persistence errors
+  }
+}
 
 export function initRiskTools(root, ctx, toast){
   // merge saved → ctx.state.riskTools

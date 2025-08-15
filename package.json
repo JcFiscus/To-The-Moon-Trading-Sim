@@ -4,6 +4,13 @@
   "description": "Trading simulation game framework with HTML, CSS, and JavaScript.",
   "type": "module",
   "scripts": {
-    "test": "node src/js/test/engine.spec.js && node src/js/test/cycle.spec.js && node src/js/test/margin.spec.js && node src/js/test/insider.spec.js && node src/js/test/options.spec.js && node src/js/test/crypto.spec.js"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "lint": "eslint src/js"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^30.0.5",
+    "prettier": "^3.2.5"
   }
 }

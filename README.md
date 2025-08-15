@@ -18,6 +18,8 @@ HTML/Javascript trading sim game.
 │  │  └─ main.css
 │  ├─ js/
 │  │  ├─ app.js
+│  │  ├─ gameLoop.js
+│  │  ├─ persistence.js
 │  │  ├─ config.js
 │  │  ├─ util/
 │  │  │  ├─ rng.js
@@ -26,6 +28,7 @@ HTML/Javascript trading sim game.
 │  │  ├─ core/
 │  │  │  ├─ types.js
 │  │  │  ├─ state.js
+│  │  │  ├─ store.js
 │  │  │  ├─ priceModel.js
 │  │  │  ├─ events.js
 │  │  │  ├─ trading.js
@@ -33,17 +36,27 @@ HTML/Javascript trading sim game.
 │  │  │  ├─ cycle.js
 │  │  │  └─ persist.js
 │  │  ├─ ui/
-│  │  │  ├─ dom.js
+│  │  │  ├─ init.js
 │  │  │  ├─ table.js
 │  │  │  ├─ chart.js
 │  │  │  ├─ insight.js
 │  │  │  ├─ newsGlobal.js
 │  │  │  ├─ toast.js
 │  │  │  ├─ modal.js
-│  │  │  └─ hud.js
+│  │  │  ├─ hud.js
+│  │  │  ├─ newsAssets.js
+│  │  │  ├─ risktools.js
+│  │  │  ├─ portfolio.js
+│  │  │  └─ upgrades.js
 │  │  └─ test/
 │  │     ├─ engine.spec.js
-│  │     └─ cycle.spec.js
+│  │     ├─ cycle.spec.js
+│  │     ├─ margin.spec.js
+│  │     ├─ insider.spec.js
+│  │     ├─ options.spec.js
+│  │     ├─ crypto.spec.js
+│  │     ├─ hud.test.js
+│  │     └─ persist.test.js
 ├─ package.json
 ├─ README.md
 └─ .gitignore
@@ -51,7 +64,8 @@ HTML/Javascript trading sim game.
 
 ## Scripts
 
-- `npm test` - placeholder test script.
+- `npm test` - run jest test suite.
+- `npm run lint` - run ESLint.
 
 ## Deployment
 
