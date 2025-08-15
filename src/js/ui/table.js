@@ -13,10 +13,12 @@ export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell
       <td id="an-${a.sym}"><span class="analyst neu">Neutral</span></td>
       <td class="holdings" id="h-${a.sym}">0</td>
       <td class="value" id="v-${a.sym}">$0.00</td>
-      <td>
-        <div class="row">
+      <td class="trade">
+        <div class="trade-inputs">
           <input class="qty" type="number" min="1" step="1" value="10" id="q-${a.sym}" />
           ${state.upgrades.leverage>0 ? `<select class="lev" id="lv-${a.sym}"></select>` : `<span class="lock" id="lv-${a.sym}" title="Unlock Leverage in Upgrades">\uD83D\uDD12</span>`}
+        </div>
+        <div class="trade-buttons">
           <button class="accent" id="b-${a.sym}">Buy</button>
           <button class="accent" id="bm-${a.sym}">Buy Max</button>
           <button class="bad" id="s-${a.sym}">Sell</button>
@@ -25,7 +27,9 @@ export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell
       </td>`;
     tbody.appendChild(tr);
     tr.addEventListener('click', (e) => {
-      if (e.target.tagName === 'BUTTON' || e.target.classList.contains('qty')) return;
+      const tag = e.target.tagName;
+      if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT') return;
+      if (e.target.classList.contains('qty')) return;
       onSelect(a.sym);
     });
     if (state.upgrades.leverage>0) {

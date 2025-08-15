@@ -12,27 +12,38 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
 .stats{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .pill{background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:6px 10px;display:flex;gap:8px;align-items:center}
 .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
-.grid{display:grid;grid-template-columns:2fr 1.5fr 1fr;gap:16px;padding:16px;max-width:1500px;margin:0 auto}
+.grid{display:grid;grid-template-columns:2fr 1.5fr 320px;gap:16px;padding:16px;max-width:1500px;margin:0 auto}
 @media (max-width:1100px){.grid{grid-template-columns:1fr}}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .mini{font-size:12px;color:var(--muted)}
 .tag{font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:999px;color:var(--muted)}
  .tabs{margin-bottom:8px}
+#marketTable{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed}
 table{width:100%;border-collapse:separate;border-spacing:0}
 thead th{position:sticky;top:0;background:var(--table);color:var(--muted);text-align:left;padding:8px;border-bottom:1px solid var(--border)}
 tbody td{padding:8px;border-bottom:1px dashed rgba(255,255,255,.06);vertical-align:middle}
 tr:hover{background:#0e141d}
 .price,.change,.holdings,.value{font-variant-numeric:tabular-nums}
 .change.up{color:var(--good)}.change.down{color:var(--bad)}
+td.trade{padding:8px}
+.trade-inputs{display:flex;gap:6px;align-items:center;margin-bottom:4px}
+.trade-buttons{display:flex;flex-wrap:wrap;gap:6px}
 input.qty{width:78px;background:#0a1118;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px}
 select.lev{width:70px;background:#0a1118;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 4px}
 .lock{color:var(--muted);font-size:16px}
 button{background:var(--btn);color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:8px;cursor:pointer;transition:.15s}
 button:hover{background:var(--btn-hover)} button.accent{background:#12301f;border-color:#1e4230}
 button.bad{background:#2a1313;border-color:#3b1b1b}
+#marketTable th:nth-child(1){width:18%}
+#marketTable th:nth-child(2){width:10%}
+#marketTable th:nth-child(3){width:8%}
+#marketTable th:nth-child(4){width:14%}
+#marketTable th:nth-child(5){width:10%}
+#marketTable th:nth-child(6){width:10%}
+#marketTable th:nth-child(7){width:30%}
 .market-col,.mid-col,.right-rail{display:grid;gap:16px}
-.right-rail{min-width:260px;max-width:340px}
+.right-rail{width:320px}
 #newsScroll{max-height:28rem;overflow:auto;padding-right:4px}
 @media (max-width:600px){#newsScroll{max-height:18rem}}
 .chart-wrap{height:260px;position:relative}
