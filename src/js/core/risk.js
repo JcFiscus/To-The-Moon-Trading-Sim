@@ -1,7 +1,12 @@
 import { sell } from './trading.js';
 
 function portfolioValue(ctx){
-  return ctx.assets.reduce((s,a)=> s + (ctx.state.positions[a.sym]||0)*a.price, 0);
+  let val = ctx.assets.reduce((s,a)=> s + (ctx.state.positions[a.sym]||0)*a.price, 0);
+  for (const m of ctx.state.marginPositions || []){
+    const a = ctx.assets.find(x => x.sym === m.sym);
+    if (a) val += m.qty * a.price;
+  }
+  return val;
 }
 function netWorth(ctx){
   return ctx.state.cash + portfolioValue(ctx) - ctx.state.debt;
@@ -10,7 +15,7 @@ function netWorth(ctx){
 /** Auto‑risk executor: trailing/hard stops, take‑profit ladder, position cap. */
 export function evaluateRisk(ctx, hooks){
   const cfg = ctx.state.riskTools || {};
-  if (!cfg.enabled) return;
+  if (cfg.enabled !== true) return;
 
   const net = Math.max(1, netWorth(ctx));
 
