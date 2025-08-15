@@ -34,8 +34,9 @@ export function softRunCap(a, growth, state){
   const ownShare = (state.positions[a.sym] || 0) / a.supply;
   const windowFlow = (a.flowWindow.reduce((s,x)=>s+x,0)) / a.supply;
   const cornering = (ownShare>=0.02) || (windowFlow>=0.01);
-  if (multiple <= CFG.RUN_CAP_MULTIPLE || cornering) return growth;
-  const excess = multiple / CFG.RUN_CAP_MULTIPLE;
+  const cap = cornering ? 10 : CFG.RUN_CAP_MULTIPLE;
+  if (multiple <= cap) return growth;
+  const excess = multiple / cap;
   const factor = 1 / (1 + Math.pow(excess, 0.9));
   return Math.pow(growth, factor);
 }
@@ -56,18 +57,20 @@ export function applyOvernightOutlook(ctx){
     const evVol  = evs.reduce((s,e)=>s+Math.abs(e.sigma),0) + Math.abs(gMu)*0.5;
 
     // fair drift
-    const fairDrift = CFG.FAIR_DRIFT_BASE * CFG.DAY_TICKS;
+    const fairDrift = CFG.FAIR_ACCEL * CFG.DAY_TICKS;
     a.fair *= (1 + fairDrift);
 
-    const valuation = -CFG.VALUATION_DRAG * Math.log(Math.max(0.2,a.price)/Math.max(0.2,a.fair)) * CFG.DAY_TICKS * 3;
-    const streakMR  = ((a.streak>=2 && a.price>a.fair*1.15 ? -0.0012 : 0)
-                    + (a.streak<=-2 && a.price<a.fair*0.85 ? +0.0012 : 0)) * CFG.DAY_TICKS;
+    let valuation = 0;
+    const ratio = a.price / a.fair;
+    if (ratio > 1.2 || ratio < 0.8){
+      valuation = -CFG.MR_K_OVERNIGHT * Math.log(ratio) * CFG.DAY_TICKS;
+    }
     const demandTerm = (0.0007*(a.localDemand-1) + 0.0005*(ctx.market.demand-1 + gDem + evDem)) * CFG.DAY_TICKS;
-    let reversion = 0; let bias="continuation";
-    if (a.streak>3 && a.price>a.fair){ reversion = -CFG.STREAK_REVERSION*(a.streak-3) * CFG.DAY_TICKS; bias="reversion"; }
-    if (a.streak<-3 && a.price<a.fair){ reversion = CFG.STREAK_REVERSION*(-a.streak-3) * CFG.DAY_TICKS; bias="reversion"; }
+    const L = x => (1/(1+Math.exp(-CFG.STREAK_FATIGUE_K*x)) - 0.5) * 2;
+    const dist = Math.abs(Math.log(Math.max(0.2,a.price)/Math.max(0.2,a.fair)));
+    const fatigue = Math.sign(a.streak) * L(Math.abs(a.streak)) * L(dist) * CFG.STREAK_FATIGUE_MAX * CFG.DAY_TICKS;
 
-    let mu    = gMu + evMu + valuation + streakMR + demandTerm + reversion;
+    let mu    = gMu + evMu + valuation - fatigue + demandTerm;
     let sigma = clamp(0.006 + evVol*0.6 + Math.abs(gDem)*0.15, 0.006, 0.10);
 
     // Moon coin burst dynamics
@@ -105,7 +108,7 @@ export function applyOvernightOutlook(ctx){
 
     a.daySigma = sigma;
     a.outlook = { mu, sigma, gap };
-    a.outlookDetail = { gMu, evMu, evDem, valuation, streakMR, demandTerm, reversion, bias };
+    a.outlookDetail = { gMu, evMu, evDem, valuation, fatigue, demandTerm };
 
     if (evDem !== 0) {
       a.evDemandBias = clamp(a.evDemandBias + evDem, -0.6, 0.6);
@@ -151,8 +154,12 @@ export function updatePrices(ctx, rng){
   }
 
   // recent performance for capital rotation
-  const perfs = assets.map(a=>{ const h=a.history; const look=Math.min(5,h.length-1); return look>0 ? (a.price/h[h.length-1-look]-1) : 0; });
-  const avgPerf = perfs.reduce((s,x)=>s+x,0)/Math.max(1,perfs.length);
+  const returns = assets.map(a=>{
+    const h=a.history; const look=Math.min(5,h.length-1);
+    return look>0 ? (a.price/h[h.length-1-look]-1) : 0;
+  });
+  const meanRet = returns.reduce((s,x)=>s+x,0)/Math.max(1,returns.length);
+  const stdRet = Math.sqrt(returns.reduce((s,x)=>s+(x-meanRet)**2,0)/Math.max(1,returns.length)) || 1e-9;
 
   for (let i=0; i<assets.length; i++){
     const a = assets[i];
@@ -162,17 +169,21 @@ export function updatePrices(ctx, rng){
     }
 
     // valuation/streak/demand + rotation + intraday events
-      const valuation  = -CFG.VALUATION_DRAG * Math.log(Math.max(0.2,a.price)/Math.max(0.2,a.fair)) * CFG.DAY_TICKS * 3;
-    const streakMR   = ((a.streak>=2 && a.price>a.fair*1.15 ? -0.0012 : 0)
-                     + (a.streak<=-2 && a.price<a.fair*0.85 ? +0.0012 : 0)) * CFG.DAY_TICKS;
-    const fatigue    = ((a.streak>3 && a.price>a.fair ? -CFG.STREAK_FATIGUE*(a.streak-3) : 0)
-                     + (a.streak<-3 && a.price<a.fair ? CFG.STREAK_FATIGUE*(-a.streak-3) : 0)) * CFG.DAY_TICKS;
-    const rotation   = -CFG.CAPITAL_ROTATION_INTENSITY * (perfs[i] - avgPerf) * CFG.DAY_TICKS;
+    let valuation = 0;
+    const ratio = a.price / a.fair;
+    if (ratio > 1.2 || ratio < 0.8){
+      valuation = -CFG.MR_K_BASE * Math.log(ratio) * CFG.DAY_TICKS;
+    }
+    const L = x => (1/(1+Math.exp(-CFG.STREAK_FATIGUE_K*x)) - 0.5) * 2;
+    const dist = Math.abs(Math.log(Math.max(0.2,a.price)/Math.max(0.2,a.fair)));
+    const fatigue = Math.sign(a.streak) * L(Math.abs(a.streak)) * L(dist) * CFG.STREAK_FATIGUE_MAX * CFG.DAY_TICKS;
+    const z = (returns[i] - meanRet) / stdRet;
+    const rotation = -CFG.ROTATION_K * z * market.demand * CFG.DAY_TICKS;
     const demandBias = (0.0006*(market.demand-1) + 0.0005*(a.localDemand-1) + 0.0008*(a.evDemandBias)) * CFG.DAY_TICKS;
 
     const { mu:emu, sigma:esig } = eventImpactIntraday(market, a.sym);
 
-    const baseMu    = a.mu + a.regime.mu + (a.outlook?.mu||0) + valuation + streakMR + fatigue + rotation + demandBias + emu;
+    const baseMu    = a.mu + a.regime.mu + (a.outlook?.mu||0) + valuation - fatigue + rotation + demandBias + emu;
     const baseSigma = clamp(a.sigma + a.regime.sigma + (a.outlook?.sigma||a.daySigma) + esig, 0.006, 0.12);
     const dt = 1/CFG.DAY_TICKS;
     const mu = baseMu * dt;
