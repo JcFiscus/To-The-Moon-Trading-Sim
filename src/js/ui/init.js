@@ -1,6 +1,6 @@
 import { initToaster } from './toast.js';
 import { buildMarketTable, renderMarketTable } from './table.js';
-import { drawChart } from './chart.js';
+import { drawChart, initChart } from './chart.js';
 import { renderInsight } from './insight.js';
 import { renderAssetNewsTable, initNewsControls } from './newsAssets.js';
 import { renderHUD } from './hud.js';
@@ -71,9 +71,13 @@ export function initUI(ctx, handlers) {
   initNewsControls(ctx);
 
   ctx.chartMode = 'line';
-  document.getElementById('chartToggle').addEventListener('click', () => {
+  initChart(ctx);
+  const chartToggle = document.getElementById('chartToggle');
+  chartToggle.setAttribute('aria-pressed', false);
+  chartToggle.addEventListener('click', () => {
     ctx.chartMode = ctx.chartMode === 'line' ? 'candles' : 'line';
-    document.getElementById('chartToggle').textContent = ctx.chartMode === 'line' ? 'Candles' : 'Line';
+    chartToggle.textContent = ctx.chartMode === 'line' ? 'Candles' : 'Line';
+    chartToggle.setAttribute('aria-pressed', ctx.chartMode === 'candles');
     drawChart(ctx);
   });
 
