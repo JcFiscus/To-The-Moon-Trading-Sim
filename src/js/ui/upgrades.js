@@ -43,7 +43,7 @@ export function renderUpgrades(ctx, toast){
       else if(cost > ctx.state.cash) reason = 'Insufficient cash';
       else if(tip) reason = 'Tip active';
       else if(cd > 0) reason = `Cooldown ${cd}d`;
-      if (tip) label = `Active ${tip.bias>0?'Bullish':'Bearish'} (${tip.daysLeft}d)`;
+      if (tip) label = `${tip.sym} ${tip.bias>0?'Bullish':'Bearish'} (${tip.daysLeft}d)`;
       else if (cd > 0) label = `Cooldown ${cd}d`;
       else label = 'Buy Tip';
     } else {
@@ -102,7 +102,7 @@ export function renderUpgrades(ctx, toast){
         ctx.state.cooldowns.insider = CFG.INSIDER_COOLDOWN_DAYS;
         ctx.state.upgrades.insider = true;
         pushAssetNews(ctx.newsByAsset, { scope:'asset', sym, title: bias>0?'Bullish tip':'Bearish tip', type:'insider', mu, sigma, demand:0, days: CFG.INSIDER_DAYS, severity:'minor', blurb: bias>0?'Upward whispers.':'Downward whispers.' }, `Day ${ctx.day.idx} (tip)`, ctx.state);
-        msg = `Insider tip (${bias>0?'Bullish':'Bearish'}) purchased`;
+        msg = `Insider tip on ${sym} (${bias>0?'Bullish':'Bearish'}) purchased`;
       } else {
         ctx.state.cash -= cost;
         ctx.state.upgradePurchases[def.id] = bought + 1;

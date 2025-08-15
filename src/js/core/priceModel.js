@@ -151,9 +151,8 @@ export function applyOvernightOutlook(ctx){
 
     if (ctx.state.insiderTip && ctx.state.insiderTip.daysLeft > 0 && ctx.state.insiderTip.sym === a.sym) {
       const tip = ctx.state.insiderTip;
-      const mult = CFG.INSIDER_EFFECT_MULT || 3;
-      mu += tip.mu * mult;
-      sigma += tip.sigma * mult;
+      mu += tip.mu;
+      sigma += tip.sigma;
       sigma = clamp(sigma, 0.006, 0.12);
     }
     const gap = clamp( (gGapMu*CFG.DAY_TICKS*0.35) + (assetGapMu*CFG.DAY_TICKS*0.75) + ((gGapDem+assetGapDem)*0.55), -CFG.OPEN_GAP_CAP, CFG.OPEN_GAP_CAP);
@@ -232,9 +231,8 @@ export function updatePrices(ctx, rng){
       let baseSigma = clamp(a.sigma + a.regime.sigma + (a.outlook?.sigma||a.daySigma) + esig, 0.006, 0.12);
       if (ctx.state.insiderTip && ctx.state.insiderTip.sym === a.sym && ctx.state.insiderTip.daysLeft > 0) {
         const tip = ctx.state.insiderTip;
-        const mult = CFG.INSIDER_EFFECT_MULT || 3;
-        baseMu += tip.mu * mult;
-        baseSigma = clamp(baseSigma + tip.sigma * mult, 0.006, 0.12);
+        baseMu += tip.mu;
+        baseSigma = clamp(baseSigma + tip.sigma, 0.006, 0.12);
       }
       const dt = 1/CFG.DAY_TICKS;
       const mu = baseMu * dt;

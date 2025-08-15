@@ -31,7 +31,7 @@ import { createRNG } from '../util/rng.js';
   ctx.state.insiderTip = { sym: ctx.assets[0].sym, daysLeft: CFG.INSIDER_DAYS, mu:-0.001, sigma:0.005, bias:-1 };
   applyOvernightOutlook(ctx);
   const mu = ctx.assets[0].outlook.mu;
-  assert(Math.abs((mu - baseMu) - ctx.state.insiderTip.mu * CFG.INSIDER_EFFECT_MULT) < 1e-9, 'tip mu applied with multiplier');
+  assert(Math.abs((mu - baseMu) - ctx.state.insiderTip.mu) < 1e-9, 'tip mu applied');
 })();
 
 (function testInsiderPriceImpact(){

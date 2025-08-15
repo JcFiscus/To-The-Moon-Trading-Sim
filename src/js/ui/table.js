@@ -268,6 +268,8 @@ export function renderMarketTable(ctx) {
 
     const tr = document.querySelector(`#marketTable tr[data-sym="${a.sym}"]`);
     if (tr) {
+      const tip = ctx.state.insiderTip;
+      tr.classList.toggle('tipped', tip && tip.sym === a.sym && tip.daysLeft > 0);
       tr.classList.toggle('selected', ctx.selected === a.sym);
       tr.setAttribute('aria-selected', ctx.selected === a.sym);
     }
