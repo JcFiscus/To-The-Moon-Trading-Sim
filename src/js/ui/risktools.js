@@ -23,73 +23,75 @@ export function initRiskTools(root, ctx, toast){
   root.innerHTML = `
     <div class="row" style="justify-content:space-between;">
       <div>Auto Risk Tools</div>
-      <label class="mini" title="Apply configured stops and take-profits automatically"><input type="checkbox" id="rt-enabled"> Enabled</label>
+      <label class="mini" for="rt-enabled" title="Apply configured stops and take-profits automatically">
+        <input type="checkbox" id="rt-enabled"> Enabled
+      </label>
     </div>
-    <div class="mini">Presets</div>
-    <div class="row preset-row">
-      <button class="chip-btn" id="rt-pre-con" title="Tight stops, low exposure">Conservative</button>
-      <button class="chip-btn" id="rt-pre-bal" title="Balanced risk parameters">Balanced</button>
-      <button class="chip-btn" id="rt-pre-agg" title="Wide stops, high exposure">Aggressive</button>
-    </div>
-    <div class="section">
-      <div class="mini section-title">Protection</div>
-      <div class="statgrid">
-        <div class="stat">
-          <div class="mini" title="Sell after price falls from peak by this percent">Trailing stop</div>
-          <div class="slider"><input id="rt-trailing" type="range" min="0" max="50" step="1"><span class="mini" id="rt-trailing-val"></span></div>
+    <div class="mini" id="rt-summary" style="margin-top:4px"></div>
+    <label for="rt-preset" class="mini" style="margin-top:8px">Preset</label>
+    <select id="rt-preset" class="mini">
+      <option value="">Custom</option>
+      <option value="con">Conservative</option>
+      <option value="bal">Balanced</option>
+      <option value="agg">Aggressive</option>
+    </select>
+    <form id="rt-form">
+      <fieldset class="rt-group">
+        <legend class="mini section-title">Protection</legend>
+        <div class="statgrid">
+          <div class="stat">
+            <label for="rt-trailing" class="mini" title="Sell after price falls from peak by this percent">Trailing stop</label>
+            <div class="slider"><input id="rt-trailing" type="range" min="0" max="50" step="1"><span class="mini" id="rt-trailing-val"></span></div>
+          </div>
+          <div class="stat">
+            <label for="rt-hard" class="mini" title="Maximum loss tolerated on a position">Hard stop</label>
+            <div class="slider"><input id="rt-hard" type="range" min="0" max="60" step="1"><span class="mini" id="rt-hard-val"></span></div>
+          </div>
+          <div class="stat">
+            <label for="rt-stopfrac" class="mini" title="Fraction of position sold when a stop triggers">Stop sell fraction</label>
+            <div class="slider"><input id="rt-stopfrac" type="range" min="5" max="100" step="5"><span class="mini" id="rt-stopfrac-val"></span></div>
+          </div>
         </div>
-        <div class="stat">
-          <div class="mini" title="Maximum loss tolerated on a position">Hard stop</div>
-          <div class="slider"><input id="rt-hard" type="range" min="0" max="60" step="1"><span class="mini" id="rt-hard-val"></span></div>
+      </fieldset>
+      <fieldset class="rt-group">
+        <legend class="mini section-title">Take-Profit Ladder</legend>
+        <div class="statgrid">
+          <div class="stat">
+            <label for="rt-tp1" class="mini" title="Gain needed to trigger the first take profit">TP1 threshold</label>
+            <div class="slider"><input id="rt-tp1" type="range" min="5" max="200" step="5"><span class="mini" id="rt-tp1-val"></span></div>
+          </div>
+          <div class="stat">
+            <label for="rt-tp1f" class="mini" title="Percent of position sold at TP1">TP1 sell fraction</label>
+            <div class="slider"><input id="rt-tp1f" type="range" min="5" max="100" step="5"><span class="mini" id="rt-tp1f-val"></span></div>
+          </div>
+          <div class="stat">
+            <label for="rt-tp2" class="mini" title="Gain needed to trigger the second take profit">TP2 threshold</label>
+            <div class="slider"><input id="rt-tp2" type="range" min="5" max="200" step="5"><span class="mini" id="rt-tp2-val"></span></div>
+          </div>
+          <div class="stat">
+            <label for="rt-tp2f" class="mini" title="Percent of position sold at TP2">TP2 sell fraction</label>
+            <div class="slider"><input id="rt-tp2f" type="range" min="5" max="100" step="5"><span class="mini" id="rt-tp2f-val"></span></div>
+          </div>
+          <div class="stat">
+            <label for="rt-tp3" class="mini" title="Gain needed to trigger the third take profit">TP3 threshold</label>
+            <div class="slider"><input id="rt-tp3" type="range" min="5" max="200" step="5"><span class="mini" id="rt-tp3-val"></span></div>
+          </div>
+          <div class="stat">
+            <label for="rt-tp3f" class="mini" title="Percent of position sold at TP3">TP3 sell fraction</label>
+            <div class="slider"><input id="rt-tp3f" type="range" min="5" max="100" step="5"><span class="mini" id="rt-tp3f-val"></span></div>
+          </div>
         </div>
-        <div class="stat">
-          <div class="mini" title="Fraction of position sold when a stop triggers">Stop sell fraction</div>
-          <div class="slider"><input id="rt-stopfrac" type="range" min="5" max="100" step="5"><span class="mini" id="rt-stopfrac-val"></span></div>
+      </fieldset>
+      <fieldset class="rt-group">
+        <legend class="mini section-title">Exposure cap</legend>
+        <div class="statgrid">
+          <div class="stat">
+            <label for="rt-cap" class="mini" title="Maximum portfolio allocation to a single position">Position cap</label>
+            <div class="slider"><input id="rt-cap" type="range" min="5" max="100" step="5"><span class="mini" id="rt-cap-val"></span></div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="section">
-      <div class="mini section-title">Take-Profit Ladder</div>
-      <div class="statgrid">
-        <div class="stat">
-          <div class="mini" title="Gain needed to trigger the first take profit">TP1 threshold</div>
-          <div class="slider"><input id="rt-tp1" type="range" min="5" max="200" step="5"><span class="mini" id="rt-tp1-val"></span></div>
-        </div>
-        <div class="stat">
-          <div class="mini" title="Percent of position sold at TP1">TP1 sell fraction</div>
-          <div class="slider"><input id="rt-tp1f" type="range" min="5" max="100" step="5"><span class="mini" id="rt-tp1f-val"></span></div>
-        </div>
-        <div class="stat">
-          <div class="mini" title="Gain needed to trigger the second take profit">TP2 threshold</div>
-          <div class="slider"><input id="rt-tp2" type="range" min="5" max="200" step="5"><span class="mini" id="rt-tp2-val"></span></div>
-        </div>
-        <div class="stat">
-          <div class="mini" title="Percent of position sold at TP2">TP2 sell fraction</div>
-          <div class="slider"><input id="rt-tp2f" type="range" min="5" max="100" step="5"><span class="mini" id="rt-tp2f-val"></span></div>
-        </div>
-        <div class="stat">
-          <div class="mini" title="Gain needed to trigger the third take profit">TP3 threshold</div>
-          <div class="slider"><input id="rt-tp3" type="range" min="5" max="200" step="5"><span class="mini" id="rt-tp3-val"></span></div>
-        </div>
-        <div class="stat">
-          <div class="mini" title="Percent of position sold at TP3">TP3 sell fraction</div>
-          <div class="slider"><input id="rt-tp3f" type="range" min="5" max="100" step="5"><span class="mini" id="rt-tp3f-val"></span></div>
-        </div>
-      </div>
-    </div>
-    <div class="section">
-      <div class="mini section-title">Exposure cap</div>
-      <div class="statgrid">
-        <div class="stat">
-          <div class="mini" title="Maximum portfolio allocation to a single position">Position cap</div>
-          <div class="slider"><input id="rt-cap" type="range" min="5" max="100" step="5"><span class="mini" id="rt-cap-val"></span></div>
-        </div>
-      </div>
-    </div>
-    <div class="row" style="justify-content:flex-end;margin-top:8px;">
-      <span class="mini" id="rt-summary" style="flex:1"></span>
-      <button id="rt-apply" class="accent">Apply</button>
-    </div>
+      </fieldset>
+    </form>
     <div class="section">
       <div class="mini section-title">Status</div>
       <table id="rt-stats" class="mini"></table>
@@ -116,6 +118,7 @@ export function initRiskTools(root, ctx, toast){
     updateSummary();
   }
   hydrate();
+
   function renderStats(){
     const tbl = document.getElementById('rt-stats');
     if (!tbl) return;
@@ -164,17 +167,13 @@ export function initRiskTools(root, ctx, toast){
       toast('Saved', 'good');
     }
   }
-  document.getElementById('rt-apply').addEventListener('click', apply);
 
-  ['rt-trailing','rt-hard','rt-stopfrac','rt-cap','rt-tp1','rt-tp1f','rt-tp2','rt-tp2f','rt-tp3','rt-tp3f']
-    .forEach(id => {
-      const el = byId(id);
-      el.addEventListener('input', () => { byId(id+'-val').textContent = el.value + '%'; });
-    });
-
-  // Save immediately on toggle/enter
-  ['rt-enabled','rt-trailing','rt-hard','rt-stopfrac','rt-cap','rt-tp1','rt-tp1f','rt-tp2','rt-tp2f','rt-tp3','rt-tp3f']
-    .forEach(id => byId(id).addEventListener('change', apply));
+  ['rt-trailing','rt-hard','rt-stopfrac','rt-cap','rt-tp1','rt-tp1f','rt-tp2','rt-tp2f','rt-tp3','rt-tp3f'].forEach(id => {
+    const el = byId(id);
+    el.addEventListener('input', () => { byId(id+'-val').textContent = el.value + '%'; });
+    el.addEventListener('change', () => { byId('rt-preset').value = ''; apply(); });
+  });
+  byId('rt-enabled').addEventListener('change', () => { byId('rt-preset').value = ''; apply(); });
 
   function pct(v){ return Math.round(v*100)+'%'; }
   function updateSummary(){
@@ -192,12 +191,14 @@ export function initRiskTools(root, ctx, toast){
     agg:{ trailing:0.20, hardStop:0.25, stopSellFrac:1, posCap:0.50, tp1:0.25, tp1Frac:0.30, tp2:0.50, tp2Frac:0.30, tp3:1.00, tp3Frac:0.50 }
   };
   function setPreset(p){
+    byId('rt-preset').value = p;
     Object.assign(cfg, presets[p]);
     hydrate();
     renderStats();
     apply();
   }
-  document.getElementById('rt-pre-con').addEventListener('click', () => setPreset('con'));
-  document.getElementById('rt-pre-bal').addEventListener('click', () => setPreset('bal'));
-  document.getElementById('rt-pre-agg').addEventListener('click', () => setPreset('agg'));
+  byId('rt-preset').addEventListener('change', e => {
+    const val = e.target.value;
+    if (val) setPreset(val);
+  });
 }
