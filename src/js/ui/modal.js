@@ -48,3 +48,18 @@ export function showSummary(summary, onNext){
   modalActions.appendChild(nextBtn); modalActions.appendChild(closeBtn);
   overlay.style.display = 'flex';
 }
+
+export function showGameOver(onReset){
+  const overlay = document.getElementById('overlay');
+  const modalContent = document.getElementById('modalContent');
+  const modalActions = document.getElementById('modalActions');
+
+  modalContent.innerHTML = '<h3>Game Over</h3><div class="mini">Net worth depleted.</div>';
+  modalActions.innerHTML = '';
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'bad';
+  resetBtn.textContent = 'Hard Reset';
+  resetBtn.addEventListener('click', onReset);
+  modalActions.appendChild(resetBtn);
+  overlay.style.display = 'flex';
+}
