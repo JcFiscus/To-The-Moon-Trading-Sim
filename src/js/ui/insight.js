@@ -22,10 +22,12 @@ export function renderInsight(ctx){
     const posneg = (ev.mu + ev.demand) >= 0 ? 'pos' : 'neg';
     const who = ev.scope === 'global' ? 'GLOBAL' : a.sym;
     const days = ev.days ? ` • ${ev.days}d` : '';
+    const eff = `Bias ${ev.mu>=0?'+':''}${(ev.mu*10000).toFixed(0)}bp • Demand ${ev.demand>=0?'+':''}${(ev.demand*100).toFixed(1)}% • Vol ${ev.sigma>=0?'+':''}${(ev.sigma*100).toFixed(1)}%`;
+    const tip = `μ ${(ev.mu*10000).toFixed(0)}bp • σ ${(ev.sigma*100).toFixed(1)}% • D ${(ev.demand*100).toFixed(1)}%`;
     return `<div class="news-item">
       <b>${rec.when}</b> — <span>${who}: ${ev.title}</span>
       <span class="chip ${maj}">${ev.severity}</span>
-      <span class="chip ${posneg}">${ev.mu>=0?'+':''}${(ev.mu*10000).toFixed(0)}μ • ${ev.demand>=0?'+':''}${(ev.demand*100).toFixed(1)}% D</span>
+      <span class="chip ${posneg}" title="${tip}">${eff}</span>
       <span class="chip">${ev.type}${days}</span>
     </div>`;
   }).join('') || `<div class="news-item mini">No recent asset‑specific news.</div>`;
