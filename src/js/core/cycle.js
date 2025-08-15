@@ -70,19 +70,36 @@ export function endDay(ctx, cfg=CFG, hooks){
 
   // end-of-day meta
   const endPort = ctx.assets.reduce((s,a)=> s + (ctx.state.positions[a.sym]||0)*a.price, 0);
-  const endNet  = ctx.state.cash + endPort - ctx.state.debt;
-  const dNet = endNet - ctx.day.startNet;
-  const dNetPct = (ctx.day.startNet > 0) ? (endNet/ctx.day.startNet - 1) : 0;
+  let net = ctx.state.cash + endPort - ctx.state.debt;
+
+  const freq = cfg.DEBT_INTEREST_FREQ + (ctx.state.upgrades.debt_rate ? 1 : 0);
+  const rate = cfg.DEBT_INTEREST_RATE * (ctx.state.upgrades.debt_rate ? 0.75 : 1);
+  const threshold = cfg.DEBT_NET_THRESHOLD * (ctx.state.upgrades.debt_rate ? 1.1 : 1);
+
+  if (ctx.day.idx % freq === 0){
+    const ratio = net>0 ? ctx.state.debt / net : Infinity;
+    if (ratio > threshold && ctx.state.debt > 0){
+      const interest = ctx.state.debt * rate;
+      ctx.state.debt += interest;
+      hooks?.log?.(`Debt interest ${ (rate*100).toFixed(2) }% applied: +${interest.toFixed(2)}`);
+      net -= interest;
+    }
+  }
+
+  const dNet = net - ctx.day.startNet;
+  const dNetPct = (ctx.day.startNet > 0) ? (net/ctx.day.startNet - 1) : 0;
 
   const meta = {
     day: ctx.day.idx,
-    endNet, startNet: ctx.day.startNet,
+    endNet: net,
+    startNet: ctx.day.startNet,
     dNet, dNetPct,
     realized: ctx.day.realized, fees: ctx.day.feesPaid,
     best, worst
   };
 
-  return { rows, meta };
+  const gameOver = net <= 0;
+  return { rows, meta, gameOver };
 }
 
 export function enqueueAfterHours(ctx, cfg, rng, hooks){

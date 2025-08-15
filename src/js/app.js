@@ -14,7 +14,7 @@ import { buildMarketTable, renderMarketTable } from './ui/table.js';
 import { drawChart } from './ui/chart.js';
 import { renderInsight } from './ui/insight.js';
 import { renderAssetNewsTable } from './ui/newsAssets.js';
-import { showSummary } from './ui/modal.js';
+import { showSummary, showGameOver } from './ui/modal.js';
 import { initRiskTools } from './ui/risktools.js';
 import { renderPortfolio } from './ui/portfolio.js';
 import { renderUpgrades } from './ui/upgrades.js';
@@ -115,11 +115,19 @@ function start() {
       enqueueAfterHours(ctx, CFG, rng, { log, toast });
       renderAll();
 
-      // Show summary modal; allow Start Next Day directly
-      showSummary(summary, () => {
-        document.getElementById('overlay').style.display = 'none';
-        start();
-      });
+      if (summary.gameOver) {
+        showGameOver(() => {
+          document.getElementById('overlay').style.display = 'none';
+          localStorage.removeItem('ttm_save');
+          location.reload();
+        });
+      } else {
+        // Show summary modal; allow Start Next Day directly
+        showSummary(summary, () => {
+          document.getElementById('overlay').style.display = 'none';
+          start();
+        });
+      }
     }
   }, 1000);
 }
