@@ -3,6 +3,7 @@ import { createRNG } from '../util/rng.js';
 import { CFG, ASSET_DEFS } from '../config.js';
 import { createInitialState } from '../core/state.js';
 import { startDay, stepTick, endDay } from '../core/cycle.js';
+import { EVENT_POOL, randomEvent } from '../core/events.js';
 
 function runDays(ctx, days, rng, cfg){
   for(let d=0; d<days; d++){
@@ -37,4 +38,27 @@ function runDays(ctx, days, rng, cfg){
   CFG.CAPITAL_ROTATION_INTENSITY = old;
   assert(a0.price < 100, 'surging asset should face rotation drag');
   assert(a1.price > 100, 'lagging asset should get positive drift');
+})();
+
+(function testEventGating(){
+  const ctx = createInitialState(ASSET_DEFS.slice(0,1));
+  const rng = createRNG(3);
+  const original = EVENT_POOL.slice();
+  EVENT_POOL.length = 0;
+  EVENT_POOL.push(
+    {scope:'global', title:'Base', type:'base', mu:0, sigma:0, demand:0, days:1, severity:'minor'},
+    {scope:'global', title:'Opt', type:'options_flow', mu:0, sigma:0, demand:0, days:1, severity:'minor', requires:['options']}
+  );
+  for(let i=0;i<20;i++){
+    const ev = randomEvent(ctx, rng);
+    assert.notStrictEqual(ev.type, 'options_flow', 'gated event appeared before unlock');
+  }
+  ctx.state.upgrades.options = true;
+  let seen = false;
+  for(let i=0;i<20;i++){
+    const ev = randomEvent(ctx, rng);
+    if(ev.type === 'options_flow'){ seen = true; break; }
+  }
+  assert(seen, 'gated event did not appear after unlock');
+  EVENT_POOL.length = 0; original.forEach(ev=>EVENT_POOL.push(ev));
 })();

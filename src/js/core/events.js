@@ -11,11 +11,16 @@ export const EVENT_POOL = [
   {scope:"asset", sym:"GAT",  title:"Prototype implodes",type:"recall",   mu:-0.0022, sigma:+0.013, demand:-0.12, days:2, severity:"major", blurb:"Confidence shaken."},
   {scope:"asset", sym:"H3",   title:"Lunar strike",      type:"tech",     mu:+0.0011, sigma:+0.007, demand:+0.09, days:3, severity:"major", blurb:"New regolith vein found."},
   {scope:"asset", sym:"CYB",  title:"Zero‑day frenzy",   type:"demand",   mu:+0.0010, sigma:+0.010, demand:+0.09, days:2, severity:"minor", blurb:"Urgent cyber spend."},
-  {scope:"asset", sym:"SOL",  title:"Sail tear recall",  type:"recall",   mu:-0.0011, sigma:+0.012, demand:-0.10, days:2, severity:"major", blurb:"Retrofit program announced."}
+  {scope:"asset", sym:"SOL",  title:"Sail tear recall",  type:"recall",   mu:-0.0011, sigma:+0.012, demand:-0.10, days:2, severity:"major", blurb:"Retrofit program announced."},
+  {scope:'global', title:'Options expiration gamma squeeze', type:'options_flow', mu:+0.0014, sigma:+0.012, demand:+0.06, days:2, severity:'major', blurb:'Dealer gamma flip fuels upside.', requires:['options']},
+  {scope:'asset', sym:'BTC', title:'New exchange listing', type:'crypto_flow', mu:+0.0018, sigma:+0.016, demand:+0.09, days:3, severity:'major', blurb:'Liquidity surge from new venue.', requires:['crypto']},
+  {scope:'asset', sym:'{TIP_SYM}', title:'Whispers on the street', type:'insider', mu:+0.0010, sigma:+0.010, demand:+0.05, days:2, severity:'minor', blurb:'Unusual chatter favors near‑term upside.', requires:['insider']}
 ];
 
-export function randomEvent(rng, newsLevel=0){
-  const ev = { ...EVENT_POOL[Math.floor(rng() * EVENT_POOL.length)] };
+export function randomEvent(ctx, rng, newsLevel=0){
+  const pool = EVENT_POOL.filter(ev => !ev.requires || ev.requires.every(id => ctx.state.upgrades[id]));
+  const base = pool.length ? pool : EVENT_POOL;
+  const ev = { ...base[Math.floor(rng() * base.length)] };
   const nScale = 1 + newsLevel * 0.05;
   const sev = ev.severity === 'major' ? 1.75 : 1.0;
   const negBias = rng() < 0.35; // chance of persistent negative shock

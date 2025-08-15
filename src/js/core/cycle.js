@@ -29,7 +29,7 @@ export function stepTick(ctx, cfg, rng, hooks){
   demandDrift(ctx.market, rng);
 
   if (!ctx.day.midEventFired && Math.random() < cfg.INTRADAY_EVENT_P){
-    const ev = randomEvent(rng); ev.mu *= cfg.INTRADAY_IMPACT_SCALE; ev.sigma *= cfg.INTRADAY_IMPACT_SCALE;
+    const ev = randomEvent(ctx, rng); ev.mu *= cfg.INTRADAY_IMPACT_SCALE; ev.sigma *= cfg.INTRADAY_IMPACT_SCALE;
     ev.timing = 'intraday'; ev.t = cfg.DAY_TICKS * 2;
     ctx.market.activeEvents.push(ev);
     hooks?.log?.(`${ev.scope==='global'?'GLOBAL':ev.sym}: ${ev.title} (intraday) — ${ev.blurb}`);
@@ -87,7 +87,7 @@ export function endDay(ctx, cfg=CFG, hooks){
 
 export function enqueueAfterHours(ctx, cfg, rng, hooks){
   if (Math.random() < cfg.AH_EVENT_P){
-    const ev = randomEvent(rng); ev.timing = 'afterhours';
+    const ev = randomEvent(ctx, rng); ev.timing = 'afterhours';
     ctx.market.tomorrow.push(ev);
     hooks?.log?.(`${ev.scope==='global'?'GLOBAL':ev.sym} (after‑hours): ${ev.title} — ${ev.blurb}`);
     pushAssetNews(ctx.newsByAsset, ev, `Day ${ctx.day.idx} (after‑hours)`);
