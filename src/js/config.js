@@ -12,6 +12,7 @@ export const CFG = {
 
   RUN_CAP_MULTIPLE: 5.0,     // soft cap for runaway rallies
   FLOW_WINDOW_DAYS: 7,
+  PRICE_MA_DAYS: 7,
 
   STREAK_FATIGUE: 0.0004,    // extra drift per streak day beyond threshold
   STREAK_REVERSION: 0.0008,  // overnight reversion strength when over/under fair
