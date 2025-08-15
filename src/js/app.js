@@ -44,8 +44,8 @@ buildMarketTable({
       `${sym} — ${ctx.assets.find(a => a.sym === sym).name}`;
     renderAll();
   },
-  onBuy: (sym, qty) => { buy(ctx, sym, qty, { log }); renderAll(); },
-  onSell: (sym, qty) => { sell(ctx, sym, qty, { log }); renderAll(); }
+  onBuy: (sym, qty, lev) => { buy(ctx, sym, qty, { leverage: lev, log }); renderAll(); },
+  onSell: (sym, qty, lev) => { sell(ctx, sym, qty, { leverage: lev, log }); renderAll(); }
 });
 
 // Chart type toggle
@@ -136,6 +136,10 @@ function start() {
 function portfolioValue() {
   let v = 0;
   for (const a of ctx.assets) v += (ctx.state.positions[a.sym] || 0) * a.price;
+  for (const m of ctx.state.marginPositions){
+    const a = ctx.assets.find(x => x.sym === m.sym);
+    if (a) v += m.qty * a.price;
+  }
   return v;
 }
 function netWorth() { return ctx.state.cash + portfolioValue() - ctx.state.debt; }

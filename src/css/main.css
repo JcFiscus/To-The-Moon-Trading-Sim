@@ -25,6 +25,8 @@ tr:hover{background:#0e141d}
 .price,.change,.holdings,.value{font-variant-numeric:tabular-nums}
 .change.up{color:var(--good)}.change.down{color:var(--bad)}
 input.qty{width:78px;background:#0a1118;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px}
+select.lev{width:70px;background:#0a1118;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 4px}
+.lock{color:var(--muted);font-size:16px}
 button{background:var(--btn);color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:8px;cursor:pointer;transition:.15s}
 button:hover{background:var(--btn-hover)} button.accent{background:#12301f;border-color:#1e4230}
 button.bad{background:#2a1313;border-color:#3b1b1b}

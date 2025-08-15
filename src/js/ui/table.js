@@ -1,4 +1,5 @@
 import { fmt, pct } from '../util/format.js';
+import { CFG } from '../config.js';
 
 export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell }){
   tbody.innerHTML = '';
@@ -14,6 +15,7 @@ export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell
       <td>
         <div class="row">
           <input class="qty" type="number" min="1" step="1" value="10" id="q-${a.sym}" />
+          ${state.upgrades.leverage>0 ? `<select class="lev" id="lv-${a.sym}"></select>` : `<span class="lock" id="lv-${a.sym}" title="Unlock Leverage in Upgrades">\uD83D\uDD12</span>`}
           <button class="accent" id="b-${a.sym}">Buy</button>
           <button class="accent" id="bm-${a.sym}">Buy Max</button>
           <button class="bad" id="s-${a.sym}">Sell</button>
@@ -24,9 +26,22 @@ export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell
       if (e.target.tagName === 'BUTTON' || e.target.classList.contains('qty')) return;
       onSelect(a.sym);
     });
+    if (state.upgrades.leverage>0) {
+      const sel = document.getElementById(`lv-${a.sym}`);
+      const levels = CFG.LEVERAGE_LEVELS.slice(0, state.upgrades.leverage+1);
+      const last = state.ui?.lastLev?.[a.sym] || 1;
+      for (const lv of levels) {
+        const opt = document.createElement('option');
+        opt.value = lv; opt.textContent = lv+'x';
+        if (lv === last) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      sel.addEventListener('change', (e)=>{ state.ui.lastLev[a.sym] = parseInt(e.target.value,10); });
+    }
     document.getElementById(`b-${a.sym}`).addEventListener('click', () => {
       const qty = parseInt(document.getElementById(`q-${a.sym}`).value || '0', 10);
-      onBuy(a.sym, qty);
+      const lev = state.upgrades.leverage>0 ? parseInt(document.getElementById(`lv-${a.sym}`).value,10) : 1;
+      onBuy(a.sym, qty, lev);
     });
     document.getElementById(`bm-${a.sym}`).addEventListener('click', () => {
       const price = a.price;
@@ -34,15 +49,18 @@ export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell
       if (qty < 0) qty = 0;
       while (qty > 0) {
         const fee = Math.max(state.minFee, qty * price * state.feeRate);
-        const cost = qty * price + fee;
+        const lev = state.upgrades.leverage>0 ? parseInt(document.getElementById(`lv-${a.sym}`).value,10) : 1;
+        const cost = qty * price * (lev>1?1/lev:1) + fee;
         if (cost <= state.cash) break;
         qty--;
       }
-      onBuy(a.sym, qty);
+      const lev = state.upgrades.leverage>0 ? parseInt(document.getElementById(`lv-${a.sym}`).value,10) : 1;
+      onBuy(a.sym, qty, lev);
     });
     document.getElementById(`s-${a.sym}`).addEventListener('click', () => {
       const qty = parseInt(document.getElementById(`q-${a.sym}`).value || '0', 10);
-      onSell(a.sym, qty);
+      const lev = state.upgrades.leverage>0 ? parseInt(document.getElementById(`lv-${a.sym}`).value,10) : 1;
+      onSell(a.sym, qty, lev);
     });
   }
 }
