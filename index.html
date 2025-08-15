@@ -2,103 +2,116 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>To‑The‑Moon Trading Sim — Modular v6 + Summary + Auto‑Risk</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>To‑The‑Moon Trading Sim</title>
+
+  <!-- Relative paths so GitHub Pages works under /To-The-Moon-Trading-Sim/ -->
+  <link rel="preload" href="src/css/main.css" as="style" />
   <link rel="stylesheet" href="src/css/main.css" />
+
+  <meta name="color-scheme" content="dark light">
 </head>
 <body>
-<header class="hdr">
-  <div class="brand">🛰️ To‑The‑Moon <small>v6 modular + summary + auto‑risk</small></div>
-  <div class="stats">
-    <div class="pill">Day <b id="dayNum">0</b> • <span class="kbd" id="dayTimer">—s</span></div>
-    <div class="pill">Cash: <b id="cash">$0.00</b></div>
-    <div class="pill">Debt: <b id="debt">$0.00</b></div>
-    <div class="pill">Assets: <b id="assets">$0.00</b></div>
-    <div class="pill">Net: <b id="net">$0.00</b></div>
-    <div class="pill">Risk: <b id="riskPct">0%</b></div>
-  </div>
-</header>
+  <header class="wrap">
+    <h1>To‑The‑Moon v6 <span class="chip">modular</span> <span class="chip">summary</span> <span class="chip">auto‑risk</span></h1>
 
-<div class="grid">
-  <section class="market-col">
-    <div class="card">
-      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div class="mini">10‑second days • After‑hours news drives tomorrow</div>
-        <div class="row">
-          <button id="startBtn" class="accent" aria-label="Start day">▶ Start Day</button>
-          <button id="saveBtn" aria-label="Save game">Save</button>
-          <button id="helpBtn" aria-label="Help">Help</button>
-          <button id="contrastBtn" aria-label="Toggle high contrast mode" aria-pressed="false">Contrast</button>
-          <button id="resetBtn" class="bad" aria-label="Hard reset game">Hard Reset</button>
+    <section id="hud" class="hud">
+      <div class="hud-row">
+        <div class="hud-item"><strong>Day</strong> <span id="hud-day">0</span> • <span id="hud-time">—s</span></div>
+        <div class="hud-item"><strong>Cash</strong> <span id="hud-cash">$0.00</span></div>
+        <div class="hud-item"><strong>Debt</strong> <span id="hud-debt">$0.00</span></div>
+        <div class="hud-item"><strong>Assets</strong> <span id="hud-assets">$0.00</span></div>
+        <div class="hud-item"><strong>Net</strong> <span id="hud-net">$0.00</span></div>
+        <div class="hud-item"><strong>Risk</strong> <span id="hud-risk">0%</span></div>
+      </div>
+      <div class="hud-row">
+        <div class="hud-item small">10‑second days • After‑hours news drives tomorrow</div>
+        <div class="hud-actions">
+          <button id="btn-start" class="btn">▶ Start Day</button>
+          <button id="btn-save" class="btn">Save</button>
+          <button id="btn-help" class="btn secondary">Help</button>
+          <button id="btn-contrast" class="btn secondary">Contrast</button>
+          <button id="btn-hard-reset" class="btn danger">Hard Reset</button>
         </div>
       </div>
-      <table id="marketTable" aria-label="Market data table">
-        <thead>
-          <tr>
-            <th>Asset</th><th>Price</th><th>Δ</th><th>Analyst</th><th>Holdings</th><th>Value</th><th>Trade</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div>
+    </section>
+  </header>
 
-  </section>
-
-  <section class="mid-col">
-    <div class="card">
-      <div class="row" style="justify-content:space-between;">
-        <div>Chart: <b id="chartTitle"></b> <button id="chartToggle" aria-label="Toggle chart type">Candles</button></div>
-        <div class="row">
-          <span class="tag">Prev close = dashed</span>
-          <span class="tag">Boundaries = day ends</span>
+  <main class="wrap">
+    <section class="panel">
+      <header class="panel-head">
+        <h2>Assets</h2>
+        <div class="legend">
+          <span class="legend-item up">▲ = up</span>
+          <span class="legend-item down">▼ = down</span>
+          <span class="legend-item">Prev close = dashed</span>
+          <span class="legend-item">Boundaries = day ends</span>
         </div>
+      </header>
+      <div class="table-scroll">
+        <table id="assets-table" class="grid">
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th class="num">Price</th>
+              <th class="num">Δ</th>
+              <th>Analyst</th>
+              <th class="num">Holdings</th>
+              <th class="num">Value</th>
+              <th>Trade</th>
+            </tr>
+          </thead>
+          <tbody id="assets-body"></tbody>
+        </table>
       </div>
-      <div class="chart-wrap"><canvas id="chart" width="820" height="300" role="img" aria-label="Asset price chart"></canvas></div>
-      <div class="statgrid" id="chartStats"></div>
-    </div>
+    </section>
 
-    <div class="card">
-      <div class="row" style="justify-content:space-between;">
-        <div>News & Events — <b id="newsSymbol"></b></div>
-        <div class="row" style="align-items:center;">
-          <div class="mini">Follow the selected asset</div>
-          <button id="majorOnly" class="chip-btn" aria-pressed="false" aria-label="Show major news only">Major</button>
-          <button id="newsCollapse" class="chip-btn" aria-label="Collapse news panel" aria-expanded="true">Collapse</button>
+    <section class="panel">
+      <header class="panel-head">
+        <h2>Chart</h2>
+        <div>
+          <label for="chart-type">Type:</label>
+          <select id="chart-type">
+            <option value="candles" selected>Candles</option>
+            <option value="line">Line</option>
+          </select>
         </div>
-      </div>
-      <div id="newsPanel">
-        <div id="newsScroll"><div id="newsTable"></div></div>
-      </div>
-    </div>
-  </section>
+      </header>
+      <canvas id="price-chart" height="220"></canvas>
+    </section>
 
-  <section class="right-rail">
-    <div class="card" id="portfolio"></div>
-    <div class="card" id="upgrades"></div>
-    <div class="card">
-      <div class="row" style="justify-content:space-between;">
-        <div>Asset Insight</div>
-        <div class="mini">Tomorrow (μ ± σ) • expected gap • recent news</div>
-      </div>
-      <div class="row mini" id="analystLine"></div>
-      <div class="asset-news" id="assetNews"></div>
-    </div>
+    <section class="grid-2">
+      <section class="panel">
+        <header class="panel-head"><h2>News &amp; Events</h2></header>
+        <div id="news-feed" class="news">
+          <em>Follow the selected asset</em>
+          <div class="news-item neg"><strong>Major Collapse</strong> · Sector contagion risk elevated.</div>
+        </div>
+      </section>
 
-    <div class="card" id="riskTools"></div>
-  </section>
-</div>
+      <section class="panel">
+        <header class="panel-head"><h2>Asset Insight</h2></header>
+        <div id="asset-insight" class="insight">
+          <div>Tomorrow (<span title="mu">μ</span> ± <span title="sigma">σ</span>) • expected gap • recent news</div>
+        </div>
+      </section>
+    </section>
+  </main>
 
-<!-- Toasts -->
-<div class="toast-stack" id="toastStack"></div>
+  <!-- End-of-day summary modal -->
+  <dialog id="eod-modal">
+    <form method="dialog" class="modal">
+      <h3>End of Day <span id="eod-day"></span></h3>
+      <p><strong>Net change:</strong> <span id="eod-net-change"></span></p>
+      <p><strong>Best:</strong> <span id="eod-best"></span></p>
+      <p><strong>Worst:</strong> <span id="eod-worst"></span></p>
+      <menu>
+        <button value="close" class="btn">Close</button>
+      </menu>
+    </form>
+  </dialog>
 
-<!-- Summary Modal -->
-<div class="overlay" id="overlay">
-  <div class="modal" id="modal" role="dialog" aria-modal="true">
-    <div id="modalContent"></div>
-    <div class="actions" id="modalActions"></div>
-  </div>
-</div>
-
-<script type="module" src="src/js/app.js"></script>
+  <!-- Main app script; relative path; ES module -->
+  <script type="module" src="src/js/app.js" defer></script>
 </body>
 </html>
