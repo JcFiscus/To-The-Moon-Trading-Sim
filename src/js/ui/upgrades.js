@@ -44,7 +44,7 @@ export function renderUpgrades(ctx, toast){
         <div>${def.name}</div>
         <div class="mini">${fmt(cost)}</div>
       </div>
-      <div class="mini">${def.desc}</div>
+      <div class="mini" ${def.tip?`title="${def.tip}"`:''}>${def.desc}</div>
       <button id="upg-${def.id}" ${disabled?'disabled':''}>${label}</button>
     </div>`);
   }

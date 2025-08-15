@@ -16,7 +16,7 @@ export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell
       <td class="trade">
         <div class="trade-inputs">
           <input class="qty" type="number" min="1" step="1" value="10" id="q-${a.sym}" />
-          ${state.upgrades.leverage>0 ? `<select class="lev" id="lv-${a.sym}"></select>` : `<span class="lock" id="lv-${a.sym}" title="Unlock Leverage in Upgrades">\uD83D\uDD12</span>`}
+          ${state.upgrades.leverage>0 ? `<select class="lev" id="lv-${a.sym}" title="Leverage multiplier"></select>` : `<span class="lock" id="lv-${a.sym}" title="Unlock Leverage in Upgrades">\uD83D\uDD12</span>`}
         </div>
         <div class="trade-buttons">
           <button class="accent" id="b-${a.sym}">Buy</button>

@@ -9,6 +9,7 @@ import { renderPortfolio } from './portfolio.js';
 import { renderUpgrades } from './upgrades.js';
 import { buy, sell } from '../core/trading.js';
 import { buyOption } from '../core/options.js';
+import { showHelp } from './modal.js';
 
 export function initUI(ctx, handlers) {
   const { start, save, reset } = handlers;
@@ -78,6 +79,7 @@ export function initUI(ctx, handlers) {
 
   document.getElementById('startBtn').addEventListener('click', start);
   document.getElementById('saveBtn').addEventListener('click', save);
+  document.getElementById('helpBtn').addEventListener('click', showHelp);
   document.getElementById('resetBtn').addEventListener('click', reset);
 
   initRiskTools(document.getElementById('riskTools'), ctx, toast);
