@@ -7,10 +7,12 @@ export function initNewsControls(ctx){
   collapseBtn.addEventListener('click', () => {
     const collapsed = panel.classList.toggle('collapsed');
     collapseBtn.textContent = collapsed ? 'Expand' : 'Collapse';
+    collapseBtn.setAttribute('aria-expanded', String(!collapsed));
   });
   majorBtn.addEventListener('click', () => {
     showMajorOnly = !showMajorOnly;
     majorBtn.classList.toggle('accent', showMajorOnly);
+    majorBtn.setAttribute('aria-pressed', String(showMajorOnly));
     renderAssetNewsTable(ctx);
   });
 }

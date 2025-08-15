@@ -25,13 +25,14 @@
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div class="mini">10‑second days • After‑hours news drives tomorrow</div>
         <div class="row">
-          <button id="startBtn" class="accent">▶ Start Day</button>
-          <button id="saveBtn">Save</button>
-          <button id="helpBtn">Help</button>
-          <button id="resetBtn" class="bad">Hard Reset</button>
+          <button id="startBtn" class="accent" aria-label="Start day">▶ Start Day</button>
+          <button id="saveBtn" aria-label="Save game">Save</button>
+          <button id="helpBtn" aria-label="Help">Help</button>
+          <button id="contrastBtn" aria-label="Toggle high contrast mode" aria-pressed="false">Contrast</button>
+          <button id="resetBtn" class="bad" aria-label="Hard reset game">Hard Reset</button>
         </div>
       </div>
-      <table id="marketTable">
+      <table id="marketTable" aria-label="Market data table">
         <thead>
           <tr>
             <th>Asset</th><th>Price</th><th>Δ</th><th>Analyst</th><th>Holdings</th><th>Value</th><th>Trade</th>
@@ -46,22 +47,28 @@
   <section class="mid-col">
     <div class="card">
       <div class="row" style="justify-content:space-between;">
-        <div>Chart: <b id="chartTitle"></b> <button id="chartToggle">Candles</button></div>
+        <div>Chart: <b id="chartTitle"></b> <button id="chartToggle" aria-label="Toggle chart type">Candles</button></div>
         <div class="row">
           <span class="tag">Prev close = dashed</span>
           <span class="tag">Boundaries = day ends</span>
         </div>
       </div>
-      <div class="chart-wrap"><canvas id="chart" width="820" height="300"></canvas></div>
+      <div class="chart-wrap"><canvas id="chart" width="820" height="300" role="img" aria-label="Asset price chart"></canvas></div>
       <div class="statgrid" id="chartStats"></div>
     </div>
 
     <div class="card">
       <div class="row" style="justify-content:space-between;">
         <div>News & Events — <b id="newsSymbol"></b></div>
-        <div class="mini">Follow the selected asset</div>
+        <div class="row" style="align-items:center;">
+          <div class="mini">Follow the selected asset</div>
+          <button id="majorOnly" class="chip-btn" aria-pressed="false" aria-label="Show major news only">Major</button>
+          <button id="newsCollapse" class="chip-btn" aria-label="Collapse news panel" aria-expanded="true">Collapse</button>
+        </div>
       </div>
-      <div id="newsScroll"><div id="newsTable"></div></div>
+      <div id="newsPanel">
+        <div id="newsScroll"><div id="newsTable"></div></div>
+      </div>
     </div>
   </section>
 
@@ -86,7 +93,7 @@
 
 <!-- Summary Modal -->
 <div class="overlay" id="overlay">
-  <div class="modal" id="modal">
+  <div class="modal" id="modal" role="dialog" aria-modal="true">
     <div id="modalContent"></div>
     <div class="actions" id="modalActions"></div>
   </div>
