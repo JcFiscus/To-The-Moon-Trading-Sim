@@ -105,6 +105,7 @@ export function initUI(ctx, handlers) {
     renderPortfolio(ctx);
     renderUpgrades(ctx, toast);
     ctx.renderMarketTabs();
+    ctx.renderRiskStats?.();
   }
   ctx.renderAll = renderAll;
 

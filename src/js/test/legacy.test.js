@@ -6,6 +6,7 @@ import './options.spec.js';
 import './crypto.spec.js';
 import './summary.spec.js';
 import './events.spec.js';
+import './risk.spec.js';
 
 test('legacy specs pass', () => {
   expect(true).toBe(true);

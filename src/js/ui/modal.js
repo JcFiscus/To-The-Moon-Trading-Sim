@@ -62,6 +62,28 @@ export function showSummary(summary, onNext){
   table.appendChild(tbody);
   modalContent.appendChild(table);
 
+  const rtable = document.createElement('table');
+  rtable.innerHTML = `<thead><tr>
+    <th>Asset</th><th>Basis</th><th>Peak</th><th>Ret%</th><th>DD%</th><th>Next TP</th><th>Last Rule</th>
+  </tr></thead>`;
+  const rtbody = document.createElement('tbody');
+  for (const r of rows){
+    const tr = document.createElement('tr');
+    const tdAsset = document.createElement('td'); tdAsset.textContent = r.sym;
+    const tdBasis = document.createElement('td'); tdBasis.textContent = fmt(r.basis);
+    const tdPeak = document.createElement('td'); tdPeak.textContent = fmt(r.peak);
+    const tdRet = document.createElement('td'); tdRet.textContent = `${(r.ret*100).toFixed(1)}%`;
+    tdRet.className = r.ret >= 0 ? 'up' : 'down';
+    const tdDD = document.createElement('td'); tdDD.textContent = `${(r.draw*100).toFixed(1)}%`;
+    tdDD.className = r.draw >= 0 ? 'up' : 'down';
+    const tdNext = document.createElement('td'); tdNext.textContent = r.nextTP!=null ? `${Math.round(r.nextTP*100)}%` : '—';
+    const tdLast = document.createElement('td'); tdLast.textContent = r.lastRule || '—';
+    tr.append(tdAsset, tdBasis, tdPeak, tdRet, tdDD, tdNext, tdLast);
+    rtbody.appendChild(tr);
+  }
+  rtable.appendChild(rtbody);
+  modalContent.appendChild(rtable);
+
   modalActions.innerHTML = '';
   const nextBtn = document.createElement('button'); nextBtn.className='accent'; nextBtn.textContent='Start Next Day ▶';
   nextBtn.addEventListener('click', onNext);
