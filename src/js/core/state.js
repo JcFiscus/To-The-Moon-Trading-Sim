@@ -43,7 +43,8 @@ export function createInitialState(assetDefs){
     upgradePurchases: { insider:0, leverage:0, debt_rate:0, options:0, crypto:0 },
     cooldowns: { insider:0 },
     ui: { lastLev: {} },
-    marginPositions: []
+    marginPositions: [],
+    insiderTip: null
   };
 
   const market = {

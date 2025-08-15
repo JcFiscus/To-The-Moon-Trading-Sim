@@ -67,8 +67,15 @@ export function applyOvernightOutlook(ctx){
     if (a.streak>3 && a.price>a.fair){ reversion = -CFG.STREAK_REVERSION*(a.streak-3) * CFG.DAY_TICKS; bias="reversion"; }
     if (a.streak<-3 && a.price<a.fair){ reversion = CFG.STREAK_REVERSION*(-a.streak-3) * CFG.DAY_TICKS; bias="reversion"; }
 
-    const mu    = gMu + evMu + valuation + streakMR + demandTerm + reversion;
-    const sigma = clamp(0.006 + evVol*0.6 + Math.abs(gDem)*0.15, 0.006, 0.10);
+    let mu    = gMu + evMu + valuation + streakMR + demandTerm + reversion;
+    let sigma = clamp(0.006 + evVol*0.6 + Math.abs(gDem)*0.15, 0.006, 0.10);
+    if (ctx.state.insiderTip && ctx.state.insiderTip.daysLeft > 0 && ctx.state.insiderTip.sym === a.sym) {
+      const [muMin, muMax] = CFG.INSIDER_MU_RANGE;
+      const [sigMin, sigMax] = CFG.INSIDER_SIGMA_RANGE;
+      mu += muMin + Math.random() * (muMax - muMin);
+      sigma += sigMin + Math.random() * (sigMax - sigMin);
+      sigma = clamp(sigma, 0.006, 0.12);
+    }
     const gap   = clamp( (gMu*CFG.DAY_TICKS*0.35) + (evMu*CFG.DAY_TICKS*0.75) + (evDem*0.55), -CFG.OPEN_GAP_CAP, CFG.OPEN_GAP_CAP);
 
     a.daySigma = sigma;

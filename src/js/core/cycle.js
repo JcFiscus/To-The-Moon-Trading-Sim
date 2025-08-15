@@ -4,6 +4,12 @@ import { CFG } from '../config.js';
 import { checkMargin } from './trading.js';
 
 export function startDay(ctx, cfg=CFG, hooks){
+  if (ctx.state.insiderTip && ctx.state.insiderTip.daysLeft > 0) {
+    ctx.state.upgrades.insider = true;
+  } else {
+    ctx.state.upgrades.insider = false;
+    ctx.state.insiderTip = null;
+  }
   ctx.day.idx += 1; ctx.day.active = true; ctx.day.ticksLeft = cfg.DAY_TICKS;
   ctx.day.startCash = ctx.state.cash; ctx.day.startDebt = ctx.state.debt;
   // compute start net/portfolio now
@@ -20,6 +26,13 @@ export function startDay(ctx, cfg=CFG, hooks){
   }
 
   applyOvernightOutlook(ctx);
+  if (ctx.state.insiderTip) {
+    ctx.state.insiderTip.daysLeft--;
+    if (ctx.state.insiderTip.daysLeft <= 0) {
+      ctx.state.upgrades.insider = false;
+      ctx.state.insiderTip = null;
+    }
+  }
   applyOpeningGaps(ctx, hooks);
 
   for (const a of ctx.assets) a.analyst = computeAnalyst(a, ctx.market, cfg);
@@ -101,6 +114,7 @@ export function endDay(ctx, cfg=CFG, hooks){
   };
 
   const gameOver = net <= 0;
+  if (ctx.state.cooldowns.insider > 0) ctx.state.cooldowns.insider--;
   return { rows, meta, gameOver };
 }
 
