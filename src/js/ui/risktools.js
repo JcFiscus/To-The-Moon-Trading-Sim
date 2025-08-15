@@ -90,6 +90,10 @@ export function initRiskTools(root, ctx, toast){
       <span class="mini" id="rt-summary" style="flex:1"></span>
       <button id="rt-apply" class="accent">Apply</button>
     </div>
+    <div class="section">
+      <div class="mini section-title">Status</div>
+      <table id="rt-stats" class="mini"></table>
+    </div>
   `;
 
   const byId = id => /** @type {HTMLInputElement} */(document.getElementById(id));
@@ -112,6 +116,34 @@ export function initRiskTools(root, ctx, toast){
     updateSummary();
   }
   hydrate();
+  function renderStats(){
+    const tbl = document.getElementById('rt-stats');
+    if (!tbl) return;
+    const tps = [
+      [cfg.tp1 || 0.2, 1],
+      [cfg.tp2 || 0.4, 2],
+      [cfg.tp3 || 0.8, 3]
+    ];
+    let html = '<tr><th>Sym</th><th>Basis</th><th>Peak</th><th>Ret%</th><th>DD%</th><th>Next TP</th><th>Last</th></tr>';
+    for (const a of ctx.assets){
+      const sym = a.sym;
+      const have = ctx.state.positions[sym] || 0;
+      if (have <= 0) continue;
+      const cb = ctx.state.costBasis[sym] || {qty:0, avg:a.price};
+      const basis = cb.avg || a.price;
+      const tr = ctx.riskTrack[sym] || {peak:a.price, lastTP:0, lastRule:''};
+      const ret = a.price / basis - 1;
+      const draw = a.price / tr.peak - 1;
+      const next = tps.find(([, stage]) => stage > (tr.lastTP||0));
+      const nextTxt = next ? `${Math.round(next[0]*100)}%` : '—';
+      const last = tr.lastRule || '—';
+      html += `<tr><td>${sym}</td><td>${basis.toFixed(2)}</td><td>${tr.peak.toFixed(2)}</td><td>${(ret*100).toFixed(1)}%</td><td>${(draw*100).toFixed(1)}%</td><td>${nextTxt}</td><td>${last}</td></tr>`;
+    }
+    tbl.innerHTML = html;
+  }
+
+  ctx.renderRiskStats = renderStats;
+  renderStats();
 
   function apply(){
     cfg.enabled = byId('rt-enabled').checked;
@@ -127,6 +159,7 @@ export function initRiskTools(root, ctx, toast){
     cfg.tp3Frac = Math.min(1, Math.max(0.05, parseFloat(byId('rt-tp3f').value)||50)/100);
     save(cfg);
     updateSummary();
+    renderStats();
     if (toast) {
       toast('Saved', 'good');
     }
@@ -161,6 +194,7 @@ export function initRiskTools(root, ctx, toast){
   function setPreset(p){
     Object.assign(cfg, presets[p]);
     hydrate();
+    renderStats();
     apply();
   }
   document.getElementById('rt-pre-con').addEventListener('click', () => setPreset('con'));

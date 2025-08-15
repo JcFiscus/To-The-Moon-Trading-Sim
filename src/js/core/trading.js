@@ -53,7 +53,7 @@ export function buy(ctx, sym, qty, opts={}){
 }
 
 export function sell(ctx, sym, qty, opts={}){
-  qty = Math.max(1, Math.floor(qty));
+  qty = Math.max(1, Math.ceil(qty));
   const a = ctx.assets.find(x => x.sym === sym);
   if (!a) return 0;
   let remaining = qty;

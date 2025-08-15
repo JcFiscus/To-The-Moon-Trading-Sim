@@ -78,6 +78,20 @@ export function endDay(ctx, cfg=CFG, hooks){
     const endVal    = endHold * ep;
     const unreal    = endHold * (ep - sp);
 
+    const cb = ctx.state.costBasis[a.sym] || {qty:0, avg:sp};
+    const basis = cb.avg || sp;
+    const tr = ctx.riskTrack[a.sym] || { peak: ep, lastTP: 0, lastRule: '' };
+    const ret = ep / basis - 1;
+    const draw = ep / tr.peak - 1;
+    const rcfg = ctx.state.riskTools || {};
+    const tps = [
+      [rcfg.tp1 || 0.2, 1],
+      [rcfg.tp2 || 0.4, 2],
+      [rcfg.tp3 || 0.8, 3]
+    ];
+    const next = tps.find(([, stage]) => stage > (tr.lastTP||0));
+    const nextTP = next ? next[0] : null;
+
     // Always update asset trackers
     a.streak = change>0 ? (a.streak>=0?a.streak+1:1) : (change<0 ? (a.streak<=0?a.streak-1:-1) : a.streak);
     a.flowWindow.push(a.flowToday); if (a.flowWindow.length > cfg.FLOW_WINDOW_DAYS) a.flowWindow.shift();
@@ -99,7 +113,7 @@ export function endDay(ctx, cfg=CFG, hooks){
     // Only include positions actually held; gate crypto behind upgrade
     const hadPosition = startHold > 0 || endHold > 0;
     if (hadPosition && (!a.isCrypto || ctx.state.upgrades.crypto)) {
-      rows.push({ sym:a.sym, name:a.name, sp, ep, priceCh:change, startHold, endHold, startVal, endVal, unreal });
+      rows.push({ sym:a.sym, name:a.name, sp, ep, priceCh:change, startHold, endHold, startVal, endVal, unreal, basis, peak:tr.peak, ret, draw, nextTP, lastRule:tr.lastRule });
 
       if(!best || change>best.priceCh) best={sym:a.sym,priceCh:change};
       if(!worst || change<worst.priceCh) worst={sym:a.sym,priceCh:change};
