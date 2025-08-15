@@ -85,3 +85,23 @@ export function showGameOver(onReset){
   modalActions.appendChild(resetBtn);
   overlay.style.display = 'flex';
 }
+
+export function showHelp(){
+  const overlay = document.getElementById('overlay');
+  const modalContent = document.getElementById('modalContent');
+  const modalActions = document.getElementById('modalActions');
+
+  modalContent.innerHTML = `<h3>How to Play</h3>
+    <div class="mini">News and events shift tomorrow's price by biasing drift (μ) and volatility (σ). Positive news nudges prices up while negative news drags them down; effects fade over time.</div>
+    <div class="mini">Margin and leverage let you borrow to magnify exposure. Gains and losses scale with leverage and positions may liquidate if equity falls too low.</div>
+    <div class="mini">Debt accrues interest each day. Paying it down or buying Preferred Rates reduces the hit.</div>
+    <div class="mini">Auto‑Risk settings automate stops and take‑profits using your configured thresholds and presets.</div>
+    <div class="mini">When no news is active, prices tend to revert toward the analyst μ with variation described by σ.</div>`;
+
+  modalActions.innerHTML = '';
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'Close';
+  closeBtn.addEventListener('click', () => overlay.style.display = 'none');
+  modalActions.appendChild(closeBtn);
+  overlay.style.display = 'flex';
+}

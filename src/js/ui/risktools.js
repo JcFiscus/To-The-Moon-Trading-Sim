@@ -19,13 +19,13 @@ export function initRiskTools(root, ctx, toast){
   root.innerHTML = `
     <div class="row" style="justify-content:space-between;">
       <div>Auto Risk Tools</div>
-      <label class="mini"><input type="checkbox" id="rt-enabled"> Enabled</label>
+      <label class="mini" title="Apply configured stops and take-profits automatically"><input type="checkbox" id="rt-enabled"> Enabled</label>
     </div>
     <div class="mini">Presets</div>
     <div class="row preset-row">
-      <button class="chip-btn" id="rt-pre-con">Conservative</button>
-      <button class="chip-btn" id="rt-pre-bal">Balanced</button>
-      <button class="chip-btn" id="rt-pre-agg">Aggressive</button>
+      <button class="chip-btn" id="rt-pre-con" title="Tight stops, low exposure">Conservative</button>
+      <button class="chip-btn" id="rt-pre-bal" title="Balanced risk parameters">Balanced</button>
+      <button class="chip-btn" id="rt-pre-agg" title="Wide stops, high exposure">Aggressive</button>
     </div>
     <div class="section">
       <div class="mini section-title">Protection</div>
