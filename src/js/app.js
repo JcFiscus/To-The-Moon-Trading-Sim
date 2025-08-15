@@ -103,6 +103,16 @@ function start() {
   renderAll();
   interval = setInterval(() => {
     stepTick(ctx, CFG, rng, { log, toast });
+    if (ctx.gameOver) {
+      clearInterval(interval); interval = null;
+      renderAll();
+      showGameOver(() => {
+        document.getElementById('overlay').style.display = 'none';
+        localStorage.removeItem('ttm_save');
+        location.reload();
+      });
+      return;
+    }
     // Auto‑Risk after price update
     evaluateRisk(ctx, { log, toast });
     renderAll();
@@ -115,7 +125,7 @@ function start() {
       enqueueAfterHours(ctx, CFG, rng, { log, toast });
       renderAll();
 
-      if (summary.gameOver) {
+      if (summary.gameOver || ctx.gameOver) {
         showGameOver(() => {
           document.getElementById('overlay').style.display = 'none';
           localStorage.removeItem('ttm_save');

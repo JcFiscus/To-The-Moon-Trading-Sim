@@ -1,6 +1,7 @@
 import { applyOvernightOutlook, applyOpeningGaps, updatePrices, riskDrift, demandDrift, computeAnalyst } from './priceModel.js';
 import { randomEvent, randomSupplyEvent, pushAssetNews } from './events.js';
 import { CFG } from '../config.js';
+import { checkMargin } from './trading.js';
 
 export function startDay(ctx, cfg=CFG, hooks){
   ctx.day.idx += 1; ctx.day.active = true; ctx.day.ticksLeft = cfg.DAY_TICKS;
@@ -38,6 +39,7 @@ export function stepTick(ctx, cfg, rng, hooks){
   }
 
   updatePrices(ctx, rng);
+  checkMargin(ctx, hooks);
   ctx.market.activeEvents = ctx.market.activeEvents.map(ev => ({...ev, t:(ev.t||10)-1})).filter(ev => ev.t > 0);
 
   ctx.day.ticksLeft--;

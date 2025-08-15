@@ -62,6 +62,6 @@ export function createInitialState(assetDefs){
   };
 
   // Misc runtime trackers
-  const ctx = { assets, state, market, day, newsByAsset, riskTrack: {} };
+  const ctx = { assets, state, market, day, newsByAsset, riskTrack: {}, gameOver:false };
   return ctx;
 }

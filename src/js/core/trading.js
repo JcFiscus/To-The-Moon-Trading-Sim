@@ -98,3 +98,34 @@ export function sell(ctx, sym, qty, opts={}){
   a.flowToday -= sold;
   return sold;
 }
+
+export function checkMargin(ctx, hooks={}){
+  for (let i = ctx.state.marginPositions.length - 1; i >= 0; i--) {
+    const lot = ctx.state.marginPositions[i];
+    const a = ctx.assets.find(x => x.sym === lot.sym);
+    if (!a) continue;
+    const price = a.price;
+    if (price <= lot.liqPrice) {
+      const fee = Math.max(ctx.state.minFee, lot.qty * price * ctx.state.feeRate);
+      const IM = 1 / lot.leverage;
+      const profit = (price - lot.entry) * lot.qty;
+      const liqFee = lot.qty * price * (CFG.LIQUIDATION_FEE_BP / 10000);
+      const cashAdd = IM * lot.entry * lot.qty + profit - fee - liqFee;
+      ctx.state.cash += cashAdd;
+      ctx.state.realizedPnL += profit;
+      ctx.day.realized += profit;
+      ctx.day.feesPaid += fee + liqFee;
+      ctx.state.marginPositions.splice(i, 1);
+      hooks.log?.(`Liquidated ${lot.qty} ${lot.sym} @ $${price.toFixed(2)} (x${lot.leverage})`);
+      if (lot.leverage >= 100) ctx.gameOver = true;
+    }
+  }
+  let port = 0;
+  for (const a of ctx.assets) port += (ctx.state.positions[a.sym] || 0) * a.price;
+  for (const m of ctx.state.marginPositions) {
+    const a = ctx.assets.find(x => x.sym === m.sym);
+    if (a) port += m.qty * a.price;
+  }
+  const net = ctx.state.cash + port - ctx.state.debt;
+  if (net <= 0) ctx.gameOver = true;
+}
