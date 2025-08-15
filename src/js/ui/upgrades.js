@@ -1,5 +1,6 @@
 import { UPGRADES, upgradeCost } from '../core/upgrades.js';
 import { fmt } from '../util/format.js';
+import { CFG } from '../config.js';
 
 function highestTierOwned(ctx){
   let t = 0;
@@ -24,11 +25,19 @@ export function renderUpgrades(ctx, toast){
     if(!tierUnlocked(ctx, def.tier)) continue;
     const bought = ctx.state.upgradePurchases[def.id] || 0;
     const cost = upgradeCost(def, bought);
-    const owned = ctx.state.upgrades[def.id];
-    const disabled = ctx.day.active || cost > ctx.state.cash || (def.id !== 'leverage' && owned);
-    const label = (def.id === 'leverage') ?
-      (owned ? `Level ${owned}` : 'Unlock') :
-      (owned ? 'Owned' : 'Unlock');
+    let disabled, label;
+    if (def.id === 'insider') {
+      const tip = ctx.state.insiderTip;
+      const cd = ctx.state.cooldowns.insider || 0;
+      disabled = ctx.day.active || cost > ctx.state.cash || tip || cd > 0;
+      label = tip ? `Active (${tip.daysLeft}d)` : (cd > 0 ? `Cooldown ${cd}d` : 'Buy Tip');
+    } else {
+      const owned = ctx.state.upgrades[def.id];
+      disabled = ctx.day.active || cost > ctx.state.cash || (def.id !== 'leverage' && owned);
+      label = (def.id === 'leverage') ?
+        (owned ? `Level ${owned}` : 'Unlock') :
+        (owned ? 'Owned' : 'Unlock');
+    }
     sections.push(`<div class="section">
       <div class="row" style="justify-content:space-between;">
         <div>${def.name}</div>
@@ -55,14 +64,24 @@ export function renderUpgrades(ctx, toast){
     btn.addEventListener('click', () => {
       const bought = ctx.state.upgradePurchases[def.id] || 0;
       const cost = upgradeCost(def, bought);
-      if(ctx.day.active || ctx.state.cash < cost) return;
-      ctx.state.cash -= cost;
-      ctx.state.upgradePurchases[def.id] = bought + 1;
-      if(def.id === 'leverage'){
-        ctx.state.upgrades.leverage = Math.min(def.levels.length, (ctx.state.upgrades.leverage||0) + 1);
-      }else{
-        ctx.state.upgrades[def.id] = true;
-        if(def.id === 'insider') ctx.state.cooldowns.insider = 7;
+      if (ctx.day.active || ctx.state.cash < cost) return;
+      if (def.id === 'insider') {
+        if (ctx.state.cooldowns.insider > 0 || ctx.state.insiderTip) return;
+        const sym = prompt('Symbol for tip', ctx.assets[0].sym);
+        if (!sym) return;
+        ctx.state.cash -= cost;
+        ctx.state.upgradePurchases.insider = bought + 1;
+        ctx.state.insiderTip = { sym, daysLeft: CFG.INSIDER_DAYS };
+        ctx.state.cooldowns.insider = CFG.INSIDER_COOLDOWN_DAYS;
+        ctx.state.upgrades.insider = true;
+      } else {
+        ctx.state.cash -= cost;
+        ctx.state.upgradePurchases[def.id] = bought + 1;
+        if(def.id === 'leverage'){
+          ctx.state.upgrades.leverage = Math.min(def.levels.length, (ctx.state.upgrades.leverage||0) + 1);
+        }else{
+          ctx.state.upgrades[def.id] = true;
+        }
       }
       if(toast) toast('Upgrade purchased', 'good');
       renderUpgrades(ctx, toast);

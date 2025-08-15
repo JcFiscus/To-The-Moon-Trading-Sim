@@ -18,7 +18,21 @@ export const EVENT_POOL = [
 ];
 
 export function randomEvent(ctx, rng, newsLevel=0){
-  const pool = EVENT_POOL.filter(ev => !ev.requires || ev.requires.every(id => ctx.state.upgrades[id]));
+  let pool = EVENT_POOL.filter(ev => !ev.requires || ev.requires.every(id => ctx.state.upgrades[id]));
+  pool = pool.map(ev => {
+    if (ev.sym === '{TIP_SYM}' && ctx.state.insiderTip) {
+      return { ...ev, sym: ctx.state.insiderTip.sym };
+    }
+    return ev;
+  });
+  if (ctx.state.insiderTip && ctx.state.insiderTip.daysLeft > 0) {
+    const sym = ctx.state.insiderTip.sym;
+    const extras = [];
+    for (const ev of pool) {
+      if (ev.sym === sym && ev.mu > 0) extras.push(ev);
+    }
+    pool = pool.concat(extras);
+  }
   const base = pool.length ? pool : EVENT_POOL;
   const ev = { ...base[Math.floor(rng() * base.length)] };
   const nScale = 1 + newsLevel * 0.05;
