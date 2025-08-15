@@ -84,7 +84,10 @@ export function renderUpgrades(ctx, toast){
         }
       }
       if(toast) toast('Upgrade purchased', 'good');
-      renderUpgrades(ctx, toast);
+      if(ctx.rebuildMarketTable) ctx.rebuildMarketTable();
+      if(ctx.renderMarketTabs) ctx.renderMarketTabs();
+      if(ctx.renderAll) ctx.renderAll();
+      else renderUpgrades(ctx, toast);
     });
   }
 }
