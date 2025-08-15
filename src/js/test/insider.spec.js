@@ -2,7 +2,8 @@ import assert from 'assert';
 import { CFG, ASSET_DEFS } from '../config.js';
 import { createInitialState } from '../core/state.js';
 import { startDay, endDay } from '../core/cycle.js';
-import { applyOvernightOutlook } from '../core/priceModel.js';
+import { applyOvernightOutlook, updatePrices } from '../core/priceModel.js';
+import { createRNG } from '../util/rng.js';
 
 (function testInsiderWindow(){
   const cfg = { ...CFG, INTRADAY_EVENT_P:0, AH_EVENT_P:0, AH_SUPPLY_EVENT_P:0 };
@@ -31,4 +32,18 @@ import { applyOvernightOutlook } from '../core/priceModel.js';
   applyOvernightOutlook(ctx);
   const mu = ctx.assets[0].outlook.mu;
   assert(Math.abs((mu - baseMu) - ctx.state.insiderTip.mu * CFG.INSIDER_EFFECT_MULT) < 1e-9, 'tip mu applied with multiplier');
+})();
+
+(function testInsiderPriceImpact(){
+  const ctxA = createInitialState(ASSET_DEFS.slice(0,1));
+  const ctxB = createInitialState(ASSET_DEFS.slice(0,1));
+  ctxB.state.insiderTip = { sym: ctxB.assets[0].sym, daysLeft: CFG.INSIDER_DAYS, mu:0.02, sigma:0.01, bias:1 };
+  applyOvernightOutlook(ctxA);
+  applyOvernightOutlook(ctxB);
+  const seed = 42;
+  const rngA = createRNG(seed);
+  const rngB = createRNG(seed);
+  updatePrices(ctxA, rngA);
+  updatePrices(ctxB, rngB);
+  assert(ctxB.assets[0].price > ctxA.assets[0].price, 'tip mu increases price');
 })();

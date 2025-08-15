@@ -43,7 +43,9 @@ export function renderUpgrades(ctx, toast){
       else if(cost > ctx.state.cash) reason = 'Insufficient cash';
       else if(tip) reason = 'Tip active';
       else if(cd > 0) reason = `Cooldown ${cd}d`;
-      label = tip ? `Active ${tip.bias>0?'Bullish':'Bearish'} (${tip.daysLeft}d)` : 'Buy Tip';
+      if (tip) label = `Active ${tip.bias>0?'Bullish':'Bearish'} (${tip.daysLeft}d)`;
+      else if (cd > 0) label = `Cooldown ${cd}d`;
+      else label = 'Buy Tip';
     } else {
       const owned = ctx.state.upgrades[def.id];
       disabled = ctx.day.active || cost > ctx.state.cash || (def.id !== 'leverage' && owned);
