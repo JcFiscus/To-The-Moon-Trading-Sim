@@ -1,4 +1,5 @@
 import { fmt } from '../util/format.js';
+import { CFG } from '../config.js';
 
 export function initChart(ctx){
   const canvas = document.getElementById('chart');
@@ -14,7 +15,7 @@ export function initChart(ctx){
   canvas.addEventListener('wheel', e => {
     e.preventDefault();
     const factor = e.deltaY > 0 ? 1.1 : 0.9;
-    ctx.chartZoom = Math.min(Math.max(1, ctx.chartZoom * factor), 8);
+    ctx.chartZoom = Math.min(Math.max(1, ctx.chartZoom * factor), 100);
     drawChart(ctx);
   }, { passive: false });
 
@@ -102,19 +103,21 @@ export function drawChart(ctx) {
   c.globalAlpha = 1;
 
   const segments = [];
-  const bounds = [...a.dayBounds, a.history.length];
-  for (let i = 0; i < bounds.length; i++) {
-    const s = i === 0 ? 0 : bounds[i - 1];
-    const e = bounds[i];
-    if (e <= startIdx || s >= startIdx + data.length) continue;
-    const segStart = Math.max(s, startIdx);
-    const segEnd = Math.min(e, startIdx + data.length);
-    const slice = a.history.slice(segStart, segEnd);
+  const sizeMap = {
+    hour: 1,
+    day: CFG.DAY_TICKS,
+    week: CFG.DAY_TICKS * 5,
+    month: CFG.DAY_TICKS * 22
+  };
+  const segSize = sizeMap[ctx.chartInterval] || 1;
+  for (let i = 0; i < data.length; i += segSize) {
+    const slice = data.slice(i, i + segSize);
+    if (slice.length === 0) continue;
     const open = slice[0];
     const close = slice[slice.length - 1];
     const high = Math.max(...slice);
     const low = Math.min(...slice);
-    segments.push({ start: segStart - startIdx, end: segEnd - startIdx, open, close, high, low });
+    segments.push({ start: i, end: i + slice.length, open, close, high, low });
   }
 
   if (ctx.chartMode === 'candles') {
