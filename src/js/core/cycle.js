@@ -77,7 +77,10 @@ export function endDay(ctx, cfg=CFG, hooks){
     // Always update asset trackers
     a.streak = change>0 ? (a.streak>=0?a.streak+1:1) : (change<0 ? (a.streak<=0?a.streak-1:-1) : a.streak);
     a.flowWindow.push(a.flowToday); if (a.flowWindow.length > cfg.FLOW_WINDOW_DAYS) a.flowWindow.shift();
-    if (a.streak <= 0) a.runStart = a.price;
+    const span = Math.min(cfg.FLOW_WINDOW_DAYS, a.dayBounds.length);
+    const startIdx = a.dayBounds[Math.max(0, a.dayBounds.length - span)] || 0;
+    const recentMin = Math.min(...a.history.slice(startIdx));
+    a.runStart = recentMin;
     a.evDemandBias *= cfg.EVENT_DEMAND_DECAY;
 
     // Only include positions actually held; gate crypto behind upgrade
