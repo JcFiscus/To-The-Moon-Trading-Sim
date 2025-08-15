@@ -12,7 +12,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
 .stats{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .pill{background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:6px 10px;display:flex;gap:8px;align-items:center}
 .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
-.grid{display:grid;grid-template-columns:2fr 1.5fr 320px;gap:16px;padding:16px;max-width:1500px;margin:0 auto}
+.grid{display:grid;grid-template-columns:3fr 1fr 320px;gap:16px;padding:16px;max-width:1500px;margin:0 auto}
 @media (max-width:1100px){.grid{grid-template-columns:1fr}}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -29,7 +29,7 @@ body.high-contrast #marketTable tr.selected{background:var(--accent);color:#000}
 .price,.change,.holdings,.value{font-variant-numeric:tabular-nums}
 .change.up{color:var(--good)}.change.down{color:var(--bad)}
 td.trade{padding:8px}
-.trade-bar{display:none;gap:6px;align-items:center}
+.trade-bar{display:none;gap:6px;align-items:center;flex-wrap:wrap}
 tr:hover .trade-bar,
 tr:focus-within .trade-bar,
 tr.selected .trade-bar{display:flex}
@@ -48,13 +48,13 @@ button.bad{background:#2a1313;border-color:#3b1b1b}
   outline-offset:2px;
 }
 #marketTable tr.selected:focus-visible{outline:2px solid var(--accent)}
-#marketTable th:nth-child(1){width:16%}
-#marketTable th:nth-child(2){width:10%}
-#marketTable th:nth-child(3){width:8%}
-#marketTable th:nth-child(4){width:14%}
-#marketTable th:nth-child(5){width:12%}
-#marketTable th:nth-child(6){width:12%}
-#marketTable th:nth-child(7){width:28%}
+#marketTable th:nth-child(1){width:15%}
+#marketTable th:nth-child(2){width:9%}
+#marketTable th:nth-child(3){width:7%}
+#marketTable th:nth-child(4){width:13%}
+#marketTable th:nth-child(5){width:11%}
+#marketTable th:nth-child(6){width:10%}
+#marketTable th:nth-child(7){width:35%}
 .market-col,.mid-col,.right-rail{display:grid;gap:16px}
 .right-rail{width:320px}
 #newsPanel.collapsed{display:none}
