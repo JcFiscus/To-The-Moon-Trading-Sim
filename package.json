@@ -4,6 +4,6 @@
   "description": "Trading simulation game framework with HTML, CSS, and JavaScript.",
   "type": "module",
   "scripts": {
-    "test": "node src/js/test/engine.spec.js && node src/js/test/cycle.spec.js"
+    "test": "node src/js/test/engine.spec.js && node src/js/test/cycle.spec.js && node src/js/test/margin.spec.js"
   }
 }
