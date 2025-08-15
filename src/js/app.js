@@ -13,7 +13,7 @@ import { initToaster } from './ui/toast.js';
 import { buildMarketTable, renderMarketTable } from './ui/table.js';
 import { drawChart } from './ui/chart.js';
 import { renderInsight } from './ui/insight.js';
-import { renderAssetNewsTable } from './ui/newsAssets.js';
+import { renderAssetNewsTable, initNewsControls } from './ui/newsAssets.js';
 import { showSummary, showGameOver } from './ui/modal.js';
 import { initRiskTools } from './ui/risktools.js';
 import { renderPortfolio } from './ui/portfolio.js';
@@ -75,6 +75,8 @@ document.getElementById('chartTitle').textContent =
   }
   ctx.renderMarketTabs = renderTabs;
   renderTabs();
+
+  initNewsControls(ctx);
 
 // Chart type toggle
 ctx.chartMode = 'line';

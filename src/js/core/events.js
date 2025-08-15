@@ -62,7 +62,8 @@ export function randomSupplyEvent(assets, rng){
           severity:(Math.abs(frac)>0.05 ? "major":"minor"), blurb:`Supply ${up?"+":""}${Math.round(frac*100)}%.`};
 }
 
-export function pushAssetNews(newsByAsset, ev, whenLabel){
+export function pushAssetNews(newsByAsset, ev, whenLabel, state){
+  if (ev.requires && state && !ev.requires.every(id => state.upgrades[id])) return;
   const targets = ev.scope === 'asset' ? [ev.sym] : null;
   if (targets) {
     newsByAsset[ev.sym] = newsByAsset[ev.sym] || [];

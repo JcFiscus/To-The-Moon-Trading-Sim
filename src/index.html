@@ -55,14 +55,20 @@
       <div class="statgrid" id="chartStats"></div>
     </div>
 
-    <div class="card">
-      <div class="row" style="justify-content:space-between;">
-        <div>News & Events — <b id="newsSymbol"></b></div>
-        <div class="mini">Follow the selected asset</div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between;">
+          <div>News & Events — <b id="newsSymbol"></b></div>
+          <div class="row" style="align-items:center;">
+            <div class="mini">Follow the selected asset</div>
+            <button id="majorOnly" class="chip-btn">Major</button>
+            <button id="newsCollapse" class="chip-btn">Collapse</button>
+          </div>
+        </div>
+        <div id="newsPanel">
+          <div id="newsScroll"><div id="newsTable"></div></div>
+        </div>
       </div>
-      <div id="newsScroll"><div id="newsTable"></div></div>
-    </div>
-  </section>
+    </section>
 
   <section class="right-rail">
     <div class="card" id="portfolio"></div>
