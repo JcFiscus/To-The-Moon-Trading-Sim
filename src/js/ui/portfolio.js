@@ -1,9 +1,19 @@
 import { fmt } from '../util/format.js';
 
+function plCell(value) {
+  const td = document.createElement('td');
+  td.textContent = fmt(value);
+  td.className = value >= 0 ? 'up' : 'down';
+  return td;
+}
+
 export function renderPortfolio(ctx){
   const root = document.getElementById('portfolio');
   if (!root) return;
-  const rows = [];
+  root.innerHTML = '';
+
+  // Holdings
+  const holdRows = [];
   for (const a of ctx.assets){
     const qty = ctx.state.positions[a.sym] || 0;
     if (!qty) continue;
@@ -11,25 +21,39 @@ export function renderPortfolio(ctx){
     const price = a.price;
     const value = qty * price;
     const pl = (price - avg) * qty;
-    rows.push(`<tr>
-      <td>${a.sym}</td>
-      <td>${qty.toLocaleString()}</td>
-      <td>${fmt(avg)}</td>
-      <td>${fmt(price)}</td>
-      <td class="${pl>=0?'up':'down'}">${fmt(pl)}</td>
-      <td>${fmt(value)}</td>
-    </tr>`);
+    holdRows.push({ a, qty, avg, price, value, pl });
   }
-  const holdSection = rows.length ? `
-    <div class="row" style="justify-content:space-between;">
-      <div>Portfolio</div>
-      <div class="mini">Holdings overview</div>
-    </div>
-    <table>
-      <thead><tr><th>Sym</th><th>Qty</th><th>Avg Cost</th><th>Price</th><th>P/L</th><th>Value</th></tr></thead>
-      <tbody>${rows.join('')}</tbody>
-    </table>` : '<div class="mini">No holdings.</div>';
 
+  if (holdRows.length){
+    const header = document.createElement('div');
+    header.className = 'row';
+    header.style.justifyContent = 'space-between';
+    header.innerHTML = '<div>Portfolio</div><div class="mini">Holdings overview</div>';
+    root.appendChild(header);
+
+    const table = document.createElement('table');
+    table.innerHTML = '<thead><tr><th>Sym</th><th>Qty</th><th>Avg Cost</th><th>Price</th><th>P/L</th><th>Value</th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    for (const row of holdRows){
+      const tr = document.createElement('tr');
+      tr.appendChild(Object.assign(document.createElement('td'),{textContent: row.a.sym}));
+      tr.appendChild(Object.assign(document.createElement('td'),{textContent: row.qty.toLocaleString()}));
+      tr.appendChild(Object.assign(document.createElement('td'),{textContent: fmt(row.avg)}));
+      tr.appendChild(Object.assign(document.createElement('td'),{textContent: fmt(row.price)}));
+      tr.appendChild(plCell(row.pl));
+      tr.appendChild(Object.assign(document.createElement('td'),{textContent: fmt(row.value)}));
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    root.appendChild(table);
+  } else {
+    const div = document.createElement('div');
+    div.className = 'mini';
+    div.textContent = 'No holdings.';
+    root.appendChild(div);
+  }
+
+  // Margin
   const mRows = [];
   for (const lot of ctx.state.marginPositions){
     const a = ctx.assets.find(x => x.sym === lot.sym);
@@ -37,33 +61,87 @@ export function renderPortfolio(ctx){
     const price = a.price;
     const value = lot.qty * price;
     const pl = (price - lot.entry) * lot.qty;
-    mRows.push(`<tr><td>${lot.sym}</td><td>${lot.qty}</td><td>${fmt(lot.entry)}</td><td>${lot.leverage}x</td><td>${fmt(lot.liqPrice)}</td><td>${(lot.maintReq*100).toFixed(0)}%</td><td class="${pl>=0?'up':'down'}">${fmt(pl)}</td><td>${fmt(value)}</td></tr>`);
+    mRows.push({ lot, price, value, pl });
   }
-  const marginSection = (ctx.state.upgrades.leverage>0 || mRows.length) ? (`
-    <div class="section">
-      <div class="row" style="justify-content:space-between;">
-        <div>Margin</div>
-        <div class="mini">Leveraged positions</div>
-      </div>
-      ${mRows.length ? `<table><thead><tr><th>Sym</th><th>Qty</th><th>Entry</th><th>Lev</th><th>Liq Price</th><th>Maint</th><th>P/L</th><th>Value</th></tr></thead><tbody>${mRows.join('')}</tbody></table>` : '<div class="mini">No margin positions.</div>'}
-    </div>`):'';
 
+  if (ctx.state.upgrades.leverage>0 || mRows.length){
+    const section = document.createElement('div');
+    section.className = 'section';
+    const header = document.createElement('div');
+    header.className = 'row';
+    header.style.justifyContent = 'space-between';
+    header.innerHTML = '<div>Margin</div><div class="mini">Leveraged positions</div>';
+    section.appendChild(header);
+    if (mRows.length){
+      const table = document.createElement('table');
+      table.innerHTML = '<thead><tr><th>Sym</th><th>Qty</th><th>Entry</th><th>Lev</th><th>Liq Price</th><th>Maint</th><th>P/L</th><th>Value</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      for (const r of mRows){
+        const tr = document.createElement('tr');
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: r.lot.sym}));
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: r.lot.qty}));
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: fmt(r.lot.entry)}));
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: r.lot.leverage + 'x'}));
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: fmt(r.lot.liqPrice)}));
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: (r.lot.maintReq*100).toFixed(0)+'%'}));
+        tr.appendChild(plCell(r.pl));
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: fmt(r.value)}));
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      section.appendChild(table);
+    } else {
+      const div = document.createElement('div');
+      div.className = 'mini';
+      div.textContent = 'No margin positions.';
+      section.appendChild(div);
+    }
+    root.appendChild(section);
+  }
+
+  // Options
   const oRows = [];
-  for (const opt of ctx.state.optionPositions) {
+  for (const opt of ctx.state.optionPositions){
     const a = ctx.assets.find(x => x.sym === opt.sym);
     if (!a) continue;
     const pl = (opt.mark - opt.premium) * opt.qty;
     const val = opt.mark * opt.qty;
-    oRows.push(`<tr><td>${opt.sym}</td><td>${opt.type}</td><td>${fmt(opt.strike)}</td><td>${Math.max(0,Math.round(opt.dte))}</td><td>${opt.qty}</td><td>${fmt(opt.premium)}</td><td>${fmt(opt.mark)}</td><td class="${pl>=0?'up':'down'}">${fmt(pl)}</td><td>${fmt(val)}</td></tr>`);
+    oRows.push({ opt, pl, val });
   }
-  const optionsSection = (ctx.state.upgrades.options || oRows.length) ? (`
-    <div class="section">
-      <div class="row" style="justify-content:space-between;">
-        <div>Options</div>
-        <div class="mini">Options positions</div>
-      </div>
-      ${oRows.length ? `<table><thead><tr><th>Sym</th><th>Type</th><th>Strike</th><th>DTE</th><th>Qty</th><th>Premium</th><th>Mark</th><th>P/L</th><th>Value</th></tr></thead><tbody>${oRows.join('')}</tbody></table>` : '<div class="mini">No options positions.</div>'}
-    </div>`):'';
 
-  root.innerHTML = holdSection + marginSection + optionsSection;
+  if (ctx.state.upgrades.options || oRows.length){
+    const section = document.createElement('div');
+    section.className = 'section';
+    const header = document.createElement('div');
+    header.className = 'row';
+    header.style.justifyContent = 'space-between';
+    header.innerHTML = '<div>Options</div><div class="mini">Options positions</div>';
+    section.appendChild(header);
+    if (oRows.length){
+      const table = document.createElement('table');
+      table.innerHTML = '<thead><tr><th>Sym</th><th>Type</th><th>Strike</th><th>DTE</th><th>Qty</th><th>Premium</th><th>Mark</th><th>P/L</th><th>Value</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      for (const r of oRows){
+        const tr = document.createElement('tr');
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: r.opt.sym}));
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: r.opt.type}));
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: fmt(r.opt.strike)}));
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: Math.max(0,Math.round(r.opt.dte))}));
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: r.opt.qty}));
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: fmt(r.opt.premium)}));
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: fmt(r.opt.mark)}));
+        tr.appendChild(plCell(r.pl));
+        tr.appendChild(Object.assign(document.createElement('td'),{textContent: fmt(r.val)}));
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      section.appendChild(table);
+    } else {
+      const div = document.createElement('div');
+      div.className = 'mini';
+      div.textContent = 'No options positions.';
+      section.appendChild(div);
+    }
+    root.appendChild(section);
+  }
 }
