@@ -69,13 +69,16 @@ export function renderUpgrades(ctx, toast){
       let msg = 'Upgrade purchased';
       if (def.id === 'insider') {
         if (ctx.state.cooldowns.insider > 0 || ctx.state.insiderTip) return;
-        const sym = prompt('Symbol for tip', ctx.assets[0].sym);
-        if (!sym) return;
+        const sym = ctx.assets[Math.floor(Math.random()*ctx.assets.length)].sym;
         const bias = Math.random() < 0.5 ? 1 : -1;
         const [muMin, muMax] = CFG.INSIDER_MU_RANGE;
         const [sigMin, sigMax] = CFG.INSIDER_SIGMA_RANGE;
-        const mu = (muMin + Math.random() * (muMax - muMin)) * bias;
-        const sigma = sigMin + Math.random() * (sigMax - sigMin);
+        let mu = (muMin + Math.random() * (muMax - muMin)) * bias;
+        let sigma = sigMin + Math.random() * (sigMax - sigMin);
+        if (Math.random() < 0.05) {
+          mu = (0.2 + Math.random() * 0.8) * bias;
+          sigma = 0.15 + Math.random() * 0.35;
+        }
         ctx.state.cash -= cost;
         ctx.state.upgradePurchases.insider = bought + 1;
         ctx.state.insiderTip = { sym, daysLeft: CFG.INSIDER_DAYS, mu, sigma, bias };

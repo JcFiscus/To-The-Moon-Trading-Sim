@@ -96,8 +96,9 @@ export function applyOvernightOutlook(ctx){
 
     if (ctx.state.insiderTip && ctx.state.insiderTip.daysLeft > 0 && ctx.state.insiderTip.sym === a.sym) {
       const tip = ctx.state.insiderTip;
-      mu += tip.mu;
-      sigma += tip.sigma;
+      const mult = CFG.INSIDER_EFFECT_MULT || 3;
+      mu += tip.mu * mult;
+      sigma += tip.sigma * mult;
       sigma = clamp(sigma, 0.006, 0.12);
     }
     const gap   = clamp( (gMu*CFG.DAY_TICKS*0.35) + (evMu*CFG.DAY_TICKS*0.75) + (evDem*0.55), -CFG.OPEN_GAP_CAP, CFG.OPEN_GAP_CAP);

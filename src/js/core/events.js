@@ -33,7 +33,9 @@ export function randomEvent(ctx, rng, newsLevel=0){
     const { sym, bias } = ctx.state.insiderTip;
     const extras = [];
     for (const ev of pool) {
-      if (ev.sym === sym && ((bias > 0 && ev.mu > 0) || (bias < 0 && ev.mu < 0))) extras.push(ev);
+      if (ev.sym === sym && ((bias > 0 && ev.mu > 0) || (bias < 0 && ev.mu < 0))) {
+        for (let i = 0; i < (CFG.INSIDER_EVENT_WEIGHT || 5); i++) extras.push(ev);
+      }
     }
     pool = pool.concat(extras);
   }
