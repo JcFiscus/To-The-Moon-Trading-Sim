@@ -15,6 +15,7 @@ export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell
         <div class="row">
           <input class="qty" type="number" min="1" step="1" value="10" id="q-${a.sym}" />
           <button class="accent" id="b-${a.sym}">Buy</button>
+          <button class="accent" id="bm-${a.sym}">Buy Max</button>
           <button class="bad" id="s-${a.sym}">Sell</button>
         </div>
       </td>`;
@@ -25,6 +26,18 @@ export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell
     });
     document.getElementById(`b-${a.sym}`).addEventListener('click', () => {
       const qty = parseInt(document.getElementById(`q-${a.sym}`).value || '0', 10);
+      onBuy(a.sym, qty);
+    });
+    document.getElementById(`bm-${a.sym}`).addEventListener('click', () => {
+      const price = a.price;
+      let qty = Math.floor((state.cash - state.minFee) / price);
+      if (qty < 0) qty = 0;
+      while (qty > 0) {
+        const fee = Math.max(state.minFee, qty * price * state.feeRate);
+        const cost = qty * price + fee;
+        if (cost <= state.cash) break;
+        qty--;
+      }
       onBuy(a.sym, qty);
     });
     document.getElementById(`s-${a.sym}`).addEventListener('click', () => {
