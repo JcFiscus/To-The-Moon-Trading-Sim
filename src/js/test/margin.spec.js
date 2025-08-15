@@ -45,3 +45,10 @@ import { buy, sell, checkMargin } from '../core/trading.js';
   checkMargin(ctx);
   assert.strictEqual(ctx.gameOver, true, 'game over on 100x liquidation');
 })();
+
+(function testNetWorthGameOver(){
+  const ctx = createInitialState(ASSET_DEFS.slice(0,1));
+  ctx.state.cash = 0; ctx.state.debt = 100;
+  checkMargin(ctx);
+  assert.strictEqual(ctx.gameOver, true, 'game over when net worth <= 0');
+})();
