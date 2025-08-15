@@ -2,6 +2,7 @@ import assert from 'assert';
 import { createInitialState } from '../core/state.js';
 import { evaluateRisk } from '../core/risk.js';
 import { ASSET_DEFS } from '../config.js';
+import { buy } from '../core/trading.js';
 
 (function testHardStopPriority(){
   const ctx = createInitialState(ASSET_DEFS.slice(0,1));
@@ -67,6 +68,19 @@ import { ASSET_DEFS } from '../config.js';
   logs.length = 0;
   evaluateRisk(ctx, { log:m=>logs.push(m) });
   assert.strictEqual(logs.length, 0, 'no repeat');
+})();
+
+(function testGracePeriod(){
+  const ctx = createInitialState(ASSET_DEFS.slice(0,1));
+  const sym = ctx.assets[0].sym;
+  ctx.state.riskTools = { enabled:true, hardStop:0.01, trailing:0.01, tp1:0.01, tp1Frac:1, posCap:1 };
+  buy(ctx, sym, 10);
+  const before = ctx.state.positions[sym];
+  evaluateRisk(ctx); // first tick after buy – should ignore
+  assert.strictEqual(ctx.state.positions[sym], before, 'no risk triggers first tick');
+  ctx.assets[0].price *= 1.02;
+  evaluateRisk(ctx);
+  assert(ctx.state.positions[sym] < before, 'triggers after grace period and price move');
 })();
 
 console.log('risk.spec passed');

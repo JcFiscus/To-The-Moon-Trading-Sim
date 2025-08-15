@@ -37,7 +37,7 @@ export function initRiskTools(root, ctx, toast){
     </select>
     <form id="rt-form">
       <fieldset class="rt-group">
-        <legend class="mini section-title">Protection</legend>
+        <legend class="mini section-title">Stops</legend>
         <div class="statgrid">
           <div class="stat">
             <label for="rt-trailing" class="mini" title="Sell after price falls from peak by this percent">Trailing stop</label>
@@ -91,6 +91,9 @@ export function initRiskTools(root, ctx, toast){
           </div>
         </div>
       </fieldset>
+      <div class="row" style="justify-content:flex-end;margin-top:8px;">
+        <button type="button" id="rt-apply" class="mini">Apply</button>
+      </div>
     </form>
     <div class="section">
       <div class="mini section-title">Status</div>
@@ -118,6 +121,7 @@ export function initRiskTools(root, ctx, toast){
     updateSummary();
   }
   hydrate();
+  hideUnavailable();
 
   function renderStats(){
     const tbl = document.getElementById('rt-stats');
@@ -171,9 +175,19 @@ export function initRiskTools(root, ctx, toast){
   ['rt-trailing','rt-hard','rt-stopfrac','rt-cap','rt-tp1','rt-tp1f','rt-tp2','rt-tp2f','rt-tp3','rt-tp3f'].forEach(id => {
     const el = byId(id);
     el.addEventListener('input', () => { byId(id+'-val').textContent = el.value + '%'; });
-    el.addEventListener('change', () => { byId('rt-preset').value = ''; apply(); });
+    el.addEventListener('change', () => { byId('rt-preset').value = ''; });
   });
-  byId('rt-enabled').addEventListener('change', () => { byId('rt-preset').value = ''; apply(); });
+  byId('rt-enabled').addEventListener('change', () => { byId('rt-preset').value = ''; });
+  byId('rt-apply').addEventListener('click', apply);
+
+  function hideUnavailable(){
+    if (!ctx.state.upgrades.options){
+      root.querySelectorAll('.needs-options').forEach(el => el.style.display = 'none');
+    }
+    if (!ctx.state.upgrades.crypto){
+      root.querySelectorAll('.needs-crypto').forEach(el => el.style.display = 'none');
+    }
+  }
 
   function pct(v){ return Math.round(v*100)+'%'; }
   function updateSummary(){

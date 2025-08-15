@@ -24,8 +24,14 @@ export function evaluateRisk(ctx, hooks){
     const cb = ctx.state.costBasis[sym] || {qty:0, avg:a.price};
     const basis = cb.avg || a.price;
 
-    // tracker
-    const tr = ctx.riskTrack[sym] || { peak: a.price, lastTP: 0, lastRule: '' };
+    // tracker with holding age
+    const tr = ctx.riskTrack[sym] || { peak: a.price, lastTP: 0, lastRule: '', age: 1 };
+    if (tr.age < 1){
+      tr.peak = a.price;
+      tr.age++;
+      ctx.riskTrack[sym] = tr;
+      continue; // grace period: ignore first tick after buy
+    }
     tr.peak = Math.max(tr.peak, a.price);
 
     const ret = a.price / basis - 1;               // performance vs basis
@@ -91,6 +97,7 @@ export function evaluateRisk(ctx, hooks){
       }
     }
 
+    tr.age++;
     ctx.riskTrack[sym] = tr;
   }
 }
