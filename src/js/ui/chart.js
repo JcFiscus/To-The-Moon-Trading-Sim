@@ -9,6 +9,10 @@ export function drawChart(ctx){
   const min = Math.min(...data), max = Math.max(...data);
   const pad = (max-min)*0.12 + 1e-6; const ymin = min-pad, ymax = max+pad;
   const y = v => h - ((v - ymin) / ((ymax - ymin) || 1)) * h;
+  const off = a.history.length - data.length;
+  const dayStart = a.dayBounds[a.dayBounds.length-1] || 0;
+  const relStart = Math.max(0, dayStart - off);
+  const step = w/((data.length-1) || 1);
 
   // grid
   c.globalAlpha=0.15; c.strokeStyle="#2a3646"; c.lineWidth=1;
@@ -20,13 +24,36 @@ export function drawChart(ctx){
   [min, (min+max)/2, max].forEach((v,idx)=> c.fillText(fmt(v), w-80, y(v)-2) );
 
   // day boundaries
-  c.globalAlpha=0.25; c.strokeStyle="#223043"; const off=a.history.length - data.length;
+  c.globalAlpha=0.25; c.strokeStyle="#223043";
   for(const ix of a.dayBounds){ if(ix<off) continue; const rel=ix-off; const x=rel*(w/(data.length-1)); c.beginPath(); c.moveTo(x,0); c.lineTo(x,h); c.stroke(); }
   c.globalAlpha=1;
 
-  // price line
-  c.lineWidth=2; c.strokeStyle="#8ad7a0"; c.beginPath();
-  data.forEach((v,i)=>{ const px=i*(w/(data.length-1)),py=y(v); if(i===0) c.moveTo(px,py); else c.lineTo(px,py); }); c.stroke();
+  if (ctx.chartMode === 'candles') {
+    // line for previous days
+    if (relStart > 0) {
+      c.lineWidth = 2; c.strokeStyle = "#8ad7a0"; c.beginPath();
+      for(let i=0;i<=relStart;i++){ const px=i*step,py=y(data[i]); if(i===0) c.moveTo(px,py); else c.lineTo(px,py); }
+      c.stroke();
+    }
+    // candles for current day
+    const bodyW = step * 0.6;
+    for(let i=Math.max(1, relStart+1); i<data.length; i++){
+      const open=data[i-1], close=data[i];
+      const high=Math.max(open,close), low=Math.min(open,close);
+      const cx=(i-0.5)*step;
+      c.strokeStyle=close>=open?"#8ad7a0":"#ff6b6b";
+      c.beginPath(); c.moveTo(cx, y(high)); c.lineTo(cx, y(low)); c.stroke();
+      const top=y(Math.max(open,close));
+      let bottom=y(Math.min(open,close));
+      if(Math.abs(top-bottom)<1) bottom=top+1;
+      c.fillStyle=close>=open?"#8ad7a0":"#ff6b6b";
+      c.fillRect(cx-bodyW/2, top, bodyW, bottom-top);
+    }
+  } else {
+    // price line
+    c.lineWidth=2; c.strokeStyle="#8ad7a0"; c.beginPath();
+    data.forEach((v,i)=>{ const px=i*(w/(data.length-1)),py=y(v); if(i===0) c.moveTo(px,py); else c.lineTo(px,py); }); c.stroke();
+  }
 
   // 7‑day MA (≈ 70 pts on canvas)
   const ma=[]; for(let i=0;i<data.length;i++){ const s=Math.max(0,i-6); const slice=data.slice(s,i+1); ma.push(slice.reduce((x,y)=>x+y,0)/slice.length); }

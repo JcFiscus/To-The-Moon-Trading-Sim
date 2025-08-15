@@ -46,6 +46,14 @@ buildMarketTable({
   onSell: (sym, qty) => { sell(ctx, sym, qty, { log }); renderAll(); }
 });
 
+// Chart type toggle
+ctx.chartMode = 'line';
+document.getElementById('chartToggle').addEventListener('click', () => {
+  ctx.chartMode = ctx.chartMode === 'line' ? 'candles' : 'line';
+  document.getElementById('chartToggle').textContent = ctx.chartMode === 'line' ? 'Candles' : 'Line';
+  drawChart(ctx);
+});
+
 // Controls
 document.getElementById('startBtn').addEventListener('click', () => start());
 document.getElementById('saveBtn').addEventListener('click', () => {
