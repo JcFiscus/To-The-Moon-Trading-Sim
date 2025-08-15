@@ -38,7 +38,10 @@ export function createInitialState(assetDefs){
       tp2: 0.40, tp2Frac: 0.25,
       tp3: 0.80, tp3Frac: 0.50,
       posCap: 0.35        // max 35% of net worth in a single asset
-    }
+    },
+    upgrades: { insider:false, leverage:0, debt_rate:false, options:false, crypto:false },
+    upgradePurchases: { insider:0, leverage:0, debt_rate:0, options:0, crypto:0 },
+    cooldowns: { insider:0 }
   };
 
   const market = {
