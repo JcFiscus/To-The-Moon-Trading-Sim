@@ -69,6 +69,31 @@ export function applyOvernightOutlook(ctx){
 
     let mu    = gMu + evMu + valuation + streakMR + demandTerm + reversion;
     let sigma = clamp(0.006 + evVol*0.6 + Math.abs(gDem)*0.15, 0.006, 0.10);
+
+    // Moon coin burst dynamics
+    if (a.sym === 'MOON') {
+      if (!a.moonBurst || a.moonBurst.daysLeft <= 0) {
+        if (Math.random() < CFG.MOON_BURST_P) {
+          const [dMin,dMax] = CFG.MOON_BURST_DAYS_RANGE;
+          const days = Math.floor(dMin + Math.random() * (dMax - dMin + 1));
+          const [muMin,muMax] = CFG.MOON_BURST_MU_RANGE;
+          const [sigMin,sigMax] = CFG.MOON_BURST_SIGMA_RANGE;
+          a.moonBurst = {
+            daysLeft: days,
+            mu: muMin + Math.random() * (muMax - muMin),
+            sigma: sigMin + Math.random() * (sigMax - sigMin)
+          };
+        } else {
+          a.moonBurst = null;
+        }
+      }
+      if (a.moonBurst) {
+        mu += a.moonBurst.mu;
+        sigma += a.moonBurst.sigma;
+        a.moonBurst.daysLeft--;
+      }
+    }
+
     if (ctx.state.insiderTip && ctx.state.insiderTip.daysLeft > 0 && ctx.state.insiderTip.sym === a.sym) {
       const [muMin, muMax] = CFG.INSIDER_MU_RANGE;
       const [sigMin, sigMax] = CFG.INSIDER_SIGMA_RANGE;

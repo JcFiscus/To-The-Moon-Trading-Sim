@@ -65,5 +65,8 @@ export const ASSET_DEFS = [
   {sym:"SOL", name:"Solar Sail Conglom.",     sector:"Aero",     price:51,  mu:0.0009, sigma:0.028, k:0.0010, supply:1_700_000},
   {sym:"NNC", name:"NeuroNet Cloud",          sector:"AI",       price:93,  mu:0.0013, sigma:0.032, k:0.0009, supply:900_000},
   {sym:"GAT", name:"Gate Array Prototypes",   sector:"Exotic",   price:24,  mu:0.0016, sigma:0.040, k:0.0015, supply:3_400_000},
-  {sym:"CYB", name:"CyberDefense Mesh",       sector:"Security", price:79,  mu:0.0010, sigma:0.023, k:0.0011, supply:1_400_000}
+  {sym:"CYB", name:"CyberDefense Mesh",       sector:"Security", price:79,  mu:0.0010, sigma:0.023, k:0.0011, supply:1_400_000},
+  {sym:"BTC", name:"Bitcoin",                 sector:"Crypto",   price:30000, mu:0.0015, sigma:0.050, k:0.0020, supply:19_000_000, isCrypto:true},
+  {sym:"ETH", name:"Ethereum",                sector:"Crypto",   price:2000,  mu:0.0018, sigma:0.060, k:0.0022, supply:120_000_000, isCrypto:true},
+  {sym:"MOON",name:"Moon Coin",               sector:"Crypto",   price:1,     mu:0.0010, sigma:0.080, k:0.0025, supply:1_000_000_000, isCrypto:true}
 ];

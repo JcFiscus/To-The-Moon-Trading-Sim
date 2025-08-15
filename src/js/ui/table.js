@@ -5,7 +5,7 @@ import { openOptionsDialog } from './options.js';
 export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell, onOption }){
   tbody.innerHTML = '';
   for (const a of assets){
-    const tr = document.createElement('tr'); tr.dataset.sym = a.sym;
+    const tr = document.createElement('tr'); tr.dataset.sym = a.sym; if (a.isCrypto) tr.dataset.crypto = '1';
     tr.innerHTML = `
       <td><b>${a.sym}</b> <span class="mini">• ${a.name}</span></td>
       <td class="price" id="p-${a.sym}"></td>
@@ -90,5 +90,14 @@ export function renderMarketTable(ctx){
     const t = a.analyst?.tone || 'Neutral', cls = a.analyst?.cls || 'neu';
     const conf = Math.round((a.analyst?.conf || 0.5) * 100);
     if (badge) badge.innerHTML = `<span class="analyst ${cls}">${t}</span> <span class="mini">(${conf}% conf)</span>`;
+
+    const tr = document.querySelector(`tr[data-sym="${a.sym}"]`);
+    if (tr) {
+      if (a.isCrypto) {
+        tr.style.display = (ctx.state.upgrades.crypto && ctx.marketTab === 'crypto') ? '' : 'none';
+      } else {
+        tr.style.display = (ctx.marketTab === 'crypto') ? 'none' : '';
+      }
+    }
   }
 }

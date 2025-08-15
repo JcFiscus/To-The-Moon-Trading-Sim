@@ -18,6 +18,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .mini{font-size:12px;color:var(--muted)}
 .tag{font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:999px;color:var(--muted)}
+ .tabs{margin-bottom:8px}
 table{width:100%;border-collapse:separate;border-spacing:0}
 thead th{position:sticky;top:0;background:var(--table);color:var(--muted);text-align:left;padding:8px;border-bottom:1px solid var(--border)}
 tbody td{padding:8px;border-bottom:1px dashed rgba(255,255,255,.06);vertical-align:middle}
