@@ -50,10 +50,14 @@ function setup(){
   const sym = ctx.assets[0].sym;
   buyOption(ctx, sym, 'call', 90, 1, 1);
   const premium = ctx.state.optionPositions[0].premium;
+  const startCash = ctx.state.cash;
+  const startReal = ctx.state.realizedPnL;
   ctx.assets[0].price = 110;
   for(let i=0;i<CFG.DAY_TICKS;i++) updateOptions(ctx, CFG);
   assert.equal(ctx.state.optionPositions.length, 0, 'Position should expire');
-  assert(ctx.state.cash > CFG.START_CASH - premium, 'Intrinsic value credited');
+  const intrinsic = 20;
+  assert(Math.abs(ctx.state.cash - (startCash + intrinsic)) < 1e-6, 'Intrinsic value credited to cash');
+  assert(Math.abs(ctx.state.realizedPnL - (startReal + intrinsic - premium)) < 1e-6, 'Realized P/L recorded');
 }
 
 console.log('options.spec passed');

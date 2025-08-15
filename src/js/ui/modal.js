@@ -20,7 +20,8 @@ export function showSummary(summary, onNext){
         <span class="badge">${meta.best.sym} ${(meta.best.priceCh*100).toFixed(1)}%</span>
         <span class="badge">${meta.worst.sym} ${(meta.worst.priceCh*100).toFixed(1)}%</span>
       </div>
-    </div>`;
+    </div>
+    ${meta.interest>0?`<div class="mini">Debt interest charged: ${fmt(meta.interest)}</div>`:''}`;
 
   modalContent.innerHTML = header;
 

@@ -18,8 +18,8 @@ function erf(x){
 }
 function normCdf(x){ return 0.5 * (1 + erf(x / Math.sqrt(2))); }
 
-function priceOptionInternal(S, K, T, sigma, type){
-  const vol = clamp(sigma, CFG.OPTIONS_MIN_IV, CFG.OPTIONS_MAX_IV);
+function priceOptionInternal(S, K, T, sigma, type, cfg=CFG){
+  const vol = clamp(sigma, cfg.OPTIONS_MIN_IV, cfg.OPTIONS_MAX_IV);
   if (T <= 0) {
     return type === 'call' ? Math.max(0, S - K) : Math.max(0, K - S);
   }
@@ -33,12 +33,12 @@ function priceOptionInternal(S, K, T, sigma, type){
   }
 }
 
-export function buyOption(ctx, sym, type, strike, dte, qty, opts={}){
+export function buyOption(ctx, sym, type, strike, dte, qty, opts={}, cfg=CFG){
   qty = Math.max(1, Math.floor(qty));
   const a = ctx.assets.find(x => x.sym === sym);
   if (!a) return;
   const sigma = a.daySigma || a.sigma;
-  const premium = priceOptionInternal(a.price, strike, dte / DAYS_PER_YEAR, sigma, type);
+  const premium = priceOptionInternal(a.price, strike, dte / DAYS_PER_YEAR, sigma, type, cfg);
   const cost = premium * qty;
   const fee = Math.max(ctx.state.minFee, cost * ctx.state.feeRate);
   const total = cost + fee;
@@ -69,10 +69,10 @@ export function updateOptions(ctx, cfg=CFG){
       continue;
     }
     const sigma = a.daySigma || a.sigma;
-    p.mark = priceOptionInternal(a.price, p.strike, p.dte / DAYS_PER_YEAR, sigma, p.type);
+    p.mark = priceOptionInternal(a.price, p.strike, p.dte / DAYS_PER_YEAR, sigma, p.type, cfg);
   }
 }
 
-export function priceOption(S, K, T, sigma, type){
-  return priceOptionInternal(S, K, T, sigma, type);
+export function priceOption(S, K, T, sigma, type, cfg=CFG){
+  return priceOptionInternal(S, K, T, sigma, type, cfg);
 }

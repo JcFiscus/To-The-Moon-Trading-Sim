@@ -1,4 +1,5 @@
 import { clamp } from '../util/math.js';
+import { CFG } from '../config.js';
 
 export const EVENT_POOL = [
   {scope:"global", title:"Solar flare jitters", type:"regulation", mu:+0.0000, sigma:+0.010, demand:-0.07, days:2, severity:"minor", blurb:"Satcom latency spikes; risk surges."},
@@ -44,6 +45,9 @@ export function randomEvent(ctx, rng, newsLevel=0){
   ev.mu    *= nScale * (0.85 + rng()*0.45) * sev;
   ev.sigma *= nScale * (0.75 + rng()*0.60) * sev;
   ev.demand*= nScale * (0.80 + rng()*0.60) * sev;
+  ev.mu = clamp(ev.mu, -CFG.EVENT_MU_CAP, CFG.EVENT_MU_CAP);
+  ev.sigma = clamp(ev.sigma, -CFG.EVENT_SIGMA_CAP, CFG.EVENT_SIGMA_CAP);
+  ev.demand = clamp(ev.demand, -CFG.EVENT_DEMAND_CAP, CFG.EVENT_DEMAND_CAP);
   ev.days   = Math.round(ev.days * (negBias ? (1.5 + rng()*0.7) : (0.8 + rng()*0.6)));
   if (negBias) {
     ev.mu = -Math.abs(ev.mu);
