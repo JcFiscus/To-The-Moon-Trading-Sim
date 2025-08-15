@@ -1,152 +1,211 @@
-import { fmt, pct } from '../util/format.js';
-import { CFG } from '../config.js';
-import { openOptionsDialog } from './options.js';
+// src/js/app.js
+import { hydrate, persist, hardReset, netWorth, riskPct } from './core/state.js';
+import { renderTable, bindTableHandlers, selectAsset } from './ui/table.js';
 
-export function buildMarketTable({ tbody, assets, state, onSelect, onBuy, onSell, onOption }){
-  tbody.innerHTML = '';
-  for (const a of assets){
-    const tr = document.createElement('tr'); tr.dataset.sym = a.sym; if (a.isCrypto) tr.dataset.crypto = '1';
-    tr.tabIndex = 0;
-    tr.setAttribute('aria-label', `Select ${a.sym}`);
-    tr.innerHTML = `
-      <td><b>${a.sym}</b> <span class="mini">• ${a.name}</span></td>
-      <td class="price" id="p-${a.sym}"></td>
-      <td class="change" id="c-${a.sym}"></td>
-      <td id="an-${a.sym}"><span class="analyst neu">Neutral</span></td>
-      <td class="holdings" id="h-${a.sym}">0</td>
-      <td class="value" id="v-${a.sym}">$0.00</td>
-      <td class="trade">
-        <div class="trade-inputs">
-          <input class="qty" type="number" min="0" step="1" value="10" id="q-${a.sym}" />
-          <button class="chip-btn" id="max-${a.sym}" title="Set max quantity">MAX</button>
-          <button class="chip-btn" id="half-${a.sym}" title="Set half quantity">HALF</button>
-          ${state.upgrades.leverage>0 ? `<select class="lev" id="lv-${a.sym}" title="Leverage multiplier"></select>` : `<span class="lock" id="lv-${a.sym}" title="Unlock Leverage in Upgrades">\uD83D\uDD12</span>`}
-        </div>
-        <div class="mini" id="f-${a.sym}"></div>
-        <div class="trade-buttons">
-          <button class="accent" id="b-${a.sym}" disabled>Buy</button>
-          <button class="bad" id="s-${a.sym}" disabled>Sell</button>
-          ${state.upgrades.options ? `<button class="accent" id="o-${a.sym}">Opt</button>` : ''}
-        </div>
-      </td>`;
-    tbody.appendChild(tr);
-    tr.addEventListener('click', (e) => {
-      const tag = e.target.tagName;
-      if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT') return;
-      if (e.target.classList.contains('qty')) return;
-      onSelect(a.sym);
-    });
-    tr.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        onSelect(a.sym);
-      }
-    });
-    const qtyInput = document.getElementById(`q-${a.sym}`);
-    const feeEl = document.getElementById(`f-${a.sym}`);
-    const buyBtn = document.getElementById(`b-${a.sym}`);
-    const sellBtn = document.getElementById(`s-${a.sym}`);
+let state = hydrate();
+let tickTimer = null;
+let dayLeft = state.secondsPerDay;
 
-    const calcMax = () => {
-      const price = a.price;
-      let qty = Math.floor((state.cash - state.minFee) / price);
-      if (qty < 0) qty = 0;
-      const levSel = state.upgrades.leverage>0 ? document.getElementById(`lv-${a.sym}`) : null;
-      const lev = levSel ? parseInt(levSel.value,10) : 1;
-      while (qty > 0) {
-        const fee = Math.max(state.minFee, qty * price * state.feeRate);
-        const cost = qty * price * (lev>1?1/lev:1) + fee;
-        if (cost <= state.cash) break;
-        qty--;
-      }
-      const margin = (state.marginPositions||[]).filter(l=>l.sym===a.sym).reduce((s,l)=>s+l.qty,0);
-      const have = (state.positions[a.sym] || 0) + margin;
-      return Math.max(qty, have);
-    };
+// Elements
+const $ = (s) => document.querySelector(s);
+const hudDay = $('#hud-day');
+const hudTime = $('#hud-time');
+const hudCash = $('#hud-cash');
+const hudDebt = $('#hud-debt');
+const hudAssets = $('#hud-assets');
+const hudNet = $('#hud-net');
+const hudRisk = $('#hud-risk');
+const eodModal = $('#eod-modal');
+const eodDay = $('#eod-day');
+const eodNetChange = $('#eod-net-change');
+const eodBest = $('#eod-best');
+const eodWorst = $('#eod-worst');
 
-    const updateControls = () => {
-      let qty = parseInt(qtyInput.value,10);
-      if (isNaN(qty) || qty < 0) qty = 0;
-      qtyInput.value = qty;
-      const price = a.price;
-      const fee = qty > 0 ? Math.max(state.minFee, qty*price*state.feeRate) : 0;
-      feeEl.textContent = qty>0 ? `Fee ${fmt(fee)}` : '';
-      buyBtn.disabled = qty < 1;
-      sellBtn.disabled = qty < 1;
-    };
+const btnStart = $('#btn-start');
+const btnSave = $('#btn-save');
+const btnHelp = $('#btn-help');
+const btnContrast = $('#btn-contrast');
+const btnHardReset = $('#btn-hard-reset');
 
-    qtyInput.addEventListener('input', updateControls);
-    updateControls();
+const chartCanvas = $('#price-chart');
+let lastNet = netWorth(state);
 
-    document.getElementById(`max-${a.sym}`).addEventListener('click', () => {
-      qtyInput.value = calcMax();
-      updateControls();
-    });
-    document.getElementById(`half-${a.sym}`).addEventListener('click', () => {
-      qtyInput.value = Math.floor(calcMax()/2);
-      updateControls();
-    });
+// --- Utils
+const fmtMoney = (n) =>
+  (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtCompact = (n) =>
+  (n < 0 ? '-$' : '$') +
+  Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 2 }).format(Math.abs(n));
 
-    if (state.upgrades.leverage>0) {
-      const sel = document.getElementById(`lv-${a.sym}`);
-      const levels = CFG.LEVERAGE_LEVELS.slice(0, state.upgrades.leverage+1);
-      const last = state.ui?.lastLev?.[a.sym] || 1;
-      for (const lv of levels) {
-        const opt = document.createElement('option');
-        opt.value = lv; opt.textContent = lv+'x';
-        if (lv === last) opt.selected = true;
-        sel.appendChild(opt);
-      }
-      sel.addEventListener('change', (e)=>{ state.ui.lastLev[a.sym] = parseInt(e.target.value,10); updateControls(); });
-    }
-
-    buyBtn.addEventListener('click', () => {
-      const qty = parseInt(qtyInput.value||'0',10);
-      if (qty < 1) return;
-      const lev = state.upgrades.leverage>0 ? parseInt(document.getElementById(`lv-${a.sym}`).value,10) : 1;
-      onBuy(a.sym, qty, lev);
-    });
-    sellBtn.addEventListener('click', () => {
-      const qty = parseInt(qtyInput.value||'0',10);
-      if (qty < 1) return;
-      const lev = state.upgrades.leverage>0 ? parseInt(document.getElementById(`lv-${a.sym}`).value,10) : 1;
-      onSell(a.sym, qty, lev);
-    });
-    if (state.upgrades.options) {
-      document.getElementById(`o-${a.sym}`).addEventListener('click', () => {
-        openOptionsDialog(a, (opt) => { onOption && onOption(a.sym, opt); });
-      });
-    }
-  }
+// --- Game loop
+function startDay() {
+  if (tickTimer) return;
+  dayLeft = state.secondsPerDay;
+  btnStart.textContent = '⏸ Pause';
+  tickTimer = setInterval(tick, 1000);
 }
 
-export function renderMarketTable(ctx){
-  for (const a of ctx.assets){
-    const price = a.price, prev = a.history[a.history.length-2] || price;
-    const d = price/prev - 1;
-    const pEl = document.getElementById(`p-${a.sym}`);
-    const cEl = document.getElementById(`c-${a.sym}`);
-    const hEl = document.getElementById(`h-${a.sym}`);
-    const vEl = document.getElementById(`v-${a.sym}`);
-    if (pEl) pEl.textContent = fmt(price);
-    if (cEl) { cEl.textContent = pct(d); cEl.className = 'change ' + (d>=0?'up':'down'); }
-    const margin = (ctx.state.marginPositions||[]).filter(l=>l.sym===a.sym).reduce((s,l)=>s+l.qty,0);
-    const have = (ctx.state.positions[a.sym] || 0) + margin;
-    if (hEl) hEl.textContent = have.toLocaleString();
-    if (vEl) vEl.textContent = fmt(have * price);
+function pauseDay() {
+  clearInterval(tickTimer);
+  tickTimer = null;
+  btnStart.textContent = '▶ Start Day';
+}
 
-    const badge = document.getElementById(`an-${a.sym}`);
-    const t = a.analyst?.tone || 'Neutral', cls = a.analyst?.cls || 'neu';
-    const conf = Math.round((a.analyst?.conf || 0.5) * 100);
-    if (badge) badge.innerHTML = `<span class="analyst ${cls}">${t}</span> <span class="mini">(${conf}% conf)</span>`;
+function tick() {
+  // 1) update prices every second
+  randomWalkPrices(state.assets);
 
-    const tr = document.querySelector(`tr[data-sym="${a.sym}"]`);
-    if (tr) {
-      if (a.isCrypto) {
-        tr.style.display = (ctx.state.upgrades.crypto && ctx.marketTab === 'crypto') ? '' : 'none';
-      } else {
-        tr.style.display = (ctx.marketTab === 'crypto') ? 'none' : '';
-      }
-    }
+  // 2) UI refresh
+  refreshHUD();
+  renderTable(state, onSelectAsset, onTrade);
+
+  // 3) countdown
+  dayLeft -= 1;
+  hudTime.textContent = `${dayLeft}s`;
+
+  if (dayLeft <= 0) endOfDay();
+}
+
+function endOfDay() {
+  pauseDay();
+
+  // set prevClose, compute best/worst
+  let best = { sym: '', change: -Infinity };
+  let worst = { sym: '', change: Infinity };
+  for (const a of state.assets) {
+    const change = a.price - a.prevClose;
+    if (change > best.change) best = { sym: a.sym, change };
+    if (change < worst.change) worst = { sym: a.sym, change };
+    a.prevClose = a.price;
+  }
+
+  const nw = netWorth(state);
+  const delta = nw - lastNet;
+  lastNet = nw;
+
+  // increment day, autosave
+  state.day += 1;
+  persist(state);
+
+  // modal summary
+  eodDay.textContent = state.day;
+  eodNetChange.textContent = `${delta >= 0 ? '+' : ''}${fmtMoney(delta)} (Net: ${fmtCompact(nw)})`;
+  eodNetChange.className = delta >= 0 ? 'pos' : 'neg';
+  eodBest.textContent = `${best.sym} ${best.change >= 0 ? '▲' : '▼'} ${fmtMoney(best.change)}`;
+  eodWorst.textContent = `${worst.sym} ${worst.change >= 0 ? '▲' : '▼'} ${fmtMoney(worst.change)}`;
+
+  if (typeof eodModal.showModal === 'function') eodModal.showModal();
+  else alert(`Day ${state.day} • Net change: ${delta >= 0 ? '+' : ''}${fmtMoney(delta)}`);
+
+  // roll simple “after-hours” news hook (placeholder)
+  // In a larger version you’d mutate vols/analyst ratings here based on events.
+}
+
+function refreshHUD() {
+  const assetsValue = state.assets.reduce((s, a) => s + a.qty * a.price, 0);
+  const nw = netWorth(state);
+
+  hudDay.textContent = state.day;
+  hudCash.textContent = fmtMoney(state.cash);
+  hudDebt.textContent = fmtMoney(state.debt);
+  hudAssets.textContent = fmtMoney(assetsValue);
+  hudNet.textContent = fmtMoney(nw);
+  hudRisk.textContent = `${riskPct(state)}%`;
+
+  drawChart(chartCanvas, state);
+}
+
+// --- Simple price model (Gaussian-ish walk with per-asset volatility)
+function randomWalkPrices(arr) {
+  for (const a of arr) {
+    const drift = 0.000; // neutral drift
+    const shock = randn_bm() * a.vol; // vol is daily-ish; we’re ticking per second in short “days”
+    const next = Math.max(0.01, a.price * (1 + drift + shock));
+    a.price = round2(next);
   }
 }
+function randn_bm() {
+  // Box–Muller transform
+  let u = 1 - Math.random();
+  let v = 1 - Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+const round2 = (n) => Math.round(n * 100) / 100;
+
+// --- Trading API passed into the table
+function onTrade(sym, qtyDelta) {
+  const a = state.assets.find((x) => x.sym === sym);
+  if (!a) return;
+  if (qtyDelta > 0) {
+    const cost = qtyDelta * a.price;
+    if (state.cash >= cost) {
+      state.cash -= cost;
+      a.qty += qtyDelta;
+    }
+  } else if (qtyDelta < 0) {
+    const sell = Math.min(a.qty, Math.abs(qtyDelta));
+    a.qty -= sell;
+    state.cash += sell * a.price;
+  }
+  refreshHUD();
+  persist(state);
+}
+
+function onSelectAsset(sym) {
+  state.selected = sym;
+}
+
+// --- Chart (minimal; safe no-op if canvas missing)
+function drawChart(canvas, s) {
+  if (!canvas || !canvas.getContext) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width = canvas.clientWidth;
+  const h = canvas.height = canvas.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+
+  // tiny sparkline of selected asset price vs prevClose
+  const a = s.assets.find((x) => x.sym === s.selected) || s.assets[0];
+  if (!a) return;
+
+  // draw prevClose dashed
+  ctx.setLineDash([4, 3]);
+  ctx.strokeStyle = 'gray';
+  const yClose = h - (a.prevClose / (a.price * 1.25)) * h; // crude normalize
+  ctx.beginPath();
+  ctx.moveTo(0, yClose);
+  ctx.lineTo(w, yClose);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // current price marker
+  ctx.beginPath();
+  ctx.arc(w - 10, h - (a.price / (a.price * 1.25)) * h, 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'white';
+  ctx.fill();
+}
+
+// --- Buttons & wiring
+btnStart.addEventListener('click', () => (tickTimer ? pauseDay() : startDay()));
+btnSave.addEventListener('click', () => persist(state));
+btnHelp.addEventListener('click', () =>
+  alert('Buy low, sell high, sip coffee. Days are short; news hits after hours. Autosave at day end.')
+);
+btnContrast.addEventListener('click', () => {
+  document.documentElement.classList.toggle('high-contrast');
+});
+btnHardReset.addEventListener('click', () => {
+  if (confirm('Hard reset and clear local save?')) {
+    pauseDay();
+    state = hardReset();
+    lastNet = netWorth(state);
+    refreshHUD();
+    renderTable(state, onSelectAsset, onTrade);
+  }
+});
+
+// Table event delegation
+bindTableHandlers(onSelectAsset, onTrade);
+
+// First paint
+refreshHUD();
+renderTable(state, onSelectAsset, onTrade);
