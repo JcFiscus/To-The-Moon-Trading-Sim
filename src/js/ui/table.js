@@ -94,7 +94,8 @@ export function renderMarketTable(ctx){
     const vEl = document.getElementById(`v-${a.sym}`);
     if (pEl) pEl.textContent = fmt(price);
     if (cEl) { cEl.textContent = pct(d); cEl.className = 'change ' + (d>=0?'up':'down'); }
-    const have = ctx.state.positions[a.sym] || 0;
+    const margin = (ctx.state.marginPositions||[]).filter(l=>l.sym===a.sym).reduce((s,l)=>s+l.qty,0);
+    const have = (ctx.state.positions[a.sym] || 0) + margin;
     if (hEl) hEl.textContent = have.toLocaleString();
     if (vEl) vEl.textContent = fmt(have * price);
 

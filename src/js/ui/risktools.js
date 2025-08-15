@@ -1,5 +1,9 @@
 function loadSaved(){
-  try{ return JSON.parse(localStorage.getItem('ttm_risktools')||'null') || null; }catch{ return null; }
+  try{
+    const cfg = JSON.parse(localStorage.getItem('ttm_risktools')||'null') || null;
+    if (cfg && typeof cfg.enabled === 'string') cfg.enabled = cfg.enabled === 'true';
+    return cfg;
+  }catch{ return null; }
 }
 function save(cfg){
   try {

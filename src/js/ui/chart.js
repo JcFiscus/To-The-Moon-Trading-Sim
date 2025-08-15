@@ -10,8 +10,6 @@ export function drawChart(ctx){
   const pad = (max-min)*0.12 + 1e-6; const ymin = min-pad, ymax = max+pad;
   const y = v => h - ((v - ymin) / ((ymax - ymin) || 1)) * h;
   const off = a.history.length - data.length;
-  const dayStart = a.dayBounds[a.dayBounds.length-1] || 0;
-  const relStart = Math.max(0, dayStart - off);
   const step = w/((data.length-1) || 1);
 
   // grid
@@ -29,15 +27,8 @@ export function drawChart(ctx){
   c.globalAlpha=1;
 
   if (ctx.chartMode === 'candles') {
-    // line for previous days
-    if (relStart > 0) {
-      c.lineWidth = 2; c.strokeStyle = "#8ad7a0"; c.beginPath();
-      for(let i=0;i<=relStart;i++){ const px=i*step,py=y(data[i]); if(i===0) c.moveTo(px,py); else c.lineTo(px,py); }
-      c.stroke();
-    }
-    // candles for current day
     const bodyW = step * 0.6;
-    for(let i=Math.max(1, relStart+1); i<data.length; i++){
+    for(let i=1; i<data.length; i++){
       const open=data[i-1], close=data[i];
       const high=Math.max(open,close), low=Math.min(open,close);
       const cx=(i-0.5)*step;
