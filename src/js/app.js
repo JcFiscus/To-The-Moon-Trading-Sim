@@ -88,7 +88,7 @@ try {
 } catch { /* ignore */ }
 
 // Risk Tools UI
-initRiskTools(document.getElementById('riskTools'), ctx);
+initRiskTools(document.getElementById('riskTools'), ctx, toast);
 
 // Tick loop
 let interval = null;
