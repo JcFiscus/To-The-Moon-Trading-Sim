@@ -4,6 +4,7 @@ import './margin.spec.js';
 import './insider.spec.js';
 import './options.spec.js';
 import './crypto.spec.js';
+import './summary.spec.js';
 
 test('legacy specs pass', () => {
   expect(true).toBe(true);

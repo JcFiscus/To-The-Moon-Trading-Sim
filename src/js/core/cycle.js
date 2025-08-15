@@ -74,16 +74,24 @@ export function endDay(ctx, cfg=CFG, hooks){
     const endVal    = endHold * ep;
     const unreal    = endHold * (ep - sp);
 
-    rows.push({ sym:a.sym, name:a.name, sp, ep, priceCh:change, startHold, endHold, startVal, endVal, unreal });
-
+    // Always update asset trackers
     a.streak = change>0 ? (a.streak>=0?a.streak+1:1) : (change<0 ? (a.streak<=0?a.streak-1:-1) : a.streak);
     a.flowWindow.push(a.flowToday); if (a.flowWindow.length > cfg.FLOW_WINDOW_DAYS) a.flowWindow.shift();
     if (a.streak <= 0) a.runStart = a.price;
     a.evDemandBias *= cfg.EVENT_DEMAND_DECAY;
 
-    if(!best || change>best.priceCh) best={sym:a.sym,priceCh:change};
-    if(!worst || change<worst.priceCh) worst={sym:a.sym,priceCh:change};
+    // Only include positions actually held; gate crypto behind upgrade
+    const hadPosition = startHold > 0 || endHold > 0;
+    if (hadPosition && (!a.isCrypto || ctx.state.upgrades.crypto)) {
+      rows.push({ sym:a.sym, name:a.name, sp, ep, priceCh:change, startHold, endHold, startVal, endVal, unreal });
+
+      if(!best || change>best.priceCh) best={sym:a.sym,priceCh:change};
+      if(!worst || change<worst.priceCh) worst={sym:a.sym,priceCh:change};
+    }
   }
+
+  if(!best) best={sym:'-',priceCh:0};
+  if(!worst) worst={sym:'-',priceCh:0};
 
   // end-of-day meta
   const endPort = ctx.assets.reduce((s,a)=> s + (ctx.state.positions[a.sym]||0)*a.price, 0);
