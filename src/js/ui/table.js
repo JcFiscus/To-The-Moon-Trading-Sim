@@ -7,7 +7,7 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
 
   const thead = document.createElement('thead');
   const headRow = document.createElement('tr');
-  ['Symbol', 'Name', 'Price', 'Δ', 'Analyst', 'Holdings', 'Value', 'Actions'].forEach(h => {
+  ['Symbol', 'Price', 'Δ', 'Analyst', 'Holdings', 'Value', 'Actions'].forEach(h => {
     const th = document.createElement('th');
     th.textContent = h;
     headRow.appendChild(th);
@@ -26,12 +26,14 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
     tr.setAttribute('aria-label', `Select ${a.sym}`);
 
     const symTd = document.createElement('td');
-    symTd.textContent = a.sym;
+    symTd.title = a.name;
+    const symSpan = document.createElement('span');
+    symSpan.textContent = a.sym;
+    const tipSpan = document.createElement('span');
+    tipSpan.id = `tip-${a.sym}`;
+    tipSpan.className = 'tip-indicator';
+    symTd.append(symSpan, tipSpan);
     tr.appendChild(symTd);
-
-    const nameTd = document.createElement('td');
-    nameTd.textContent = a.name;
-    tr.appendChild(nameTd);
 
     const priceTd = document.createElement('td');
     priceTd.className = 'price';
@@ -63,8 +65,8 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
     const tradeTd = document.createElement('td');
     tradeTd.className = 'trade';
 
-    const tradeInputs = document.createElement('div');
-    tradeInputs.className = 'trade-inputs';
+    const tradeBar = document.createElement('div');
+    tradeBar.className = 'trade-bar';
 
     const qtyId = `q-${a.sym}`;
     const qtyLabel = document.createElement('label');
@@ -79,7 +81,7 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
     qtyInput.value = '10';
     qtyInput.id = qtyId;
     qtyInput.setAttribute('aria-label', `Quantity for ${a.sym}`);
-    tradeInputs.append(qtyLabel, qtyInput);
+    tradeBar.append(qtyLabel, qtyInput);
 
     let levSel;
     if (state.upgrades.leverage > 0) {
@@ -104,41 +106,36 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
       levSel.addEventListener('change', e => {
         state.ui.lastLev[a.sym] = parseInt(e.target.value, 10);
       });
-      tradeInputs.append(levLabel, levSel);
+      tradeBar.append(levLabel, levSel);
     } else {
       const lock = document.createElement('span');
       lock.className = 'lock';
       lock.id = `lv-${a.sym}`;
       lock.setAttribute('aria-label', 'Unlock leverage in Upgrades');
       lock.textContent = '\uD83D\uDD12';
-      tradeInputs.appendChild(lock);
+      tradeBar.appendChild(lock);
     }
-
-    tradeTd.appendChild(tradeInputs);
-
-    const tradeButtons = document.createElement('div');
-    tradeButtons.className = 'trade-buttons';
 
     const buyBtn = document.createElement('button');
     buyBtn.className = 'accent';
     buyBtn.id = `b-${a.sym}`;
     buyBtn.textContent = 'Buy';
     buyBtn.setAttribute('aria-label', `Buy ${a.sym}`);
-    tradeButtons.appendChild(buyBtn);
+    tradeBar.appendChild(buyBtn);
 
     const buyMaxBtn = document.createElement('button');
     buyMaxBtn.className = 'accent';
     buyMaxBtn.id = `bm-${a.sym}`;
-    buyMaxBtn.textContent = 'Buy Max';
+    buyMaxBtn.textContent = 'Max';
     buyMaxBtn.setAttribute('aria-label', `Buy max ${a.sym}`);
-    tradeButtons.appendChild(buyMaxBtn);
+    tradeBar.appendChild(buyMaxBtn);
 
     const sellBtn = document.createElement('button');
     sellBtn.className = 'bad';
     sellBtn.id = `s-${a.sym}`;
     sellBtn.textContent = 'Sell';
     sellBtn.setAttribute('aria-label', `Sell ${a.sym}`);
-    tradeButtons.appendChild(sellBtn);
+    tradeBar.appendChild(sellBtn);
 
     let optBtn;
     if (state.upgrades.options) {
@@ -147,7 +144,7 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
       optBtn.id = `o-${a.sym}`;
       optBtn.textContent = 'Opt';
       optBtn.setAttribute('aria-label', `Options for ${a.sym}`);
-      tradeButtons.appendChild(optBtn);
+      tradeBar.appendChild(optBtn);
       optBtn.addEventListener('click', () => {
         openOptionsDialog(a, opt => {
           onOption && onOption(a.sym, opt);
@@ -155,7 +152,7 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
       });
     }
 
-    tradeTd.appendChild(tradeButtons);
+    tradeTd.appendChild(tradeBar);
     tr.appendChild(tradeTd);
     tbody.appendChild(tr);
 
@@ -165,19 +162,42 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
       onSelect(a.sym);
     });
 
+    const moveFocus = dir => {
+      const idx = rows.indexOf(tr);
+      const next = rows[(idx + dir + rows.length) % rows.length];
+      next.focus();
+    };
+
     tr.addEventListener('keydown', e => {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        const next = rows[(rows.indexOf(tr) + 1) % rows.length];
-        next.focus();
+        moveFocus(1);
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        const prev = rows[(rows.indexOf(tr) - 1 + rows.length) % rows.length];
-        prev.focus();
+        moveFocus(-1);
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         onSelect(a.sym);
+      } else if (e.key === 'Tab' && !e.shiftKey) {
+        const first = tr.querySelector('input,select,button');
+        if (first) {
+          e.preventDefault();
+          first.focus();
+        }
       }
+    });
+
+    const navEls = [qtyInput, levSel, buyBtn, buyMaxBtn, sellBtn, optBtn].filter(Boolean);
+    navEls.forEach(el => {
+      el.addEventListener('keydown', e => {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          moveFocus(1);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          moveFocus(-1);
+        }
+      });
     });
 
     const getLev = () => (state.upgrades.leverage > 0 ? parseInt(levSel.value, 10) : 1);
@@ -229,6 +249,22 @@ export function renderMarketTable(ctx) {
     const t = a.analyst?.tone || 'Neutral', cls = a.analyst?.cls || 'neu';
     const conf = Math.round((a.analyst?.conf || 0.5) * 100);
     if (badge) badge.innerHTML = `<span class="analyst ${cls}">${t}</span> <span class="mini">(${conf}% conf)</span>`;
+
+    const tipEl = document.getElementById(`tip-${a.sym}`);
+    if (tipEl) {
+      const tip = ctx.state.insiderTip;
+      if (tip && tip.sym === a.sym && tip.daysLeft > 0) {
+        tipEl.textContent = (tip.bias > 0 ? '⬆' : '⬇') + tip.daysLeft;
+        tipEl.className = 'tip-indicator ' + (tip.bias > 0 ? 'bull' : 'bear');
+        tipEl.title = `Insider Tip: ${tip.bias>0?'Bullish':'Bearish'} (${tip.daysLeft}d) μ ${(tip.mu*100).toFixed(2)}% σ ${(tip.sigma*100).toFixed(2)}%`;
+        tipEl.style.display = 'inline';
+      } else {
+        tipEl.textContent = '';
+        tipEl.removeAttribute('title');
+        tipEl.style.display = 'none';
+        tipEl.className = 'tip-indicator';
+      }
+    }
 
     const tr = document.querySelector(`#marketTable tr[data-sym="${a.sym}"]`);
     if (tr) {

@@ -5,14 +5,19 @@ export function renderInsight(ctx){
   const line = document.getElementById('analystLine');
   const t=a.analyst?.tone||'Neutral', cls=a.analyst?.cls||'neu', conf=Math.round((a.analyst?.conf||0.5)*100);
   const od=a.outlookDetail||{gMu:0, evMu:0, evDem:0, valuation:0, streakMR:0, demandTerm:0};
-  line.innerHTML = [
+  const parts = [
     `<span class="analyst ${cls}">${t}</span>`,
     `<span class="mini">Conf ${conf}%</span>`,
     `<span class="tag">Events μ: ${((od.evMu||0)*CFG.DAY_TICKS*100).toFixed(1)}bp</span>`,
     `<span class="tag">Event demand: ${((od.evDem||0)*100).toFixed(1)}%</span>`,
     `<span class="tag">Valuation: ${((od.valuation||0)*100).toFixed(1)}bp</span>`,
     `<span class="tag">Streak MR: ${((od.streakMR||0)*100).toFixed(1)}bp</span>`
-  ].join(' ');
+  ];
+  if (ctx.state.insiderTip && ctx.state.insiderTip.sym === a.sym && ctx.state.insiderTip.daysLeft > 0) {
+    const tip = ctx.state.insiderTip;
+    parts.push(`<span class="tag" title="μ ${(tip.mu*100).toFixed(2)}% σ ${(tip.sigma*100).toFixed(2)}%">Tip ${tip.bias>0?'Bullish':'Bearish'} ${tip.daysLeft}d</span>`);
+  }
+  line.innerHTML = parts.join(' ');
 
   const news = document.getElementById('assetNews');
   const list = (ctx.newsByAsset && ctx.newsByAsset[a.sym]) || [];

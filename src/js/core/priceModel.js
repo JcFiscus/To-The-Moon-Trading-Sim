@@ -228,11 +228,17 @@ export function updatePrices(ctx, rng){
 
     const { mu:emu, sigma:esig } = eventImpactIntraday(market, a.sym);
 
-    const baseMu    = a.mu + a.regime.mu + (a.outlook?.mu||0) + valuation - fatigue + rotation + demandBias + emu;
-    const baseSigma = clamp(a.sigma + a.regime.sigma + (a.outlook?.sigma||a.daySigma) + esig, 0.006, 0.12);
-    const dt = 1/CFG.DAY_TICKS;
-    const mu = baseMu * dt;
-    const sigma = baseSigma * Math.sqrt(dt);
+      let baseMu    = a.mu + a.regime.mu + (a.outlook?.mu||0) + valuation - fatigue + rotation + demandBias + emu;
+      let baseSigma = clamp(a.sigma + a.regime.sigma + (a.outlook?.sigma||a.daySigma) + esig, 0.006, 0.12);
+      if (ctx.state.insiderTip && ctx.state.insiderTip.sym === a.sym && ctx.state.insiderTip.daysLeft > 0) {
+        const tip = ctx.state.insiderTip;
+        const mult = CFG.INSIDER_EFFECT_MULT || 3;
+        baseMu += tip.mu * mult;
+        baseSigma = clamp(baseSigma + tip.sigma * mult, 0.006, 0.12);
+      }
+      const dt = 1/CFG.DAY_TICKS;
+      const mu = baseMu * dt;
+      const sigma = baseSigma * Math.sqrt(dt);
 
     // liquidity & impact
     a.localDemand += (1 + a.evDemandBias - a.localDemand)*0.03;
