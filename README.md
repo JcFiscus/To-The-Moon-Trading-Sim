@@ -2,7 +2,7 @@
 
 HTML/Javascript trading sim game.
 
-## Project Structure (test)
+## Project Structure
 
 ```
 .
