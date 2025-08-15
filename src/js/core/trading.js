@@ -7,8 +7,9 @@ export function buy(ctx, sym, qty, opts={}){
   const a = ctx.assets.find(x => x.sym === sym);
   if (!a) return;
   const price = a.price;
-  const fee = Math.max(ctx.state.minFee, qty * price * ctx.state.feeRate);
+
   if (lev <= 1){
+    const fee = Math.max(ctx.state.minFee, qty * price * ctx.state.feeRate);
     const cost = qty * price + fee;
     if (ctx.state.cash >= cost) {
       ctx.state.cash -= cost;
@@ -21,25 +22,34 @@ export function buy(ctx, sym, qty, opts={}){
     const newQty = cb.qty + qty;
     cb.avg = (cb.qty * cb.avg + qty * price) / Math.max(1, newQty);
     cb.qty = newQty; ctx.state.costBasis[sym] = cb;
+    ctx.day.feesPaid += fee;
+    const share = qty / a.supply;
+    a.localDemand = clamp(a.localDemand + share * 9, 0.5, 2.5);
+    for (const o of ctx.assets){ if (o !== a) o.localDemand = clamp(o.localDemand - share * CFG.OPP_COST_SPILL, 0.5, 2.5); }
+    a.flowToday += qty;
+    opts.log?.(`Bought ${qty} ${sym} @ $${price.toFixed(2)} (+fee $${fee.toFixed(2)})`);
   } else {
-    const IM = 1/lev;
-    const cost = qty * price * IM + fee;
+    const exposure = qty * lev;
+    const fee = Math.max(ctx.state.minFee, exposure * price * ctx.state.feeRate);
+    const margin = exposure * price / lev;
+    const cost = margin + fee;
     if (ctx.state.cash >= cost) ctx.state.cash -= cost;
     else { const short = cost - ctx.state.cash; ctx.state.cash = 0; ctx.state.debt += short; }
+    const borrowed = exposure * price - margin;
+    ctx.state.debt += borrowed;
     const maint = CFG.MAINT_REQ_BY_LEV[lev] ?? 0.15;
-    const liq = price * ((1 - IM) / (1 - maint));
+    const liq = price * ((1 - (1/lev)) / (1 - maint));
     ctx.state.marginPositions.push({
       id:`${sym}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
-      sym, qty, entry:price, leverage:lev, maintReq:maint, liqPrice:liq
+      sym, qty: exposure, entry:price, leverage:lev, maintReq:maint, liqPrice:liq
     });
+    ctx.day.feesPaid += fee;
+    const share = exposure / a.supply;
+    a.localDemand = clamp(a.localDemand + share * 9, 0.5, 2.5);
+    for (const o of ctx.assets){ if (o !== a) o.localDemand = clamp(o.localDemand - share * CFG.OPP_COST_SPILL, 0.5, 2.5); }
+    a.flowToday += exposure;
+    opts.log?.(`Bought ${exposure} ${sym} @ $${price.toFixed(2)} x${lev} (+fee $${fee.toFixed(2)})`);
   }
-
-  ctx.day.feesPaid += fee;
-  const share = qty / a.supply;
-  a.localDemand = clamp(a.localDemand + share * 9, 0.5, 2.5);
-  for (const o of ctx.assets){ if (o !== a) o.localDemand = clamp(o.localDemand - share * CFG.OPP_COST_SPILL, 0.5, 2.5); }
-  a.flowToday += qty;
-  opts.log?.(`Bought ${qty} ${sym} @ $${price.toFixed(2)}${lev>1?` x${lev}`:''} (+fee $${fee.toFixed(2)})`);
 }
 
 export function sell(ctx, sym, qty, opts={}){
@@ -55,13 +65,15 @@ export function sell(ctx, sym, qty, opts={}){
     const closeQty = Math.min(lot.qty, remaining);
     const price = a.price;
     const fee = Math.max(ctx.state.minFee, closeQty * price * ctx.state.feeRate);
-    const IM = 1/lot.leverage;
     const profit = (price - lot.entry) * closeQty;
-    const cashAdd = IM * lot.entry * closeQty + profit - fee;
+    const margin = (closeQty / lot.leverage) * lot.entry;
+    const borrowed = closeQty * lot.entry - margin;
+    const cashAdd = margin + profit - fee;
     ctx.state.cash += cashAdd;
     ctx.state.realizedPnL += profit;
     ctx.day.realized += profit;
     ctx.day.feesPaid += fee;
+    ctx.state.debt = Math.max(0, ctx.state.debt - borrowed);
     lot.qty -= closeQty;
     sold += closeQty;
     remaining -= closeQty;
@@ -115,6 +127,8 @@ export function checkMargin(ctx, hooks={}){
       ctx.state.realizedPnL += profit;
       ctx.day.realized += profit;
       ctx.day.feesPaid += fee + liqFee;
+      const borrowed = lot.entry * lot.qty - (IM * lot.entry * lot.qty);
+      ctx.state.debt = Math.max(0, ctx.state.debt - borrowed);
       ctx.state.marginPositions.splice(i, 1);
       hooks.log?.(`Liquidated ${lot.qty} ${lot.sym} @ $${price.toFixed(2)} (x${lot.leverage})`);
       if (lot.leverage >= 100) ctx.gameOver = true;
