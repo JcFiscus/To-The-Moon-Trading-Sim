@@ -50,6 +50,9 @@ button.bad{background:#2a1313;border-color:#3b1b1b}
 canvas{width:100%;height:100%;background:#0a1017;border:1px solid var(--border);border-radius:8px}
 .statgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}
 .stat{background:#0a1017;border:1px solid var(--border);border-radius:8px;padding:8px}
+.slider{display:flex;align-items:center;gap:6px;margin-top:4px}
+.slider input[type=range]{flex:1}
+.slider span{width:32px;text-align:right}
 .feed{max-height:220px;overflow:auto;padding-right:4px}
 .feed .line{padding:6px 4px;border-bottom:1px dashed rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
 
