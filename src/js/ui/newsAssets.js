@@ -12,8 +12,14 @@ export function renderAssetNewsTable(ctx){
   </tr></thead><tbody>`];
   for (const rec of list.slice(0,40)){
     const ev = rec.ev;
-    const eff = `Bias ${ev.mu>=0?'+':''}${(ev.mu*10000).toFixed(0)}bp • Demand ${ev.demand>=0?'+':''}${(ev.demand*100).toFixed(1)}% • Vol ${ev.sigma>=0?'+':''}${(ev.sigma*100).toFixed(1)}%`;
-    const tip = `μ ${(ev.mu*10000).toFixed(0)}bp • σ ${(ev.sigma*100).toFixed(1)}% • D ${(ev.demand*100).toFixed(1)}%`;
+    let eff, tip;
+    if (ev.type === 'insider') {
+      eff = ev.mu >= 0 ? 'Bullish Tip' : 'Bearish Tip';
+      tip = eff;
+    } else {
+      eff = `Bias ${ev.mu>=0?'+':''}${(ev.mu*10000).toFixed(0)}bp • Demand ${ev.demand>=0?'+':''}${(ev.demand*100).toFixed(1)}% • Vol ${ev.sigma>=0?'+':''}${(ev.sigma*100).toFixed(1)}%`;
+      tip = `μ ${(ev.mu*10000).toFixed(0)}bp • σ ${(ev.sigma*100).toFixed(1)}% • D ${(ev.demand*100).toFixed(1)}%`;
+    }
     rows.push(`<tr>
       <td>${rec.when}</td>
       <td>${ev.scope==='global'?'GLOBAL: ':''}${ev.title}</td>

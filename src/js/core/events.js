@@ -23,15 +23,16 @@ export function randomEvent(ctx, rng, newsLevel=0){
   let pool = EVENT_POOL.filter(ev => !ev.requires || ev.requires.every(id => ctx.state.upgrades[id]));
   pool = pool.map(ev => {
     if (ev.sym === '{TIP_SYM}' && ctx.state.insiderTip) {
-      return { ...ev, sym: ctx.state.insiderTip.sym };
+      const tip = ctx.state.insiderTip;
+      return { ...ev, sym: tip.sym, mu: ev.mu * tip.bias, demand: ev.demand * tip.bias };
     }
     return ev;
   });
   if (ctx.state.insiderTip && ctx.state.insiderTip.daysLeft > 0) {
-    const sym = ctx.state.insiderTip.sym;
+    const { sym, bias } = ctx.state.insiderTip;
     const extras = [];
     for (const ev of pool) {
-      if (ev.sym === sym && ev.mu > 0) extras.push(ev);
+      if (ev.sym === sym && ((bias > 0 && ev.mu > 0) || (bias < 0 && ev.mu < 0))) extras.push(ev);
     }
     pool = pool.concat(extras);
   }
