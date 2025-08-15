@@ -16,11 +16,13 @@ export function renderInsight(ctx){
 
   const news = document.getElementById('assetNews');
   const list = (ctx.newsByAsset && ctx.newsByAsset[a.sym]) || [];
-  news.innerHTML = list.slice(0,8).map(rec => {
+  const filtered = list.filter(rec => !rec.ev.requires || rec.ev.requires.every(id => ctx.state.upgrades[id]));
+  news.innerHTML = filtered.slice(0,8).map(rec => {
     const ev = rec.ev;
     const maj = ev.severity === 'major' ? 'major' : '';
     const posneg = (ev.mu + ev.demand) >= 0 ? 'pos' : 'neg';
-    const who = ev.scope === 'global' ? 'GLOBAL' : a.sym;
+    const icon = ev.scope === 'global' ? '🌐' : '📈';
+    const label = ev.scope === 'global' ? 'GLOBAL' : a.sym;
     const days = ev.days ? ` • ${ev.days}d` : '';
     let eff, tip;
     if (ev.type === 'insider') {
@@ -31,7 +33,7 @@ export function renderInsight(ctx){
       tip = `μ ${(ev.mu*10000).toFixed(0)}bp • σ ${(ev.sigma*100).toFixed(1)}% • D ${(ev.demand*100).toFixed(1)}%`;
     }
     return `<div class="news-item">
-      <b>${rec.when}</b> — <span>${who}: ${ev.title}</span>
+      <b>${rec.when}</b> — <span>${icon} ${label}: ${ev.title}</span>
       <span class="chip ${maj}">${ev.severity}</span>
       <span class="chip ${posneg}" title="${tip}">${eff}</span>
       <span class="chip">${ev.type}${days}</span>

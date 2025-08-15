@@ -48,7 +48,7 @@ export function stepTick(ctx, cfg, rng, hooks){
     ev.timing = 'intraday'; ev.t = cfg.DAY_TICKS * 2;
     ctx.market.activeEvents.push(ev);
     hooks?.log?.(`${ev.scope==='global'?'GLOBAL':ev.sym}: ${ev.title} (intraday) — ${ev.blurb}`);
-    pushAssetNews(ctx.newsByAsset, ev, `Day ${ctx.day.idx} (intraday)`);
+    pushAssetNews(ctx.newsByAsset, ev, `Day ${ctx.day.idx} (intraday)`, ctx.state);
     ctx.day.midEventFired = true;
   }
 
@@ -125,12 +125,12 @@ export function enqueueAfterHours(ctx, cfg, rng, hooks){
     const ev = randomEvent(ctx, rng); ev.timing = 'afterhours';
     ctx.market.tomorrow.push(ev);
     hooks?.log?.(`${ev.scope==='global'?'GLOBAL':ev.sym} (after‑hours): ${ev.title} — ${ev.blurb}`);
-    pushAssetNews(ctx.newsByAsset, ev, `Day ${ctx.day.idx} (after‑hours)`);
+    pushAssetNews(ctx.newsByAsset, ev, `Day ${ctx.day.idx} (after‑hours)`, ctx.state);
   }
   if (Math.random() < cfg.AH_SUPPLY_EVENT_P){
     const sev = randomSupplyEvent(ctx.assets, rng); sev.timing = 'afterhours';
     ctx.market.tomorrow.push(sev);
     hooks?.log?.(`${sev.scope==='global'?'GLOBAL':sev.sym} (after‑hours): ${sev.title} — ${sev.blurb}`);
-    pushAssetNews(ctx.newsByAsset, sev, `Day ${ctx.day.idx} (after‑hours)`);
+    pushAssetNews(ctx.newsByAsset, sev, `Day ${ctx.day.idx} (after‑hours)`, ctx.state);
   }
 }
