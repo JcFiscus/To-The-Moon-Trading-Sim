@@ -16,6 +16,8 @@ export function initChart(ctx){
     e.preventDefault();
     const factor = e.deltaY > 0 ? 1.1 : 0.9;
     ctx.chartZoom = Math.min(Math.max(1, ctx.chartZoom * factor), 100);
+    const slider = document.getElementById('chartZoomRange');
+    if (slider) slider.value = ctx.chartZoom;
     drawChart(ctx);
   }, { passive: false });
 
@@ -39,14 +41,15 @@ export function initChart(ctx){
     } else {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const idx = Math.min(state.data.length - 1, Math.max(0, Math.round(x / state.step)));
-      const price = state.data[idx];
-      let html = `t=${state.off + idx} price ${fmt(price)}`;
+      let html;
       if (ctx.chartMode === 'candles' && state.segments) {
-        const seg = state.segments.find(s => idx >= s.start && idx < s.end);
-        if (seg) {
-          html = `t=${state.off + seg.start}<br>O:${fmt(seg.open)} H:${fmt(seg.high)}<br>L:${fmt(seg.low)} C:${fmt(seg.close)}`;
-        }
+        const segIdx = Math.min(state.segments.length - 1, Math.max(0, Math.floor(x / state.segStep)));
+        const seg = state.segments[segIdx];
+        html = `t=${state.off + seg.start}<br>O:${fmt(seg.open)} H:${fmt(seg.high)}<br>L:${fmt(seg.low)} C:${fmt(seg.close)}`;
+      } else {
+        const idx = Math.min(state.data.length - 1, Math.max(0, Math.round(x / state.step)));
+        const price = state.data[idx];
+        html = `t=${state.off + idx} price ${fmt(price)}`;
       }
       tooltip.style.display = 'block';
       tooltip.innerHTML = html;
@@ -71,7 +74,14 @@ export function drawChart(ctx) {
   const w = canvas.width, h = canvas.height;
   c.clearRect(0, 0, w, h);
 
-  const view = Math.floor((w / 2) / (ctx.chartZoom || 1));
+  const baseViewMap = {
+    hour: CFG.DAY_TICKS,
+    day: CFG.DAY_TICKS * 14,
+    week: CFG.DAY_TICKS * 7 * 8,
+    month: CFG.DAY_TICKS * 30 * 12
+  };
+  const baseView = baseViewMap[ctx.chartInterval] || CFG.DAY_TICKS;
+  const view = Math.max(1, Math.floor(baseView / (ctx.chartZoom || 1)));
   const maxOffset = Math.max(0, a.history.length - view);
   ctx.chartOffset = Math.min(Math.max(0, ctx.chartOffset || 0), maxOffset);
   const startIdx = Math.max(0, a.history.length - view - ctx.chartOffset);
@@ -120,10 +130,13 @@ export function drawChart(ctx) {
     segments.push({ start: i, end: i + slice.length, open, close, high, low });
   }
 
+  const segStep = w / (segments.length || 1);
+
   if (ctx.chartMode === 'candles') {
-    for (const seg of segments) {
-      const cx = (seg.start + (seg.end - seg.start) / 2) * step;
-      const bodyW = Math.max(step, (seg.end - seg.start) * step * 0.6);
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      const cx = (i + 0.5) * segStep;
+      const bodyW = Math.max(1, segStep * 0.6);
       const color = seg.close >= seg.open ? '#8ad7a0' : '#ff6b6b';
       c.strokeStyle = color;
       c.beginPath(); c.moveTo(cx, y(seg.high)); c.lineTo(cx, y(seg.low)); c.stroke();
@@ -158,13 +171,14 @@ export function drawChart(ctx) {
   c.setLineDash([]);
   c.fillStyle = '#cbd5e1'; c.fillText(`${a.sym} ${fmt(last)}  (prev ${fmt(prevClose)})`, 8, 16);
 
-  ctx._chartState = { data, step, off: startIdx, maxOffset, segments };
+  ctx._chartState = { data, step, segStep, off: startIdx, maxOffset, segments };
   
   // stats panel
   const stats = document.getElementById('chartStats');
   stats.innerHTML = '';
   const rows = [
     ['Supply', a.supply.toLocaleString()],
+    ['Market Cap', fmt(last * a.supply)],
     ['Local Demand', a.localDemand.toFixed(2) + ` (ev ${(a.evDemandBias >= 0 ? '+' : '')}${a.evDemandBias.toFixed(2)})`],
     ['Fair Value', fmt(a.fair)],
     ['Tomorrow (μ ± σ)', `${((a.outlook?.mu || 0) * 100).toFixed(2)}% ± ${((a.outlook?.sigma || a.daySigma || 0) * 100).toFixed(2)}%`],

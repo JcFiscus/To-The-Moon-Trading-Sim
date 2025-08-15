@@ -1,7 +1,6 @@
 import { initToaster } from './toast.js';
 import { buildMarketTable, renderMarketTable } from './table.js';
 import { drawChart, initChart } from './chart.js';
-import { CFG } from '../config.js';
 import { renderInsight } from './insight.js';
 import { renderAssetNewsTable, initNewsControls } from './newsAssets.js';
 import { renderHUD } from './hud.js';
@@ -100,19 +99,18 @@ export function initUI(ctx, handlers) {
     });
   });
 
+  const zoomSlider = document.getElementById('chartZoomRange');
+  if (zoomSlider) {
+    zoomSlider.addEventListener('input', () => {
+      ctx.chartZoom = parseFloat(zoomSlider.value);
+      drawChart(ctx);
+    });
+  }
+
   function autoScaleChart(){
-    const parent = document.getElementById('chart').parentElement;
-    const w = parent.clientWidth;
-    let view;
-    switch(ctx.chartInterval){
-      case 'hour': view = CFG.DAY_TICKS; break;
-      case 'day': view = CFG.DAY_TICKS * 14; break;
-      case 'week': view = CFG.DAY_TICKS * 7 * 8; break;
-      case 'month': view = CFG.DAY_TICKS * 30 * 12; break;
-      default: view = CFG.DAY_TICKS; break;
-    }
-    ctx.chartZoom = (w / 2) / view;
+    ctx.chartZoom = 1;
     ctx.chartOffset = 0;
+    if (zoomSlider) zoomSlider.value = ctx.chartZoom;
   }
   autoScaleChart();
 
