@@ -13,6 +13,7 @@ import { evaluateRisk } from './core/risk.js';
 import { initToaster } from './ui/toast.js';
 import { buildMarketTable, renderMarketTable } from './ui/table.js';
 import { drawChart } from './ui/chart.js';
+import { renderChartStats } from './ui/chartStats.js';
 import { renderInsight } from './ui/insight.js';
 import { renderAssetNewsTable } from './ui/newsAssets.js';
 import { showSummary, showGameOver } from './ui/modal.js';
@@ -78,11 +79,12 @@ document.getElementById('chartTitle').textContent =
 
 // Chart type toggle
 ctx.chartMode = 'line';
-document.getElementById('chartToggle').addEventListener('click', () => {
-  ctx.chartMode = ctx.chartMode === 'line' ? 'candles' : 'line';
-  document.getElementById('chartToggle').textContent = ctx.chartMode === 'line' ? 'Candles' : 'Line';
-  drawChart(ctx);
-});
+  document.getElementById('chartToggle').addEventListener('click', () => {
+    ctx.chartMode = ctx.chartMode === 'line' ? 'candles' : 'line';
+    document.getElementById('chartToggle').textContent = ctx.chartMode === 'line' ? 'Candles' : 'Line';
+    drawChart(ctx);
+    renderChartStats(ctx);
+  });
 
 // Controls
 document.getElementById('startBtn').addEventListener('click', () => start());
@@ -192,15 +194,16 @@ function renderHUD() {
   const riskPct = clamp((ctx.market.risk - 0.05) / 1.15 * 100, 0, 100);
   document.getElementById('riskPct').textContent = Math.round(riskPct) + '%';
 }
-function renderAll() {
-  renderHUD();
-  renderMarketTable(ctx);
-  drawChart(ctx);
-  renderInsight(ctx);
-  renderAssetNewsTable(ctx);
-  renderPortfolio(ctx);
-  renderUpgrades(ctx, toast);
-  ctx.renderMarketTabs();
+  function renderAll() {
+    renderHUD();
+    renderMarketTable(ctx);
+    drawChart(ctx);
+    renderChartStats(ctx);
+    renderInsight(ctx);
+    renderAssetNewsTable(ctx);
+    renderPortfolio(ctx);
+    renderUpgrades(ctx, toast);
+    ctx.renderMarketTabs();
 }
 ctx.renderAll = renderAll;
 
