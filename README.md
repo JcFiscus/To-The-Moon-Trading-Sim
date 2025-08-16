@@ -71,3 +71,18 @@ HTML/Javascript trading sim game.
 
 The root `index.html` references assets from the `src/` directory so the
 game can run directly on static hosts like GitHub Pages without a build step.
+
+## How to Play
+
+1. **Start the day.** Use the controls in the HUD to begin the trading session.
+2. **Select an asset.** Navigate the market table with the arrow keys or your mouse.
+3. **Trade.** Press `Enter` on a row to open the action popover, choose a quantity (and leverage if unlocked), then buy or sell.
+4. **Configure auto‑risk.** Set stop losses, trailing stops, and take‑profit levels in the Risk panel to protect positions.
+5. **Advance the day.** End the day from the HUD to settle positions and review the summary before starting the next session.
+
+## Keyboard Shortcuts
+
+- `Arrow Up/Down` – move between asset rows.
+- `Enter` or `Space` – open the trade popover for the selected asset.
+- `Esc` – close the popover or return focus to the table.
+- `Tab` – cycle through inputs in the popover.
