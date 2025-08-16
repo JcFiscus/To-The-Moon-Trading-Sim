@@ -43,8 +43,8 @@ export function initUI(ctx, handlers) {
   tabs.id = 'marketTabs';
   tabs.className = 'row tabs';
   tabs.setAttribute('role', 'tablist');
-  const card = document.querySelector('.market-col .card');
-  card.insertBefore(tabs, document.getElementById('marketTable'));
+  const panel = document.querySelector('.market-col .panel');
+  panel.insertBefore(tabs, document.getElementById('marketTable'));
 
   function renderTabs() {
     tabs.innerHTML = '';
