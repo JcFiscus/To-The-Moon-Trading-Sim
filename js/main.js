@@ -1,19 +1,17 @@
-/* To The Moon — Trading Sim (v0.1)
-   Adds: News Feed + timed events that modify volatility/drift. */
+/* To The Moon — Trading Sim (v0.1.1)
+   Fixes: robust init (DOMContentLoaded), safe canvas context, bind listeners before first render,
+   and small effects tag bug. */
 
-(() => {
+window.addEventListener("DOMContentLoaded", () => {
   // ---------- Utilities ----------
   const $ = (sel) => document.querySelector(sel);
   const fmtMoney = (n) =>
     (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
   const gaussian = () => { // Box–Muller
-    let u = 0, v = 0;
-    while (u === 0) u = Math.random();
-    while (v === 0) v = Math.random();
+    let u = 0, v = 0; while (u === 0) u = Math.random(); while (v === 0) v = Math.random();
     return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   };
-  const clock = () => `D${state.day} · T${state.tick}`;
 
   // ---------- Data ----------
   const ASSETS = [
@@ -24,32 +22,19 @@
     { id: "BTC",   name: "Bitcorn",          start: 65000, volatility: 0.030 },
     { id: "ETH",   name: "Etheer",           start: 3500,  volatility: 0.035 }
   ];
-
   const SAVE_KEY = "ttm_v0_save";
 
   const mkAssetRuntime = (def) => ({
-    id: def.id,
-    name: def.name,
-    volatility: def.volatility,
-    price: def.start,
-    prev: def.start,
-    changePct: 0,
+    id: def.id, name: def.name, volatility: def.volatility,
+    price: def.start, prev: def.start, changePct: 0,
     history: Array.from({ length: 60 }, (_, i) => def.start * (1 + (i - 59) * 0.0005))
   });
 
   const initialState = () => ({
-    day: 1,
-    cash: 10000,
-    realized: 0,
+    day: 1, cash: 10000, realized: 0,
     assets: ASSETS.map(mkAssetRuntime),
-    positions: {}, // id -> { qty, avgCost }
-    running: false,
-    selected: "MOON",
-    tick: 0,
-    // new:
-    events: [],         // active event effects
-    feed: [],           // feed entries
-    nextEventId: 1
+    positions: {}, running: false, selected: "MOON", tick: 0,
+    events: [], feed: [], nextEventId: 1
   });
 
   let state = load() ?? initialState();
@@ -80,100 +65,78 @@
   const elEffects = $("#effects-list");
   const elFeed = $("#feed");
 
-  const chart = $("#chart");
-  const ctx = chart.getContext("2d");
+  // Canvas is optional-safe now
+  let chart = $("#chart");
+  let ctx = chart && chart.getContext ? chart.getContext("2d") : null;
 
-  // ---------- Init ----------
-  renderAll();
-  selectAsset(state.selected);
-  if (state.feed.length === 0) {
-    logFeed({ text: "Markets booted. Try not to recreate 2008." });
-  }
+  const clock = () => `D${state.day} · T${state.tick}`;
 
-  // ---------- Events ----------
-  elStart.addEventListener("click", () => {
-    if (state.running) pause(); else start();
-  });
-
-  elEnd.addEventListener("click", () => {
+  // ---------- Bind events FIRST so a render error can’t kill clicks ----------
+  if (elStart) elStart.addEventListener("click", () => { state.running ? pause() : start(); });
+  if (elEnd) elEnd.addEventListener("click", () => {
     bumpNews("Market closed. Overnight risk intensifies. Try not to panic.");
-    stepAll(6, 1.8);         // brisk close/open move
+    stepAll(6, 1.8);
     state.day += 1;
-    startNewDay();           // spawn day theme
+    startNewDay();
     save();
-    renderAll();
+    safeRenderAll();
   });
-
-  elReset.addEventListener("click", () => {
+  if (elReset) elReset.addEventListener("click", () => {
     if (confirm("Reset game and clear local save?")) {
       localStorage.removeItem(SAVE_KEY);
       state = initialState();
       pause();
-      renderAll();
+      safeRenderAll();
       selectAsset(state.selected);
       bumpNews("Fresh start. Your future mistakes haven’t happened yet.");
       logFeed({ text: "New game." });
     }
   });
-
-  elTableBody.addEventListener("click", (e) => {
-    const row = e.target.closest("tr[data-id]");
-    if (!row) return;
-    const id = row.getAttribute("data-id");
-    selectAsset(id);
-
-    const isBuy = e.target.matches("[data-buy]");
-    const isSell = e.target.matches("[data-sell]");
-    if (isBuy || isSell) {
-      const qty = parseQty(elQtyGlobal.value);
-      if (isBuy) doBuy(id, qty);
-      else doSell(id, qty);
-    }
+  if (elTableBody) elTableBody.addEventListener("click", (e) => {
+    const row = e.target.closest("tr[data-id]"); if (!row) return;
+    const id = row.getAttribute("data-id"); selectAsset(id);
+    if (e.target.matches("[data-buy]")) doBuy(id, parseQty(elQtyGlobal.value));
+    if (e.target.matches("[data-sell]")) doSell(id, parseQty(elQtyGlobal.value));
   });
+  if (elBuy) elBuy.addEventListener("click", () => doBuy(state.selected, parseQty(elTradeQty.value)));
+  if (elSell) elSell.addEventListener("click", () => doSell(state.selected, parseQty(elTradeQty.value)));
 
-  elBuy.addEventListener("click", () => doBuy(state.selected, parseQty(elTradeQty.value)));
-  elSell.addEventListener("click", () => doSell(state.selected, parseQty(elTradeQty.value)));
+  document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
 
-  function parseQty(v) {
-    const n = Math.floor(Number(v));
-    return isFinite(n) && n > 0 ? n : 1;
-  }
+  // ---------- Initial render ----------
+  if (state.feed.length === 0) logFeed({ text: "Markets booted. Try not to recreate 2008." });
+  safeRenderAll();
+  selectAsset(state.selected);
 
-  // ---------- Game Loop ----------
+  // ---------- Helpers ----------
+  function parseQty(v) { const n = Math.floor(Number(v)); return isFinite(n) && n > 0 ? n : 1; }
+
   function start() {
-    state.running = true;
-    elStart.textContent = "Pause";
-    if (timer) clearInterval(timer);
-    timer = setInterval(tick, 600);
+    state.running = true; if (elStart) elStart.textContent = "Pause";
+    clearInterval(timer); timer = setInterval(tick, 600);
   }
   function pause() {
-    state.running = false;
-    elStart.textContent = "Start";
-    if (timer) { clearInterval(timer); timer = null; }
+    state.running = false; if (elStart) elStart.textContent = "Start";
+    clearInterval(timer); timer = null;
   }
-
   function tick() {
     state.tick += 1;
 
-    // Short-lived rumor events
-    const rumorChance = 0.04; // 4% per tick
-    if (Math.random() < rumorChance) {
-      const a = randomAsset();
-      const up = Math.random() < 0.5;
+    // Rumors
+    if (Math.random() < 0.04) {
+      const a = randomAsset(); const up = Math.random() < 0.5;
       createEvent({
         label: `${up ? "Rumor surge" : "Short report"} on ${a.id}`,
         kind: up ? "good" : "bad",
         targetId: a.id,
-        durationTicks: 24, // ~15s at default speed
+        durationTicks: 24,
         effect: { volMult: 1.6, driftShift: up ? 0.003 : -0.003 }
       });
     }
 
     cleanupExpiredEvents();
     stepAll(1, 1.0);
-    renderAll();
-
-    // Autosave every ~10s
+    safeRenderAll();
     if (state.tick % 16 === 0) save();
   }
 
@@ -186,21 +149,15 @@
         const drift = 0.0005 + mods.driftShift;
         const shock = gaussian() * vol;
         const pct = drift + shock;
-
         a.price = Math.max(0.0001, a.price * (1 + pct));
         a.changePct = ((a.price - a.prev) / a.prev) * 100;
-
-        a.history.push(a.price);
-        if (a.history.length > 240) a.history.shift();
+        a.history.push(a.price); if (a.history.length > 240) a.history.shift();
       }
     }
   }
+  function randomAsset() { return state.assets[(Math.random() * state.assets.length) | 0]; }
 
-  function randomAsset() {
-    return state.assets[(Math.random() * state.assets.length) | 0];
-  }
-
-  // ---------- Event System ----------
+  // ---------- Events ----------
   function createEvent({ label, kind = "neutral", targetId = null, durationTicks = 0, durationDays = 0, effect = {} }) {
     const id = state.nextEventId++;
     const ev = {
@@ -211,19 +168,13 @@
     };
     state.events.push(ev);
     logFeed({
-      text: label,
-      kind,
-      targetId,
-      effect,
-      expiresAtTick: ev.expiresAtTick,
-      expiresOnDay: ev.expiresOnDay
+      text: label, kind, targetId, effect,
+      expiresAtTick: ev.expiresAtTick, expiresOnDay: ev.expiresOnDay
     });
     return ev;
   }
-
   function getModifiersForAsset(assetId) {
-    let volMult = 1.0;
-    let driftShift = 0.0;
+    let volMult = 1.0, driftShift = 0.0;
     for (const e of state.events) {
       const applies = e.targetId == null || e.targetId === assetId;
       if (!applies) continue;
@@ -232,151 +183,73 @@
     }
     return { volMult, driftShift };
   }
-
   function cleanupExpiredEvents() {
-    const nowTick = state.tick;
+    const now = state.tick;
     state.events = state.events.filter(e => {
-      const tickOK = e.expiresAtTick == null || nowTick < e.expiresAtTick;
-      const dayOK  = e.expiresOnDay == null || state.day  < e.expiresOnDay;
+      const tickOK = e.expiresAtTick == null || now < e.expiresAtTick;
+      const dayOK  = e.expiresOnDay == null || state.day < e.expiresOnDay;
       return tickOK && dayOK;
     });
   }
-
   function startNewDay() {
     cleanupExpiredEvents();
     logFeed({ text: `Day ${state.day} begins.` });
-
-    // 60% chance of one daily theme
     if (Math.random() < 0.6) {
       const r = Math.random();
-      if (r < 0.25) {
-        createEvent({
-          label: "Calm markets",
-          kind: "good",
-          durationDays: 1,
-          effect: { volMult: 0.8 }
-        });
-      } else if (r < 0.50) {
-        createEvent({
-          label: "Volatility spike",
-          kind: "bad",
-          durationDays: 1,
-          effect: { volMult: 1.4 }
-        });
-      } else if (r < 0.75) {
-        const a = randomAsset();
-        createEvent({
-          label: `Analyst upgrade on ${a.id}`,
-          kind: "good",
-          targetId: a.id,
-          durationDays: 1,
-          effect: { driftShift: 0.002 }
-        });
+      if (r < 0.25) createEvent({ label: "Calm markets", kind: "good", durationDays: 1, effect: { volMult: 0.8 } });
+      else if (r < 0.50) createEvent({ label: "Volatility spike", kind: "bad", durationDays: 1, effect: { volMult: 1.4 } });
+      else if (r < 0.75) {
+        const a = randomAsset(); createEvent({ label: `Analyst upgrade on ${a.id}`, kind: "good", targetId: a.id, durationDays: 1, effect: { driftShift: 0.002 } });
       } else {
-        const a = randomAsset();
-        createEvent({
-          label: `Regulator scrutiny on ${a.id}`,
-          kind: "bad",
-          targetId: a.id,
-          durationDays: 1,
-          effect: { driftShift: -0.002 }
-        });
+        const a = randomAsset(); createEvent({ label: `Regulator scrutiny on ${a.id}`, kind: "bad", targetId: a.id, durationDays: 1, effect: { driftShift: -0.002 } });
       }
     }
   }
-
   function logFeed(entry) {
     const row = {
-      time: clock(),
-      text: entry.text,
-      kind: entry.kind ?? "neutral",
-      targetId: entry.targetId ?? null,
-      effect: entry.effect ?? {},
-      expiresAtTick: entry.expiresAtTick ?? null,
-      expiresOnDay: entry.expiresOnDay ?? null
+      time: clock(), text: entry.text, kind: entry.kind ?? "neutral",
+      targetId: entry.targetId ?? null, effect: entry.effect ?? {},
+      expiresAtTick: entry.expiresAtTick ?? null, expiresOnDay: entry.expiresOnDay ?? null
     };
-    state.feed.push(row);
-    if (state.feed.length > 60) state.feed.shift();
+    state.feed.push(row); if (state.feed.length > 60) state.feed.shift();
     renderFeed();
   }
 
   // ---------- Trading ----------
   function doBuy(id, qty) {
-    const a = findAsset(id);
-    const cost = a.price * qty;
-    if (cost > state.cash + 1e-9) {
-      bumpNews(`Not enough cash to buy ${qty} ${id}. Consider being richer.`);
-      return;
-    }
+    const a = findAsset(id); const cost = a.price * qty;
+    if (cost > state.cash + 1e-9) { bumpNews(`Not enough cash to buy ${qty} ${id}. Consider being richer.`); return; }
     state.cash -= cost;
-
     const p = state.positions[id] || { qty: 0, avgCost: 0 };
     const newQty = p.qty + qty;
     const newCostBasis = (p.avgCost * p.qty + cost) / newQty;
     state.positions[id] = { qty: newQty, avgCost: newCostBasis };
-
-    save();
-    renderAll();
-    selectAsset(id);
-    bumpNews(`Bought ${qty} ${id} @ ${formatPrice(a.price)}.`);
+    save(); safeRenderAll(); selectAsset(id); bumpNews(`Bought ${qty} ${id} @ ${formatPrice(a.price)}.`);
   }
-
   function doSell(id, qty) {
     const p = state.positions[id];
-    if (!p || p.qty <= 0) {
-      bumpNews(`You don't own ${id}. Imagination doesn’t count as collateral.`);
-      return;
-    }
+    if (!p || p.qty <= 0) { bumpNews(`You don't own ${id}. Imagination doesn’t count as collateral.`); return; }
     const actualQty = clamp(qty, 1, p.qty);
-    const a = findAsset(id);
-    const proceeds = a.price * actualQty;
-    const profit = (a.price - p.avgCost) * actualQty;
-
-    state.cash += proceeds;
-    state.realized += profit;
-
-    const leftover = p.qty - actualQty;
-    if (leftover <= 0) {
-      delete state.positions[id];
-    } else {
-      state.positions[id] = { qty: leftover, avgCost: p.avgCost };
-    }
-
-    save();
-    renderAll();
-    selectAsset(id);
+    const a = findAsset(id); const proceeds = a.price * actualQty; const profit = (a.price - p.avgCost) * actualQty;
+    state.cash += proceeds; state.realized += profit;
+    const leftover = p.qty - actualQty; if (leftover <= 0) delete state.positions[id]; else state.positions[id] = { qty: leftover, avgCost: p.avgCost };
+    save(); safeRenderAll(); selectAsset(id);
     bumpNews(`Sold ${actualQty} ${id} @ ${formatPrice(a.price)} (${profit >= 0 ? "+" : ""}${fmtMoney(profit)}).`);
   }
-
-  function findAsset(id) {
-    return state.assets.find(a => a.id === id);
-  }
+  function findAsset(id) { return state.assets.find(a => a.id === id); }
 
   // ---------- Rendering ----------
-  function renderAll() {
-    renderHUD();
-    renderTable();
-    renderDetail();
-    renderFeed();
-  }
-
+  function safeRenderAll() { try { renderAll(); } catch (err) { console.error(err); bumpNews("Render error. Recovered."); } }
+  function renderAll() { renderHUD(); renderTable(); renderDetail(); renderFeed(); }
   function renderHUD() {
-    const holdingsValue = portfolioValue();
-    const equity = state.cash + holdingsValue;
-    const unrealized = unrealizedPL();
-
-    elDay.textContent = String(state.day);
-    elCash.textContent = fmtMoney(state.cash);
-    elEquity.textContent = fmtMoney(equity);
-
+    const holdingsValue = portfolioValue(); const equity = state.cash + holdingsValue; const unrealized = unrealizedPL();
+    elDay.textContent = String(state.day); elCash.textContent = fmtMoney(state.cash); elEquity.textContent = fmtMoney(equity);
     const totalPL = state.realized + unrealized;
     elPL.textContent = `${fmtMoney(totalPL)} (${totalPL >= 0 ? "+" : ""}${fmtMoney(unrealized).replace("$","")} unrl)`;
     elPL.classList.remove("pl--good", "pl--bad", "pl--neutral");
     elPL.classList.add(totalPL > 0 ? "pl--good" : totalPL < 0 ? "pl--bad" : "pl--neutral");
-
-    elStart.textContent = state.running ? "Pause" : "Start";
+    if (elStart) elStart.textContent = state.running ? "Pause" : "Start";
   }
-
   function renderTable() {
     const rows = state.assets.map(a => {
       const pos = state.positions[a.id]?.qty ?? 0;
@@ -404,7 +277,6 @@
     }).join("");
     elTableBody.innerHTML = rows;
   }
-
   function renderDetail() {
     const a = findAsset(state.selected);
     elDetailTitle.textContent = `Details — ${a.id}`;
@@ -421,20 +293,20 @@
     renderEffectsForSelected();
     drawChart(a.history);
   }
-
   function renderEffectsForSelected() {
     const id = state.selected;
     const list = state.events.filter(e => e.targetId == null || e.targetId === id);
-    if (list.length === 0) {
-      elEffects.innerHTML = `<li class="effect"><span class="meta">None</span></li>`;
-      return;
-    }
+    if (list.length === 0) { elEffects.innerHTML = `<li class="effect"><span class="meta">None</span></li>`; return; }
     elEffects.innerHTML = list.map(e => {
-      const tags = [];
-      if (e.effect.volMult && e.effect.volMult !== 1) tags.push(`<span class="tag ${e.kindTag}">${e.effect.volMult > 1 ? "Vol ↑ x"+e.effect.volMult.toFixed(2) : "Vol ↓ x"+e.effect.volMult.toFixed(2)}</span>`);
-      if (e.effect.driftShift) tags.push(`<span class="tag ${e.effect.driftShift > 0 ? "tag--good" : "tag--bad"}">Drift ${e.effect.driftShift > 0 ? "+" : ""}${(e.effect.driftShift*100).toFixed(2)}%</span>`);
-      const ttl = remainingString(e);
       const kindTag = e.kind === "good" ? "tag--good" : e.kind === "bad" ? "tag--bad" : "tag--neutral";
+      const tags = [];
+      if (e.effect && e.effect.volMult && e.effect.volMult !== 1) {
+        tags.push(`<span class="tag ${e.effect.volMult > 1 ? "tag--bad" : "tag--good"}">${e.effect.volMult > 1 ? "Vol ↑ x"+e.effect.volMult.toFixed(2) : "Vol ↓ x"+e.effect.volMult.toFixed(2)}</span>`);
+      }
+      if (e.effect && e.effect.driftShift) {
+        tags.push(`<span class="tag ${e.effect.driftShift > 0 ? "tag--good" : "tag--bad"}">Drift ${e.effect.driftShift > 0 ? "+" : ""}${(e.effect.driftShift*100).toFixed(2)}%</span>`);
+      }
+      const ttl = remainingString(e);
       return `<li class="effect">
         <span>${e.label} ${e.targetId ? `(<strong>${e.targetId}</strong>)` : ""}</span>
         <span class="tags">
@@ -445,7 +317,6 @@
       </li>`;
     }).join("");
   }
-
   function renderFeed() {
     if (!elFeed) return;
     const items = state.feed.slice(-30).map(row => {
@@ -462,125 +333,63 @@
     }).join("");
     elFeed.innerHTML = items;
   }
-
   function remainingString(obj) {
     const parts = [];
-    if (obj.expiresOnDay != null) {
-      const d = obj.expiresOnDay - state.day;
-      if (d > 0) parts.push(`${d}d`);
-    }
-    if (obj.expiresAtTick != null) {
-      const t = obj.expiresAtTick - state.tick;
-      if (t > 0) parts.push(`${t}t`);
-    }
+    if (obj.expiresOnDay != null) { const d = obj.expiresOnDay - state.day; if (d > 0) parts.push(`${d}d`); }
+    if (obj.expiresAtTick != null) { const t = obj.expiresAtTick - state.tick; if (t > 0) parts.push(`${t}t`); }
     return parts.join(" ");
   }
-
   function drawChart(history) {
+    if (!chart || !chart.getContext) return; if (!ctx) ctx = chart.getContext("2d");
     const w = chart.width, h = chart.height;
     ctx.clearRect(0,0,w,h);
-
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = "#0b1224";
-    ctx.fillRect(0,0,w,h);
-
-    ctx.strokeStyle = "#1f2b46";
-    ctx.lineWidth = 1;
-    for (let i=1;i<=3;i++){
-      const y = (h/4)*i;
-      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
-    }
-
-    const min = Math.min(...history);
-    const max = Math.max(...history);
-    const pad = (max - min) * 0.1 || 1;
-    const yMin = min - pad, yMax = max + pad;
-
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#8b5cf6";
-    ctx.beginPath();
+    ctx.globalAlpha = 1; ctx.fillStyle = "#0b1224"; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle = "#1f2b46"; ctx.lineWidth = 1;
+    for (let i=1;i<=3;i++){ const y = (h/4)*i; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+    const min = Math.min(...history), max = Math.max(...history);
+    const pad = (max - min) * 0.1 || 1, yMin = min - pad, yMax = max + pad;
+    ctx.lineWidth = 2; ctx.strokeStyle = "#8b5cf6"; ctx.beginPath();
     history.forEach((v, i) => {
       const x = (i / (history.length - 1)) * (w - 10) + 5;
       const y = h - ((v - yMin) / (yMax - yMin)) * (h - 10) - 5;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }); ctx.stroke();
   }
 
   // ---------- Calculations ----------
-  function portfolioValue() {
-    let sum = 0;
-    for (const [id, pos] of Object.entries(state.positions)) {
-      const a = findAsset(id);
-      sum += pos.qty * a.price;
-    }
-    return sum;
-  }
-  function unrealizedPL() {
-    let sum = 0;
-    for (const [id, pos] of Object.entries(state.positions)) {
-      const a = findAsset(id);
-      sum += (a.price - pos.avgCost) * pos.qty;
-    }
-    return sum;
-  }
-
-  function formatPrice(p) {
-    const abs = Math.abs(p);
-    const digits = abs >= 1000 ? 2 : abs >= 1 ? 2 : 4;
-    return "$" + p.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
-  }
+  function portfolioValue(){ let sum=0; for (const [id,pos] of Object.entries(state.positions)){ const a=findAsset(id); sum += pos.qty * a.price; } return sum; }
+  function unrealizedPL(){ let sum=0; for (const [id,pos] of Object.entries(state.positions)){ const a=findAsset(id); sum += (a.price - pos.avgCost) * pos.qty; } return sum; }
+  function formatPrice(p){ const abs=Math.abs(p); const digits = abs>=1000?2:abs>=1?2:4; return "$"+p.toLocaleString(undefined,{minimumFractionDigits:digits, maximumFractionDigits:digits}); }
 
   // ---------- Persistence ----------
-  function save() {
-    const payload = { ...state };
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(payload)); } catch {}
-  }
-
-  function load() {
+  function save(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch {} }
+  function load(){
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
-      if (!raw) return null;
+      const raw = localStorage.getItem(SAVE_KEY); if (!raw) return null;
       const data = JSON.parse(raw);
-
-      // Hydrate assets array with runtime helpers
       const defs = Object.fromEntries(ASSETS.map(a => [a.id, a]));
       data.assets = data.assets.map(a => {
         const d = defs[a.id] ?? { name: a.name, volatility: a.volatility, start: a.price };
         return {
-          id: a.id,
-          name: d.name,
-          volatility: d.volatility,
-          price: a.price,
-          prev: a.prev ?? a.price,
-          changePct: a.changePct ?? 0,
+          id: a.id, name: d.name, volatility: d.volatility, price: a.price,
+          prev: a.prev ?? a.price, changePct: a.changePct ?? 0,
           history: Array.isArray(a.history) && a.history.length ? a.history.slice(-240) : [d.start]
         };
       });
-
-      data.running = false; // do not auto-run on load
-
-      // New fields (back-compat)
+      data.running = false;
       data.events = Array.isArray(data.events) ? data.events : [];
       data.feed = Array.isArray(data.feed) ? data.feed : [];
       data.nextEventId = Number.isFinite(data.nextEventId) ? data.nextEventId : 1;
-
       return data;
     } catch { return null; }
   }
 
   // ---------- UX ----------
   let lastMsgTimeout = null;
-  function bumpNews(text) {
+  function bumpNews(text){
     clearTimeout(lastMsgTimeout);
     elMsg.textContent = text;
     lastMsgTimeout = setTimeout(() => { elMsg.textContent = ""; }, 4000);
     logFeed({ text });
   }
-
-  // Pause loop on tab hide
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) pause();
-  });
-})();
+});
