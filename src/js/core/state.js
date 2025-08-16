@@ -48,7 +48,9 @@ export function createInitialState(assetDefs){
     ui: { lastLev: {} },
     marginPositions: [],
     optionPositions: [],
-    insiderTip: null
+    insiderTip: null,
+    tick: 0,
+    lastTradeTick: {}
   };
 
   const market = {

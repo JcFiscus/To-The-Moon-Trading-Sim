@@ -22,8 +22,10 @@ export function buy(ctx, sym, qty, opts={}){
     const newQty = cb.qty + qty;
     cb.avg = (cb.qty * cb.avg + qty * price) / Math.max(1, newQty);
     cb.qty = newQty; ctx.state.costBasis[sym] = cb;
-    // reset risk tracking so new purchases start fresh
-    ctx.riskTrack[sym] = { peak: price, lastTP: 0, lastRule: '', age: 0 };
+    // mark trade time and reset risk tracking
+    if (!ctx.state.lastTradeTick) ctx.state.lastTradeTick = {};
+    ctx.state.lastTradeTick[sym] = ctx.state.tick || 0;
+    ctx.riskTrack[sym] = { peak: price, lastTP: 0, lastRule: '' };
     ctx.day.feesPaid += fee;
     const share = qty / a.supply;
     a.localDemand = clamp(a.localDemand + share * 9, 0.5, 2.5);
@@ -110,6 +112,10 @@ export function sell(ctx, sym, qty, opts={}){
   const share = sold / a.supply;
   a.localDemand = clamp(a.localDemand - share * 0.5, 0.5, 2.5);
   a.flowToday -= sold;
+  if (sold > 0) {
+    if (!ctx.state.lastTradeTick) ctx.state.lastTradeTick = {};
+    ctx.state.lastTradeTick[sym] = ctx.state.tick || 0;
+  }
   return sold;
 }
 
