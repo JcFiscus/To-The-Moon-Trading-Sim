@@ -311,7 +311,7 @@ export function renderMarketTable(ctx) {
       if (tip && tip.sym === a.sym && tip.daysLeft > 0) {
         tipEl.textContent = (tip.bias > 0 ? '⬆' : '⬇') + tip.daysLeft;
         tipEl.className = 'tip-indicator ' + (tip.bias > 0 ? 'bull' : 'bear');
-        tipEl.title = `Insider Tip: ${tip.bias>0?'Bullish':'Bearish'} (${tip.daysLeft}d) μ ${(tip.mu*100).toFixed(2)}% σ ${(tip.sigma*100).toFixed(2)}%`;
+        tipEl.title = `Insider Tip: ${tip.bias > 0 ? 'Bullish' : 'Bearish'} (${tip.daysLeft}d) μ ${(tip.mu * 100).toFixed(2)}% σ ${(tip.sigma * 100).toFixed(2)}%`;
         tipEl.style.display = 'inline';
       } else {
         tipEl.textContent = '';
