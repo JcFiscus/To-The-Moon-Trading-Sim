@@ -1,11 +1,26 @@
-export function initGlobalFeed(feedEl){
-  function log(msg){
-    const line = document.createElement('div');
-    line.className = 'line';
-    const ts = new Date().toLocaleTimeString();
-    line.textContent = `[${ts}] ${msg}`;
-    feedEl.prepend(line);
-    while (feedEl.childElementCount > 200) feedEl.lastElementChild.remove();
+import { getState } from '../core/state.js';
+
+export function renderNews(root, { filter = null, limit = 6 } = {}) {
+  const ctx = getState();
+  let items = [];
+  if (filter) {
+    items = ctx.newsByAsset[filter] || [];
+  } else {
+    items = Object.values(ctx.newsByAsset).flat();
   }
-  return { log };
+  items = items.slice(0, limit);
+  root.innerHTML = `
+    <div class="card-head">
+      <strong>News</strong>
+      ${filter ? `<span class="chip">Selected: ${filter}</span>` : ''}
+    </div>
+    <ul class="news-list">
+      ${items.map(n => `
+        <li class="news-item">
+          <span class="tag ${n.ev?.severity || ''}">${n.ev?.severity || ''}</span>
+          <span class="title">${n.ev?.title || ''}</span>
+        </li>
+      `).join('')}
+    </ul>
+  `;
 }

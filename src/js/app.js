@@ -1,6 +1,7 @@
 import { CFG } from './config.js';
 import { createStore } from './core/store.js';
 import { initUI } from './ui/init.js';
+import { setState } from './core/state.js';
 import { createGameLoop } from './gameLoop.js';
 import { setupPersistence } from './persistence.js';
 
@@ -11,7 +12,9 @@ const ctx = store.get();
 const persistence = setupPersistence(ctx, log);
 let game;
 
-const ui = initUI(ctx, {
+setState(ctx);
+
+const ui = initUI({
   start: () => game.start(),
   save: persistence.save,
   reset: persistence.reset

@@ -72,3 +72,12 @@ export function createInitialState(assetDefs){
   const ctx = { assets, state, market, day, newsByAsset, riskTrack: {}, lastEvent:{}, gameOver:false };
   return ctx;
 }
+
+// Global access helpers for UI modules
+let _ctx = null;
+export function setState(ctx){
+  _ctx = ctx;
+}
+export function getState(){
+  return _ctx;
+}
