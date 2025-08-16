@@ -1,7 +1,6 @@
 import { initToaster } from './toast.js';
 import { buildMarketTable, renderMarketTable } from './table.js';
 import { drawChart, initChart } from './chart.js';
-import { renderInsight } from './insight.js';
 import { renderAssetNewsTable, initNewsControls } from './newsAssets.js';
 import { renderHUD } from './hud.js';
 import { initRiskTools } from './risktools.js';
@@ -15,6 +14,80 @@ export function initUI(ctx, handlers) {
   const { start, save, reset } = handlers;
   const toast = initToaster();
   const log = msg => console.log(msg);
+
+  function mountLayout() {
+    document.getElementById('hud').innerHTML = `
+      <div class="brand">🛰️ To‑The‑Moon <small id="version"></small></div>
+      <div class="stats">
+        <div class="pill"><span class="label">Day</span> <b id="dayNum">0</b> • <span class="kbd" id="dayTimer">—s</span></div>
+        <div class="pill"><span class="label">Cash</span> <b id="cash">$0.00</b></div>
+        <div class="pill"><span class="label">Debt</span> <b id="debt">$0.00</b></div>
+        <div class="pill"><span class="label">Assets</span> <b id="assets">$0.00</b></div>
+        <div class="pill"><span class="label">Net</span> <b id="net">$0.00</b></div>
+        <div class="pill"><span class="label">Risk</span> <b id="riskPct">0%</b></div>
+      </div>`;
+
+    document.getElementById('market').innerHTML = `
+      <div class="market-header row">
+        <div class="mini">10‑second days • After‑hours news drives tomorrow</div>
+        <div class="row">
+          <button id="startBtn" class="accent" aria-label="Start day">▶ Start Day</button>
+          <button id="saveBtn" aria-label="Save game">Save</button>
+          <button id="helpBtn" aria-label="Help">Help</button>
+          <button id="contrastBtn" aria-label="Toggle high contrast mode" aria-pressed="false">Contrast</button>
+          <button id="debugBtn" aria-label="Toggle debug info" aria-pressed="false">Debug</button>
+          <button id="resetBtn" class="bad" aria-label="Hard reset game">Hard Reset</button>
+        </div>
+      </div>
+      <table id="marketTable" aria-label="Market data table"></table>`;
+
+    document.getElementById('panel-chart').innerHTML = `
+      <div class="row" style="justify-content:space-between;">
+        <div class="row" style="align-items:center;">
+          <span>Chart: <b id="chartTitle"></b></span>
+          <button id="chartToggle" aria-label="Toggle chart type">Candles</button>
+          <div id="chartIntervals" class="row">
+            <button class="chip-btn" data-interval="hour" aria-pressed="true">1H</button>
+            <button class="chip-btn" data-interval="day" aria-pressed="false">1D</button>
+            <button class="chip-btn" data-interval="week" aria-pressed="false">1W</button>
+            <button class="chip-btn" data-interval="month" aria-pressed="false">1M</button>
+          </div>
+          <input type="range" id="chartZoomRange" min="1" max="100" value="1" aria-label="Chart zoom" />
+        </div>
+        <div class="row">
+          <span class="tag">Prev close = dashed</span>
+          <span class="tag">Boundaries = day ends</span>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="chart" width="820" height="300" role="img" aria-label="Asset price chart"></canvas><div id="chartTooltip" class="chart-tooltip" role="tooltip"></div></div>
+      <div class="statgrid" id="chartStats"></div>`;
+
+    document.getElementById('panel-news').innerHTML = `
+      <div class="row" style="justify-content:space-between;">
+        <div>News & Events — <b id="newsSymbol"></b></div>
+        <div class="row" style="align-items:center;">
+          <div class="mini">Follow the selected asset</div>
+          <button id="majorOnly" class="chip-btn" aria-pressed="false" aria-label="Show major news only">Major</button>
+          <button id="newsCollapse" class="chip-btn" aria-label="Collapse news panel" aria-expanded="true">Collapse</button>
+        </div>
+      </div>
+      <div id="newsPanel">
+        <div id="newsScroll"><div id="newsTable"></div></div>
+      </div>`;
+  }
+  mountLayout();
+
+  const detailTabs = document.querySelectorAll('#details [role=tab]');
+  detailTabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      detailTabs.forEach(b => {
+        const on = b === btn;
+        b.setAttribute('aria-selected', String(on));
+        const panel = document.getElementById(`panel-${b.dataset.tab}`);
+        if (panel) panel.hidden = !on;
+      });
+    });
+  });
 
   function rebuildMarketTable() {
     const assets = ctx.assets.filter(a => ctx.marketTab === 'crypto' ? a.isCrypto && ctx.state.upgrades.crypto : !a.isCrypto);
@@ -41,9 +114,9 @@ export function initUI(ctx, handlers) {
 
   const tabs = document.createElement('div');
   tabs.id = 'marketTabs';
-  tabs.className = 'row tabs';
+  tabs.className = 'row market-tabs';
   tabs.setAttribute('role', 'tablist');
-  const panel = document.querySelector('.market-col .panel');
+  const panel = document.getElementById('market');
   panel.insertBefore(tabs, document.getElementById('marketTable'));
 
   function renderTabs() {
@@ -136,13 +209,12 @@ export function initUI(ctx, handlers) {
   document.getElementById('helpBtn').addEventListener('click', showHelp);
   document.getElementById('resetBtn').addEventListener('click', reset);
 
-  initRiskTools(document.getElementById('riskTools'), ctx, toast);
+  initRiskTools(document.getElementById('panel-risk'), ctx, toast);
 
   function renderAll() {
     renderHUD(ctx);
     renderMarketTable(ctx);
     drawChart(ctx);
-    renderInsight(ctx);
     renderAssetNewsTable(ctx);
     renderPortfolio(ctx);
     renderUpgrades(ctx, toast);
