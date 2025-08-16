@@ -9,3 +9,4 @@
 - Insider tips now highlight the affected asset and apply visible drift for their duration.
 - Auto‑risk tools respect a one‑tick grace period after buying to prevent premature triggers.
 - Save data persists insider tips, risk settings, last trade ticks, and risk rule tracking for seamless reloads.
+- Market cap stat now rounds large values to whole dollars for clarity.

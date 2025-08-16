@@ -1,4 +1,4 @@
-import { fmt } from '../util/format.js';
+import { fmt, fmtBig } from '../util/format.js';
 import { CFG } from '../config.js';
 
 export function initChart(ctx){
@@ -184,9 +184,11 @@ export function drawChart(ctx) {
   else if (demandVal < 1.1) demandCat = 'Medium';
   else if (demandVal < 1.3) demandCat = 'High';
   else demandCat = 'Extreme';
+  const capVal = last * a.supply;
+  const capStr = '$' + fmtBig(capVal, capVal >= 1_000_000 ? 0 : 2);
   const rows = [
     ['Supply', a.supply.toLocaleString()],
-    ['Market Cap', fmt(last * a.supply)],
+    ['Market Cap', capStr],
     ['Local Demand', demandCat],
     ['Fair Value', fmt(a.fair)],
     ['Tomorrow (μ ± σ)', `${((a.outlook?.mu || 0) * 100).toFixed(2)}% ± ${((a.outlook?.sigma || a.daySigma || 0) * 100).toFixed(2)}%`],
