@@ -1,5 +1,5 @@
-/* To The Moon — Trading Sim (v0)
-   Single-file logic. No frameworks. No dependency oopsies. */
+/* To The Moon — Trading Sim (v0.1)
+   Adds: News Feed + timed events that modify volatility/drift. */
 
 (() => {
   // ---------- Utilities ----------
@@ -7,22 +7,22 @@
   const fmtMoney = (n) =>
     (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-  const gaussian = () => {
-    // Box–Muller
+  const gaussian = () => { // Box–Muller
     let u = 0, v = 0;
     while (u === 0) u = Math.random();
     while (v === 0) v = Math.random();
     return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   };
+  const clock = () => `D${state.day} · T${state.tick}`;
 
   // ---------- Data ----------
   const ASSETS = [
-    { id: "MOON", name: "Moon Mineral Co.", start: 50, volatility: 0.020 },
-    { id: "STONK", name: "Stonk Industries", start: 35, volatility: 0.030 },
-    { id: "DOGE", name: "Dogecoin", start: 0.08, volatility: 0.060 },
-    { id: "TSLA", name: "Teslor Motors", start: 240, volatility: 0.018 },
-    { id: "BTC", name: "Bitcorn", start: 65000, volatility: 0.030 },
-    { id: "ETH", name: "Etheer", start: 3500, volatility: 0.035 }
+    { id: "MOON",  name: "Moon Mineral Co.", start: 50,    volatility: 0.020 },
+    { id: "STONK", name: "Stonk Industries", start: 35,    volatility: 0.030 },
+    { id: "DOGE",  name: "Dogecoin",         start: 0.08,  volatility: 0.060 },
+    { id: "TSLA",  name: "Teslor Motors",    start: 240,   volatility: 0.018 },
+    { id: "BTC",   name: "Bitcorn",          start: 65000, volatility: 0.030 },
+    { id: "ETH",   name: "Etheer",           start: 3500,  volatility: 0.035 }
   ];
 
   const SAVE_KEY = "ttm_v0_save";
@@ -34,7 +34,7 @@
     price: def.start,
     prev: def.start,
     changePct: 0,
-    history: Array.from({ length: 60 }, (_, i) => def.start * (1 + (i - 59) * 0.0005)) // gentle slope so the chart isn't flat at boot
+    history: Array.from({ length: 60 }, (_, i) => def.start * (1 + (i - 59) * 0.0005))
   });
 
   const initialState = () => ({
@@ -45,7 +45,11 @@
     positions: {}, // id -> { qty, avgCost }
     running: false,
     selected: "MOON",
-    tick: 0
+    tick: 0,
+    // new:
+    events: [],         // active event effects
+    feed: [],           // feed entries
+    nextEventId: 1
   });
 
   let state = load() ?? initialState();
@@ -73,27 +77,29 @@
   const elSell = $("#btn-sell");
   const elMsg = $("#messages");
 
+  const elEffects = $("#effects-list");
+  const elFeed = $("#feed");
+
   const chart = $("#chart");
   const ctx = chart.getContext("2d");
 
   // ---------- Init ----------
   renderAll();
   selectAsset(state.selected);
+  if (state.feed.length === 0) {
+    logFeed({ text: "Markets booted. Try not to recreate 2008." });
+  }
 
   // ---------- Events ----------
   elStart.addEventListener("click", () => {
-    if (state.running) {
-      pause();
-    } else {
-      start();
-    }
+    if (state.running) pause(); else start();
   });
 
   elEnd.addEventListener("click", () => {
-    // Small "overnight" gap effect
     bumpNews("Market closed. Overnight risk intensifies. Try not to panic.");
-    stepAll(6, 1.8); // 6 brisk steps at higher variance to simulate the close/open gap
+    stepAll(6, 1.8);         // brisk close/open move
     state.day += 1;
+    startNewDay();           // spawn day theme
     save();
     renderAll();
   });
@@ -106,6 +112,7 @@
       renderAll();
       selectAsset(state.selected);
       bumpNews("Fresh start. Your future mistakes haven’t happened yet.");
+      logFeed({ text: "New game." });
     }
   });
 
@@ -137,51 +144,160 @@
     state.running = true;
     elStart.textContent = "Pause";
     if (timer) clearInterval(timer);
-    timer = setInterval(tick, 600); // gentle pace; not a slot machine
+    timer = setInterval(tick, 600);
   }
   function pause() {
     state.running = false;
     elStart.textContent = "Start";
     if (timer) { clearInterval(timer); timer = null; }
   }
+
   function tick() {
     state.tick += 1;
-    // Random event sprinkling
-    const eventChance = 0.04; // 4% per tick
-    const boostId = Math.random() < eventChance ? randomAsset().id : null;
-    stepAll(1, 1.0, boostId);
+
+    // Short-lived rumor events
+    const rumorChance = 0.04; // 4% per tick
+    if (Math.random() < rumorChance) {
+      const a = randomAsset();
+      const up = Math.random() < 0.5;
+      createEvent({
+        label: `${up ? "Rumor surge" : "Short report"} on ${a.id}`,
+        kind: up ? "good" : "bad",
+        targetId: a.id,
+        durationTicks: 24, // ~15s at default speed
+        effect: { volMult: 1.6, driftShift: up ? 0.003 : -0.003 }
+      });
+    }
+
+    cleanupExpiredEvents();
+    stepAll(1, 1.0);
     renderAll();
 
     // Autosave every ~10s
     if (state.tick % 16 === 0) save();
   }
 
-  function stepAll(steps = 1, varianceBoost = 1.0, boostId = null) {
+  function stepAll(steps = 1, varianceBoost = 1.0) {
     for (let s = 0; s < steps; s++) {
       for (const a of state.assets) {
         a.prev = a.price;
-        // Geometric-ish random walk
-        const vol = a.volatility * varianceBoost;
-        const drift = 0.0005; // tiny optimism, because this is a video game
+        const mods = getModifiersForAsset(a.id);
+        const vol = a.volatility * varianceBoost * mods.volMult;
+        const drift = 0.0005 + mods.driftShift;
         const shock = gaussian() * vol;
-        const isBoost = boostId && boostId === a.id;
-        const newsShock = isBoost ? (Math.random() < 0.5 ? -1 : 1) * (0.02 + Math.random() * 0.04) : 0;
-        const pct = drift + shock + newsShock;
+        const pct = drift + shock;
+
         a.price = Math.max(0.0001, a.price * (1 + pct));
         a.changePct = ((a.price - a.prev) / a.prev) * 100;
 
         a.history.push(a.price);
         if (a.history.length > 240) a.history.shift();
-
-        if (isBoost) {
-          bumpNews(`${a.id}: ${pct > 0 ? "Good" : "Bad"} rumor hits the tape (${pct > 0 ? "+" : ""}${(pct * 100).toFixed(2)}%)`);
-        }
       }
     }
   }
 
   function randomAsset() {
     return state.assets[(Math.random() * state.assets.length) | 0];
+  }
+
+  // ---------- Event System ----------
+  function createEvent({ label, kind = "neutral", targetId = null, durationTicks = 0, durationDays = 0, effect = {} }) {
+    const id = state.nextEventId++;
+    const ev = {
+      id, label, kind, targetId, effect,
+      createdTick: state.tick,
+      expiresAtTick: durationTicks ? state.tick + durationTicks : null,
+      expiresOnDay: durationDays ? state.day + durationDays : null
+    };
+    state.events.push(ev);
+    logFeed({
+      text: label,
+      kind,
+      targetId,
+      effect,
+      expiresAtTick: ev.expiresAtTick,
+      expiresOnDay: ev.expiresOnDay
+    });
+    return ev;
+  }
+
+  function getModifiersForAsset(assetId) {
+    let volMult = 1.0;
+    let driftShift = 0.0;
+    for (const e of state.events) {
+      const applies = e.targetId == null || e.targetId === assetId;
+      if (!applies) continue;
+      if (e.effect.volMult) volMult *= e.effect.volMult;
+      if (e.effect.driftShift) driftShift += e.effect.driftShift;
+    }
+    return { volMult, driftShift };
+  }
+
+  function cleanupExpiredEvents() {
+    const nowTick = state.tick;
+    state.events = state.events.filter(e => {
+      const tickOK = e.expiresAtTick == null || nowTick < e.expiresAtTick;
+      const dayOK  = e.expiresOnDay == null || state.day  < e.expiresOnDay;
+      return tickOK && dayOK;
+    });
+  }
+
+  function startNewDay() {
+    cleanupExpiredEvents();
+    logFeed({ text: `Day ${state.day} begins.` });
+
+    // 60% chance of one daily theme
+    if (Math.random() < 0.6) {
+      const r = Math.random();
+      if (r < 0.25) {
+        createEvent({
+          label: "Calm markets",
+          kind: "good",
+          durationDays: 1,
+          effect: { volMult: 0.8 }
+        });
+      } else if (r < 0.50) {
+        createEvent({
+          label: "Volatility spike",
+          kind: "bad",
+          durationDays: 1,
+          effect: { volMult: 1.4 }
+        });
+      } else if (r < 0.75) {
+        const a = randomAsset();
+        createEvent({
+          label: `Analyst upgrade on ${a.id}`,
+          kind: "good",
+          targetId: a.id,
+          durationDays: 1,
+          effect: { driftShift: 0.002 }
+        });
+      } else {
+        const a = randomAsset();
+        createEvent({
+          label: `Regulator scrutiny on ${a.id}`,
+          kind: "bad",
+          targetId: a.id,
+          durationDays: 1,
+          effect: { driftShift: -0.002 }
+        });
+      }
+    }
+  }
+
+  function logFeed(entry) {
+    const row = {
+      time: clock(),
+      text: entry.text,
+      kind: entry.kind ?? "neutral",
+      targetId: entry.targetId ?? null,
+      effect: entry.effect ?? {},
+      expiresAtTick: entry.expiresAtTick ?? null,
+      expiresOnDay: entry.expiresOnDay ?? null
+    };
+    state.feed.push(row);
+    if (state.feed.length > 60) state.feed.shift();
+    renderFeed();
   }
 
   // ---------- Trading ----------
@@ -241,6 +357,7 @@
     renderHUD();
     renderTable();
     renderDetail();
+    renderFeed();
   }
 
   function renderHUD() {
@@ -253,11 +370,10 @@
     elEquity.textContent = fmtMoney(equity);
 
     const totalPL = state.realized + unrealized;
-    elPL.textContent = `${fmtMoney(totalPL)} (${totalPL >= 0 ? "+" : ""}${fmtMoney(unrealized).replace("$","") } unrl)`;
+    elPL.textContent = `${fmtMoney(totalPL)} (${totalPL >= 0 ? "+" : ""}${fmtMoney(unrealized).replace("$","")} unrl)`;
     elPL.classList.remove("pl--good", "pl--bad", "pl--neutral");
     elPL.classList.add(totalPL > 0 ? "pl--good" : totalPL < 0 ? "pl--bad" : "pl--neutral");
 
-    // Start/Pause label already handled, but protect on reload
     elStart.textContent = state.running ? "Pause" : "Start";
   }
 
@@ -302,22 +418,68 @@
       elDetailPosition.innerHTML = `${p.qty} @ ${formatPrice(p.avgCost)} — ${unrl >= 0 ? '<span class="pl--good">' : '<span class="pl--bad">'}${fmtMoney(unrl)}</span>`;
     }
 
+    renderEffectsForSelected();
     drawChart(a.history);
   }
 
-  function selectAsset(id) {
-    state.selected = id;
-    // Keep trade qty synced with global default
-    elTradeQty.value = parseQty(elQtyGlobal.value);
-    renderTable();
-    renderDetail();
+  function renderEffectsForSelected() {
+    const id = state.selected;
+    const list = state.events.filter(e => e.targetId == null || e.targetId === id);
+    if (list.length === 0) {
+      elEffects.innerHTML = `<li class="effect"><span class="meta">None</span></li>`;
+      return;
+    }
+    elEffects.innerHTML = list.map(e => {
+      const tags = [];
+      if (e.effect.volMult && e.effect.volMult !== 1) tags.push(`<span class="tag ${e.kindTag}">${e.effect.volMult > 1 ? "Vol ↑ x"+e.effect.volMult.toFixed(2) : "Vol ↓ x"+e.effect.volMult.toFixed(2)}</span>`);
+      if (e.effect.driftShift) tags.push(`<span class="tag ${e.effect.driftShift > 0 ? "tag--good" : "tag--bad"}">Drift ${e.effect.driftShift > 0 ? "+" : ""}${(e.effect.driftShift*100).toFixed(2)}%</span>`);
+      const ttl = remainingString(e);
+      const kindTag = e.kind === "good" ? "tag--good" : e.kind === "bad" ? "tag--bad" : "tag--neutral";
+      return `<li class="effect">
+        <span>${e.label} ${e.targetId ? `(<strong>${e.targetId}</strong>)` : ""}</span>
+        <span class="tags">
+          <span class="tag ${kindTag}">${e.kind}</span>
+          ${tags.join("")}
+          <span class="meta">${ttl}</span>
+        </span>
+      </li>`;
+    }).join("");
+  }
+
+  function renderFeed() {
+    if (!elFeed) return;
+    const items = state.feed.slice(-30).map(row => {
+      const kindTag = row.kind === "good" ? "tag--good" : row.kind === "bad" ? "tag--bad" : "tag--neutral";
+      const tags = [];
+      if (row.targetId) tags.push(`<span class="tag ${kindTag}">${row.targetId}</span>`);
+      if (row.effect?.volMult && row.effect.volMult !== 1) tags.push(`<span class="tag ${kindTag}">Vol x${row.effect.volMult.toFixed(2)}</span>`);
+      if (row.effect?.driftShift) tags.push(`<span class="tag ${row.effect.driftShift > 0 ? "tag--good" : "tag--bad"}">Drift ${row.effect.driftShift > 0 ? "+" : ""}${(row.effect.driftShift*100).toFixed(2)}%</span>`);
+      const ttl = remainingString(row);
+      return `<li>
+        <div class="left"><span class="time">${row.time}</span><span>${row.text}</span></div>
+        <div class="right">${tags.join("")}${ttl ? `<span class="meta">${ttl}</span>` : ""}</div>
+      </li>`;
+    }).join("");
+    elFeed.innerHTML = items;
+  }
+
+  function remainingString(obj) {
+    const parts = [];
+    if (obj.expiresOnDay != null) {
+      const d = obj.expiresOnDay - state.day;
+      if (d > 0) parts.push(`${d}d`);
+    }
+    if (obj.expiresAtTick != null) {
+      const t = obj.expiresAtTick - state.tick;
+      if (t > 0) parts.push(`${t}t`);
+    }
+    return parts.join(" ");
   }
 
   function drawChart(history) {
     const w = chart.width, h = chart.height;
     ctx.clearRect(0,0,w,h);
 
-    // axes-ish background stripes for readability
     ctx.globalAlpha = 1;
     ctx.fillStyle = "#0b1224";
     ctx.fillRect(0,0,w,h);
@@ -326,8 +488,7 @@
     ctx.lineWidth = 1;
     for (let i=1;i<=3;i++){
       const y = (h/4)*i;
-      ctx.beginPath();
-      ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
     }
 
     const min = Math.min(...history);
@@ -373,13 +534,8 @@
 
   // ---------- Persistence ----------
   function save() {
-    const payload = {
-      ...state,
-      // Drop volatile rendering fields if needed (none heavy here)
-    };
-    try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
-    } catch {}
+    const payload = { ...state };
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(payload)); } catch {}
   }
 
   function load() {
@@ -402,7 +558,14 @@
           history: Array.isArray(a.history) && a.history.length ? a.history.slice(-240) : [d.start]
         };
       });
-      data.running = false; // don’t auto-run on load
+
+      data.running = false; // do not auto-run on load
+
+      // New fields (back-compat)
+      data.events = Array.isArray(data.events) ? data.events : [];
+      data.feed = Array.isArray(data.feed) ? data.feed : [];
+      data.nextEventId = Number.isFinite(data.nextEventId) ? data.nextEventId : 1;
+
       return data;
     } catch { return null; }
   }
@@ -413,9 +576,10 @@
     clearTimeout(lastMsgTimeout);
     elMsg.textContent = text;
     lastMsgTimeout = setTimeout(() => { elMsg.textContent = ""; }, 4000);
+    logFeed({ text });
   }
 
-  // Safety: pause loop on tab hide
+  // Pause loop on tab hide
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) pause();
   });
