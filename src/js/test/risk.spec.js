@@ -46,6 +46,7 @@ import { buy } from '../core/trading.js';
   assert.strictEqual(ctx.state.positions[sym], 5, 'tp1 sold half');
   assert.strictEqual(ctx.riskTrack[sym].lastTP, 1, 'stage 1');
   assert(logs.filter(m=>/Auto.*TP/.test(m)).length === 1, 'only one tp log');
+  ctx.state.tick++;
   ctx.assets[0].price = 200;
   evaluateRisk(ctx, { log:m=>logs.push(m) });
   assert.strictEqual(ctx.state.positions[sym], 2, 'tp2 sold');
@@ -78,6 +79,7 @@ import { buy } from '../core/trading.js';
   const before = ctx.state.positions[sym];
   evaluateRisk(ctx); // first tick after buy – should ignore
   assert.strictEqual(ctx.state.positions[sym], before, 'no risk triggers first tick');
+  ctx.state.tick++;
   ctx.assets[0].price *= 1.02;
   evaluateRisk(ctx);
   assert(ctx.state.positions[sym] < before, 'triggers after grace period and price move');

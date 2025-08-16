@@ -41,6 +41,7 @@ export function startDay(ctx, cfg=CFG, hooks){
 }
 
 export function stepTick(ctx, cfg, rng, hooks){
+  ctx.state.tick = (ctx.state.tick || 0) + 1;
   riskDrift(ctx.market, rng);
   demandDrift(ctx.market, rng);
 

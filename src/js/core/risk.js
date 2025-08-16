@@ -16,22 +16,22 @@ function netWorth(ctx){
 export function evaluateRisk(ctx, hooks){
   const cfg = ctx.state.riskTools || {};
   if (cfg.enabled !== true) return;
+  const tick = ctx.state.tick || 0;
   for (const a of ctx.assets){
     const sym = a.sym;
     const have = ctx.state.positions[sym] || 0;
     if (have <= 0) continue;
 
+    const last = ctx.state.lastTradeTick?.[sym] ?? -Infinity;
+    if (tick - last < 1){
+      ctx.riskTrack[sym] = { peak: a.price, lastTP: 0, lastRule: '' };
+      continue;
+    }
+
     const cb = ctx.state.costBasis[sym] || {qty:0, avg:a.price};
     const basis = cb.avg || a.price;
 
-    // tracker with holding age
-    const tr = ctx.riskTrack[sym] || { peak: a.price, lastTP: 0, lastRule: '', age: 1 };
-    if (tr.age < 1){
-      tr.peak = a.price;
-      tr.age++;
-      ctx.riskTrack[sym] = tr;
-      continue; // grace period: ignore first tick after buy
-    }
+    const tr = ctx.riskTrack[sym] || { peak: a.price, lastTP: 0, lastRule: '' };
     tr.peak = Math.max(tr.peak, a.price);
 
     const ret = a.price / basis - 1;               // performance vs basis
@@ -97,7 +97,6 @@ export function evaluateRisk(ctx, hooks){
       }
     }
 
-    tr.age++;
     ctx.riskTrack[sym] = tr;
   }
 }
