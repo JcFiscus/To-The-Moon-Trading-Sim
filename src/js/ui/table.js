@@ -263,16 +263,16 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
     });
     buyMaxBtn.addEventListener('click', () => {
       const price = a.price;
+      const lev = getLev();
       let qty = Math.floor((state.cash - state.minFee) / price);
       if (qty < 0) qty = 0;
       while (qty > 0) {
-        const fee = Math.max(state.minFee, qty * price * state.feeRate);
-        const lev = getLev();
-        const cost = qty * price * (lev > 1 ? 1 / lev : 1) + fee;
+        const exposure = qty * (lev > 1 ? lev : 1);
+        const fee = Math.max(state.minFee, exposure * price * state.feeRate);
+        const cost = qty * price + fee;
         if (cost <= state.cash) break;
         qty--;
       }
-      const lev = getLev();
       onBuy(a.sym, qty, lev);
     });
     sellBtn.addEventListener('click', () => {
