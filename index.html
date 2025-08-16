@@ -10,18 +10,18 @@
 <header class="hdr">
   <div class="brand">🛰️ To‑The‑Moon <small id="version"></small></div>
   <div class="stats">
-    <div class="pill">Day <b id="dayNum">0</b> • <span class="kbd" id="dayTimer">—s</span></div>
-    <div class="pill">Cash: <b id="cash">$0.00</b></div>
-    <div class="pill">Debt: <b id="debt">$0.00</b></div>
-    <div class="pill">Assets: <b id="assets">$0.00</b></div>
-    <div class="pill">Net: <b id="net">$0.00</b></div>
-    <div class="pill">Risk: <b id="riskPct">0%</b></div>
+    <div class="pill"><span class="label">Day</span> <b id="dayNum">0</b> • <span class="kbd" id="dayTimer">—s</span></div>
+    <div class="pill"><span class="label">Cash</span> <b id="cash">$0.00</b></div>
+    <div class="pill"><span class="label">Debt</span> <b id="debt">$0.00</b></div>
+    <div class="pill"><span class="label">Assets</span> <b id="assets">$0.00</b></div>
+    <div class="pill"><span class="label">Net</span> <b id="net">$0.00</b></div>
+    <div class="pill"><span class="label">Risk</span> <b id="riskPct">0%</b></div>
   </div>
 </header>
 
 <div class="grid">
   <section class="market-col">
-    <div class="card market-panel">
+    <div class="panel market-panel">
       <div class="market-header row">
         <div class="mini">10‑second days • After‑hours news drives tomorrow</div>
         <div class="row">
@@ -38,7 +38,7 @@
   </section>
 
   <section class="mid-col">
-    <div class="card">
+    <div class="panel">
       <div class="row" style="justify-content:space-between;">
         <div class="row" style="align-items:center;">
           <span>Chart: <b id="chartTitle"></b></span>
@@ -60,7 +60,7 @@
       <div class="statgrid" id="chartStats"></div>
     </div>
 
-    <div class="card">
+    <div class="panel">
       <div class="row" style="justify-content:space-between;">
         <div>News & Events — <b id="newsSymbol"></b></div>
         <div class="row" style="align-items:center;">
@@ -76,9 +76,9 @@
   </section>
 
   <section class="right-rail">
-    <div class="card" id="portfolio"></div>
-    <div class="card" id="upgrades"></div>
-    <div class="card">
+    <div class="panel" id="portfolio"></div>
+    <div class="panel" id="upgrades"></div>
+    <div class="panel">
       <div class="row" style="justify-content:space-between;">
         <div>Asset Insight</div>
         <div class="mini">Tomorrow (μ ± σ) • expected gap • recent news</div>
@@ -87,8 +87,8 @@
       <div class="asset-news" id="assetNews"></div>
     </div>
 
-    <div class="card" id="riskTools"></div>
-    <div class="card" id="debugPanel" style="display:none"></div>
+    <div class="panel" id="riskTools"></div>
+    <div class="panel" id="debugPanel" style="display:none"></div>
   </section>
 </div>
 
