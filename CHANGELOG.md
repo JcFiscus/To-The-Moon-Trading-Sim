@@ -8,4 +8,4 @@
 - Candlestick chart with intraday and multi‑day timeframes plus market cap stats.
 - Insider tips now highlight the affected asset and apply visible drift for their duration.
 - Auto‑risk tools respect a one‑tick grace period after buying to prevent premature triggers.
-- Save data persists insider tips, risk settings, and last trade ticks for seamless reloads.
+- Save data persists insider tips, risk settings, last trade ticks, and risk rule tracking for seamless reloads.
