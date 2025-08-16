@@ -10,7 +10,17 @@ export function initUI({ start, save, reset }) {
   app.innerHTML = `
     <header id="hud" class="hud panel"></header>
     <main id="layout" class="layout">
-      <aside id="col-left" class="panel col-left" aria-label="Market"></aside>
+      <aside id="col-left" class="panel col-left" aria-label="Market">
+        <div class="market-header row">
+          <div class="mini">10‑second days • After‑hours news drives tomorrow</div>
+          <div class="row">
+            <button id="startBtn" class="accent" aria-label="Start day">▶ Start Day</button>
+            <button id="saveBtn" aria-label="Save game">Save</button>
+            <button id="resetBtn" class="bad" aria-label="Hard reset game">Hard Reset</button>
+          </div>
+        </div>
+        <div id="market-root"></div>
+      </aside>
       <section id="col-center" class="panel col-center" aria-label="Chart and details">
         <div id="chart-root" class="chart-root"></div>
         <div id="details-root" class="details-root" aria-live="polite"></div>
@@ -31,7 +41,7 @@ export function initUI({ start, save, reset }) {
     renderNews(document.getElementById('news-root'), { filter: sym });
   };
 
-  renderMarket(document.getElementById('col-left'), state, { onSelect });
+  const market = renderMarket(document.getElementById('market-root'), state, { onSelect });
 
   const first = state.assets[0]?.sym;
   if (first) {
@@ -49,6 +59,7 @@ export function initUI({ start, save, reset }) {
   function renderAll() {
     renderHUD(state);
     renderPortfolio(document.getElementById('portfolio-root'), state);
+    market.update();
   }
 
   return { renderAll, toast: () => {} };

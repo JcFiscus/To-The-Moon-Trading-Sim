@@ -18,6 +18,22 @@ export function renderMarket(root, ctx, { onSelect } = {}) {
 
   ctx.assets.forEach((a, i) => list.appendChild(makeRow(a, i === 0)));
 
+  function update() {
+    ctx.assets.forEach(a => {
+      const row = list.querySelector(`.asset-row[data-sym="${a.sym}"]`);
+      if (!row) return;
+      row.querySelector('.price').textContent = fmt(a.price);
+      const start = ctx.day.startPrices?.[a.sym] ?? a.price;
+      const pct = (a.price / start - 1) * 100;
+      const chgEl = row.querySelector('.chg');
+      chgEl.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+      chgEl.classList.toggle('up', pct >= 0);
+      chgEl.classList.toggle('down', pct < 0);
+      const tk = row.querySelector(`#tk-${a.sym}`);
+      if (tk) tk.textContent = fmt(a.price);
+    });
+  }
+
   function makeRow(asset, selected) {
     const li = document.createElement('li');
     li.className = `asset-row${selected ? ' selected' : ''}`;
@@ -88,4 +104,6 @@ export function renderMarket(root, ctx, { onSelect } = {}) {
       li.focus();
     }
   }
+
+  return { update };
 }
