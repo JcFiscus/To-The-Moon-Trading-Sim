@@ -42,13 +42,13 @@
         <div class="row" style="align-items:center;">
           <span>Chart: <b id="chartTitle"></b></span>
           <button id="chartToggle" aria-label="Toggle chart type">Candles</button>
-          <div id="chartIntervals" class="row" style="margin-left:8px;">
+          <div id="chartIntervals" class="row">
             <button class="chip-btn" data-interval="hour" aria-pressed="true">1H</button>
             <button class="chip-btn" data-interval="day" aria-pressed="false">1D</button>
             <button class="chip-btn" data-interval="week" aria-pressed="false">1W</button>
             <button class="chip-btn" data-interval="month" aria-pressed="false">1M</button>
           </div>
-          <input type="range" id="chartZoomRange" min="1" max="100" value="1" aria-label="Chart zoom" style="margin-left:8px;"/>
+          <input type="range" id="chartZoomRange" min="1" max="100" value="1" aria-label="Chart zoom" />
         </div>
         <div class="row">
           <span class="tag">Prev close = dashed</span>

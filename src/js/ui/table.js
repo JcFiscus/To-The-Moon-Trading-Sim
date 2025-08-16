@@ -18,6 +18,23 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
   const tbody = document.createElement('tbody');
   table.appendChild(tbody);
 
+  const closeAllTradeBars = () => {
+    document.querySelectorAll('.trade-bar.open').forEach(bar => {
+      bar.classList.remove('open');
+      const btn = bar.previousElementSibling;
+      if (btn && btn.classList.contains('trade-btn')) {
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  };
+
+  if (!document.body.dataset.tradeListener) {
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.trade')) closeAllTradeBars();
+    });
+    document.body.dataset.tradeListener = '1';
+  }
+
   const rows = [];
   for (const a of assets) {
     const tr = document.createElement('tr');
@@ -65,8 +82,18 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
     const tradeTd = document.createElement('td');
     tradeTd.className = 'trade';
 
+    const tradeBtn = document.createElement('button');
+    tradeBtn.className = 'trade-btn';
+    tradeBtn.id = `t-${a.sym}`;
+    tradeBtn.textContent = 'Trade \u25BE';
+    tradeBtn.setAttribute('aria-label', `Trade ${a.sym}`);
+    tradeBtn.setAttribute('aria-haspopup', 'true');
+    tradeBtn.setAttribute('aria-expanded', 'false');
+
     const tradeBar = document.createElement('div');
     tradeBar.className = 'trade-bar';
+    tradeBar.setAttribute('role', 'group');
+    tradeBar.setAttribute('aria-label', `Trade actions for ${a.sym}`);
 
     const qtyId = `q-${a.sym}`;
     const qtyLabel = document.createElement('label');
@@ -152,9 +179,28 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
       });
     }
 
-    tradeTd.appendChild(tradeBar);
+    tradeTd.append(tradeBtn, tradeBar);
     tr.appendChild(tradeTd);
     tbody.appendChild(tr);
+
+    const toggleTrade = show => {
+      closeAllTradeBars();
+      if (show) {
+        tradeBar.classList.add('open');
+        tradeBtn.setAttribute('aria-expanded', 'true');
+        qtyInput.focus();
+      } else {
+        tradeBar.classList.remove('open');
+        tradeBtn.setAttribute('aria-expanded', 'false');
+      }
+    };
+
+    tradeBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      onSelect(a.sym);
+      const open = tradeBar.classList.contains('open');
+      toggleTrade(!open);
+    });
 
     tr.addEventListener('click', e => {
       const tag = e.target.tagName;
@@ -166,6 +212,7 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
       const idx = rows.indexOf(tr);
       const next = rows[(idx + dir + rows.length) % rows.length];
       next.focus();
+      onSelect(next.dataset.sym);
     };
 
     tr.addEventListener('keydown', e => {
@@ -178,6 +225,10 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         onSelect(a.sym);
+        toggleTrade(true);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeAllTradeBars();
       } else if (e.key === 'Tab' && !e.shiftKey) {
         const first = tr.querySelector('input,select,button');
         if (first) {
@@ -196,6 +247,10 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
         } else if (e.key === 'ArrowUp') {
           e.preventDefault();
           moveFocus(-1);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          toggleTrade(false);
+          tr.focus();
         }
       });
     });
