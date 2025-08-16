@@ -102,7 +102,7 @@ export function renderUpgrades(ctx, toast){
         ctx.state.insiderTip = { sym, daysLeft: CFG.INSIDER_DAYS, mu, sigma, bias };
         ctx.state.cooldowns.insider = CFG.INSIDER_COOLDOWN_DAYS;
         ctx.state.upgrades.insider = true;
-        pushAssetNews(ctx.newsByAsset, { scope:'asset', sym, title: bias>0?'Bullish tip':'Bearish tip', type:'insider', mu, sigma, demand:0, days: CFG.INSIDER_DAYS, severity:'minor', blurb: bias>0?'Upward whispers.':'Downward whispers.' }, `Day ${ctx.day.idx} (tip)`, ctx.state);
+        pushAssetNews(ctx.newsByAsset, { scope:'asset', sym, title: bias>0?'Bullish tip':'Bearish tip', type:'insider', mu, sigma, demand:0, days: CFG.INSIDER_DAYS, severity:'minor', blurb: bias>0?'Upward whispers.':'Downward whispers.' }, `Day ${ctx.day.idx} (tip)`, ctx.state, ctx.lastEvent);
         msg = `Insider tip on ${sym} (${bias>0?'Bullish':'Bearish'}) purchased`;
       } else {
         ctx.state.cash -= cost;

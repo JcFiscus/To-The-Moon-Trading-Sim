@@ -10,6 +10,7 @@ import { renderUpgrades } from './upgrades.js';
 import { buy, sell } from '../core/trading.js';
 import { buyOption } from '../core/options.js';
 import { showHelp } from './modal.js';
+import { renderDebug } from './debug.js';
 
 export function initUI(ctx, handlers) {
   const { start, save, reset } = handlers;
@@ -126,6 +127,16 @@ export function initUI(ctx, handlers) {
     });
   }
 
+  const debugBtn = document.getElementById('debugBtn');
+  if (debugBtn) {
+    debugBtn.setAttribute('aria-pressed', ctx.state.ui.debug);
+    debugBtn.addEventListener('click', () => {
+      ctx.state.ui.debug = !ctx.state.ui.debug;
+      debugBtn.setAttribute('aria-pressed', ctx.state.ui.debug);
+      renderDebug(ctx);
+    });
+  }
+
   document.getElementById('startBtn').addEventListener('click', start);
   document.getElementById('saveBtn').addEventListener('click', save);
   document.getElementById('helpBtn').addEventListener('click', showHelp);
@@ -143,6 +154,7 @@ export function initUI(ctx, handlers) {
     renderUpgrades(ctx, toast);
     ctx.renderMarketTabs();
     ctx.renderRiskStats?.();
+    renderDebug(ctx);
   }
   ctx.renderAll = renderAll;
 
