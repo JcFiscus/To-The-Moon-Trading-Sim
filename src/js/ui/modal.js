@@ -1,15 +1,24 @@
 import { fmt } from '../util/format.js';
+import { renderOverlay } from './overlay.js';
+
+function createModal(){
+  const wrap = document.createElement('div');
+  wrap.className = 'ui-modal';
+  wrap.innerHTML = '<div class="modal" role="dialog" aria-modal="true"><div id="modalContent"></div><div class="actions" id="modalActions"></div></div>';
+  wrap.addEventListener('keydown', e => { if(e.key === 'Escape') close(); });
+  const content = wrap.querySelector('#modalContent');
+  const actions = wrap.querySelector('#modalActions');
+  const unmount = renderOverlay(wrap);
+  function close(){ unmount(); }
+  return { content, actions, close };
+}
 
 export function showSummary(summary, onNext){
-  const overlay = document.getElementById('overlay');
-  const modalContent = document.getElementById('modalContent');
-  const modalActions = document.getElementById('modalActions');
-
+  const { content, actions, close } = createModal();
   const { rows, meta } = summary;
   const dNetClass = meta.dNet >= 0 ? 'up' : 'down';
   const realizedClass = meta.realized >= 0 ? 'up' : 'down';
   const fired = rows.filter(r => r.lastRule).map(r => `${r.sym} ${r.lastRule}`);
-
   const header = `
     <h3>Day ${meta.day} Summary</h3>
     <div class="row" style="justify-content:space-between;">
@@ -23,8 +32,7 @@ export function showSummary(summary, onNext){
       </div>
     </div>
     ${meta.interest>0?`<div class="mini">Debt interest charged: ${fmt(meta.interest)}</div>`:''}`;
-
-  modalContent.innerHTML = header + (fired.length ? `<div class="mini">Auto‑Risk: ${fired.join(', ')}</div>` : '');
+  content.innerHTML = header + (fired.length ? `<div class="mini">Auto‑Risk: ${fired.join(', ')}</div>` : '');
 
   const table = document.createElement('table');
   table.innerHTML = `<thead><tr>
@@ -36,36 +44,17 @@ export function showSummary(summary, onNext){
     const tr = document.createElement('tr');
     const tdAsset = document.createElement('td');
     tdAsset.innerHTML = `<b>${r.sym}</b> <span class="mini">${r.name}</span>`;
-    const tdStart = document.createElement('td');
-    tdStart.className = 'r';
-    tdStart.textContent = fmt(r.sp);
-    const tdEnd = document.createElement('td');
-    tdEnd.className = 'r';
-    tdEnd.textContent = fmt(r.ep);
-    const tdCh = document.createElement('td');
-    tdCh.className = 'r ' + (r.priceCh >= 0 ? 'up' : 'down');
-    tdCh.textContent = `${(r.priceCh*100).toFixed(2)}%`;
-    const tdPosStart = document.createElement('td');
-    tdPosStart.className = 'r';
-    tdPosStart.textContent = `${r.startHold.toLocaleString()} • ${fmt(r.startVal)}`;
-    const tdPosEnd = document.createElement('td');
-    tdPosEnd.className = 'r';
-    tdPosEnd.textContent = `${r.endHold.toLocaleString()} • ${fmt(r.endVal)}`;
-    const tdUnreal = document.createElement('td');
-    tdUnreal.className = 'r ' + (r.unreal >= 0 ? 'up' : 'down');
-    tdUnreal.textContent = `${r.unreal>=0?'+':''}${fmt(r.unreal)}`;
-
-    tr.appendChild(tdAsset);
-    tr.appendChild(tdStart);
-    tr.appendChild(tdEnd);
-    tr.appendChild(tdCh);
-    tr.appendChild(tdPosStart);
-    tr.appendChild(tdPosEnd);
-    tr.appendChild(tdUnreal);
+    const tdStart = document.createElement('td'); tdStart.className='r'; tdStart.textContent = fmt(r.sp);
+    const tdEnd = document.createElement('td'); tdEnd.className='r'; tdEnd.textContent = fmt(r.ep);
+    const tdCh = document.createElement('td'); tdCh.className = 'r ' + (r.priceCh >= 0 ? 'up' : 'down'); tdCh.textContent = `${(r.priceCh*100).toFixed(2)}%`;
+    const tdPosStart = document.createElement('td'); tdPosStart.className='r'; tdPosStart.textContent = `${r.startHold.toLocaleString()} • ${fmt(r.startVal)}`;
+    const tdPosEnd = document.createElement('td'); tdPosEnd.className='r'; tdPosEnd.textContent = `${r.endHold.toLocaleString()} • ${fmt(r.endVal)}`;
+    const tdUnreal = document.createElement('td'); tdUnreal.className = 'r ' + (r.unreal >= 0 ? 'up' : 'down'); tdUnreal.textContent = `${r.unreal>=0?'+':''}${fmt(r.unreal)}`;
+    tr.append(tdAsset, tdStart, tdEnd, tdCh, tdPosStart, tdPosEnd, tdUnreal);
     tbody.appendChild(tr);
   }
   table.appendChild(tbody);
-  modalContent.appendChild(table);
+  content.appendChild(table);
 
   const rtable = document.createElement('table');
   rtable.innerHTML = `<thead><tr>
@@ -85,48 +74,35 @@ export function showSummary(summary, onNext){
     rtbody.appendChild(tr);
   }
   rtable.appendChild(rtbody);
-  modalContent.appendChild(rtable);
+  content.appendChild(rtable);
 
-  modalActions.innerHTML = '';
   const nextBtn = document.createElement('button'); nextBtn.className='accent'; nextBtn.textContent='Start Next Day ▶';
-  nextBtn.addEventListener('click', onNext);
+  nextBtn.addEventListener('click', () => { close(); onNext(); });
   const closeBtn = document.createElement('button'); closeBtn.textContent='Close';
-  closeBtn.addEventListener('click', ()=> overlay.style.display='none');
-  modalActions.appendChild(nextBtn); modalActions.appendChild(closeBtn);
-  overlay.style.display = 'flex';
+  closeBtn.addEventListener('click', close);
+  actions.append(nextBtn, closeBtn);
 }
 
 export function showGameOver(onReset){
-  const overlay = document.getElementById('overlay');
-  const modalContent = document.getElementById('modalContent');
-  const modalActions = document.getElementById('modalActions');
-
-  modalContent.innerHTML = '<h3>Game Over</h3><div class="mini">Net worth depleted.</div>';
-  modalActions.innerHTML = '';
+  const { content, actions, close } = createModal();
+  content.innerHTML = '<h3>Game Over</h3><div class="mini">Net worth depleted.</div>';
   const resetBtn = document.createElement('button');
-  resetBtn.className = 'bad';
-  resetBtn.textContent = 'Hard Reset';
-  resetBtn.addEventListener('click', onReset);
-  modalActions.appendChild(resetBtn);
-  overlay.style.display = 'flex';
+  resetBtn.className='bad';
+  resetBtn.textContent='Hard Reset';
+  resetBtn.addEventListener('click', () => { close(); onReset(); });
+  actions.append(resetBtn);
 }
 
 export function showHelp(){
-  const overlay = document.getElementById('overlay');
-  const modalContent = document.getElementById('modalContent');
-  const modalActions = document.getElementById('modalActions');
-
-  modalContent.innerHTML = `<h3>How to Play</h3>
+  const { content, actions, close } = createModal();
+  content.innerHTML = `<h3>How to Play</h3>
     <div class="mini">News and events shift tomorrow's price by biasing drift (μ) and volatility (σ). Positive news nudges prices up while negative news drags them down; effects fade over time.</div>
     <div class="mini">Margin and leverage let you borrow to magnify exposure. Gains and losses scale with leverage and positions may liquidate if equity falls too low.</div>
     <div class="mini">Debt accrues interest each day. Paying it down or buying Preferred Rates reduces the hit.</div>
     <div class="mini">Auto‑Risk settings automate stops and take‑profits using your configured thresholds and presets.</div>
     <div class="mini">When no news is active, prices tend to revert toward the analyst μ with variation described by σ.</div>`;
-
-  modalActions.innerHTML = '';
   const closeBtn = document.createElement('button');
   closeBtn.textContent = 'Close';
-  closeBtn.addEventListener('click', () => overlay.style.display = 'none');
-  modalActions.appendChild(closeBtn);
-  overlay.style.display = 'flex';
+  closeBtn.addEventListener('click', close);
+  actions.append(closeBtn);
 }

@@ -95,13 +95,8 @@
 <!-- Toasts -->
 <div class="toast-stack" id="toastStack"></div>
 
-<!-- Summary Modal -->
-<div class="overlay" id="overlay">
-  <div class="modal" id="modal" role="dialog" aria-modal="true">
-    <div id="modalContent"></div>
-    <div class="actions" id="modalActions"></div>
-  </div>
-</div>
+<!-- Overlays render here so nothing can cover them -->
+<div id="overlay-root" aria-live="polite"></div>
 
 <script type="module" src="src/js/app.js"></script>
 </body>

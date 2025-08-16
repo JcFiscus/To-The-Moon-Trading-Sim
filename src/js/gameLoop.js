@@ -17,7 +17,6 @@ export function createGameLoop(ctx, cfg, rng, renderAll, toast, log) {
         interval = null;
         renderAll();
         showGameOver(() => {
-          document.getElementById('overlay').style.display = 'none';
           localStorage.removeItem('ttm_save');
           location.reload();
         });
@@ -33,13 +32,11 @@ export function createGameLoop(ctx, cfg, rng, renderAll, toast, log) {
         renderAll();
         if (summary.gameOver || ctx.gameOver) {
           showGameOver(() => {
-            document.getElementById('overlay').style.display = 'none';
             localStorage.removeItem('ttm_save');
             location.reload();
           });
         } else {
           showSummary(summary, () => {
-            document.getElementById('overlay').style.display = 'none';
             start();
           });
         }
