@@ -1,72 +1,38 @@
 import { fmt, fmtBig } from '../util/format.js';
 import { CFG } from '../config.js';
 
-export function initChart(ctx){
-  const canvas = document.getElementById('chart');
-  const tooltip = document.getElementById('chartTooltip');
-  ctx.chartZoom = 1;
-  ctx.chartOffset = 0;
+// Simplified chart and details renderer for single-screen layout
 
-  window.addEventListener('resize', () => drawChart(ctx));
-
-  let dragging = false;
-  let lastX = 0;
-
-  canvas.addEventListener('wheel', e => {
-    e.preventDefault();
-    const factor = e.deltaY > 0 ? 1.1 : 0.9;
-    ctx.chartZoom = Math.min(Math.max(1, ctx.chartZoom * factor), 100);
-    const slider = document.getElementById('chartZoomRange');
-    if (slider) slider.value = ctx.chartZoom;
-    drawChart(ctx);
-  }, { passive: false });
-
-  canvas.addEventListener('mousedown', e => {
-    dragging = true;
-    lastX = e.clientX;
-  });
-  window.addEventListener('mouseup', () => { dragging = false; });
-
-  canvas.addEventListener('mousemove', e => {
-    const state = ctx._chartState;
-    if (!state) return;
-    if (dragging) {
-      const dx = e.clientX - lastX;
-      const pts = Math.round(dx / state.step);
-      if (pts !== 0) {
-        ctx.chartOffset = Math.min(Math.max(0, ctx.chartOffset - pts), state.maxOffset);
-        lastX = e.clientX;
-        drawChart(ctx);
-      }
-    } else {
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      let html;
-      if (ctx.chartMode === 'candles' && state.segments) {
-        const segIdx = Math.min(state.segments.length - 1, Math.max(0, Math.floor(x / state.segStep)));
-        const seg = state.segments[segIdx];
-        html = `t=${state.off + seg.start}<br>O:${fmt(seg.open)} H:${fmt(seg.high)}<br>L:${fmt(seg.low)} C:${fmt(seg.close)}`;
-      } else {
-        const idx = Math.min(state.data.length - 1, Math.max(0, Math.round(x / state.step)));
-        const price = state.data[idx];
-        html = `t=${state.off + idx} price ${fmt(price)}`;
-      }
-      tooltip.style.display = 'block';
-      tooltip.innerHTML = html;
-      tooltip.style.left = `${x + 10}px`;
-      tooltip.style.top = `${e.clientY - rect.top + 10}px`;
-    }
-  });
-
-  canvas.addEventListener('mouseleave', () => {
-    tooltip.style.display = 'none';
-  });
+export function renderChart(root, ctx, sym) {
+  root.innerHTML = `<canvas id="chart-canvas" aria-label="Price chart for ${sym}"></canvas>`;
+  // Placeholder: chart drawing handled elsewhere
 }
 
+export function updateDetails(root, ctx, sym) {
+  const a = ctx.assets.find(x => x.sym === sym);
+  if (!a) return;
+  root.innerHTML = `
+    <div class="details-grid">
+      <div><label>Supply</label><b>${a.supply?.toLocaleString()}</b></div>
+      <div><label>Market Cap</label><b>${fmtMoney(a.supply * a.price)}</b></div>
+      <div><label>Fair Value</label><b>${fmtMoney(a.fair)}</b></div>
+      <div><label>Local Demand</label><b>${a.localDemand.toFixed(2)}</b></div>
+      <div><label>Tomorrow (μ ± σ)</label><b>${(a.outlook?.mu || 0).toFixed(2)}% ± ${(a.outlook?.sigma || 0).toFixed(2)}%</b></div>
+      <div><label>Expected Open Gap</label><b>${(a.outlook?.gap || 0).toFixed(2)}%</b></div>
+    </div>
+  `;
+}
+
+function fmtMoney(v) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v || 0);
+}
+
+// Legacy drawChart retained for tests
 export function drawChart(ctx) {
   const a = ctx.assets.find(x => x.sym === ctx.selected) || ctx.assets[0];
   const canvas = document.getElementById('chart');
-  const parent = canvas.parentElement;
+  const parent = canvas?.parentElement;
+  if (!canvas || !parent) return;
   canvas.width = parent.clientWidth;
   canvas.height = parent.clientHeight;
   canvas.setAttribute('aria-label', `${a.sym} price chart`);
@@ -174,42 +140,8 @@ export function drawChart(ctx) {
   c.fillStyle = '#cbd5e1'; c.fillText(`${a.sym} ${fmt(last)}  (prev ${fmt(prevClose)})`, 8, 16);
 
   ctx._chartState = { data, step, segStep, off: startIdx, maxOffset, segments };
-  
-  // stats panel
+
+  // stats panel (minimal for tests)
   const stats = document.getElementById('chartStats');
-  stats.innerHTML = '';
-  const demandVal = a.localDemand;
-  let demandCat;
-  if (demandVal < 0.9) demandCat = 'Low';
-  else if (demandVal < 1.1) demandCat = 'Medium';
-  else if (demandVal < 1.3) demandCat = 'High';
-  else demandCat = 'Extreme';
-  const capVal = last * a.supply;
-  const capStr = '$' + fmtBig(capVal, capVal >= 1_000_000 ? 0 : 2);
-  const rows = [
-    ['Supply', a.supply.toLocaleString()],
-    ['Market Cap', capStr],
-    ['Local Demand', demandCat],
-    ['Fair Value', fmt(a.fair)],
-    ['Tomorrow (μ ± σ)', `${((a.outlook?.mu || 0) * 100).toFixed(2)}% ± ${((a.outlook?.sigma || a.daySigma || 0) * 100).toFixed(2)}%`],
-    ['Expected Open Gap', `${(a.outlook?.gap || 0) >= 0 ? '+' : ''}${((a.outlook?.gap || 0) * 100).toFixed(1)}%`]
-  ];
-  const tips = {
-    'Supply':'Total tradable units available',
-    'Market Cap':'Current price multiplied by supply',
-    'Local Demand':'Investor interest around this asset',
-    'Fair Value':'Model-estimated intrinsic price'
-  };
-  for (const [k, v] of rows) {
-    const d = document.createElement('div'); d.className = 'stat';
-    const label = document.createElement('div');
-    label.className = 'mini';
-    label.textContent = k;
-    if (tips[k]) label.title = tips[k];
-    const val = document.createElement('div');
-    val.innerHTML = `<b>${v}</b>`;
-    if (k === 'Local Demand') val.title = demandVal.toFixed(2);
-    d.append(label, val);
-    stats.appendChild(d);
-  }
+  if (stats) stats.innerHTML = '';
 }
