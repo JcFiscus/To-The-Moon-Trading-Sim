@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>To The Moon — Trading Sim (v0)</title>
+  <title>To The Moon — Trading Sim (v0.1)</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -73,6 +73,12 @@
           <span>Your Position</span>
           <strong id="detail-position">—</strong>
         </div>
+
+        <div class="effects">
+          <div class="effects__title">Active Effects</div>
+          <ul id="effects-list" class="effects__list"></ul>
+        </div>
+
         <canvas id="chart" width="560" height="240" aria-label="Price chart"></canvas>
 
         <div class="trade-controls">
@@ -85,10 +91,18 @@
         <div id="messages" class="messages" aria-live="polite"></div>
       </div>
     </aside>
+
+    <section class="panel panel--feed">
+      <div class="panel__header">
+        <h2>News Feed</h2>
+        <span class="hint">Events apply temporary market effects. Because vibes move prices.</span>
+      </div>
+      <ul id="feed" class="feed" aria-live="polite"></ul>
+    </section>
   </main>
 
   <footer class="app-footer">
-    <p>Prototype v0. Prices are simulated. If you lose money here, that’s on your decision-making, not the physics engine.</p>
+    <p>Prototype v0.1. Prices are simulated. If you lose money here, that’s on your decision-making, not the physics engine.</p>
   </footer>
 
   <script src="js/main.js"></script>
