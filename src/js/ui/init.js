@@ -8,7 +8,6 @@ import { initRiskTools } from './risktools.js';
 import { renderPortfolio } from './portfolio.js';
 import { renderUpgrades } from './upgrades.js';
 import { buy, sell } from '../core/trading.js';
-import { buyOption } from '../core/options.js';
 import { showHelp } from './modal.js';
 import { renderDebug } from './debug.js';
 
@@ -22,7 +21,6 @@ export function initUI(ctx, handlers) {
     buildMarketTable({
       table: document.getElementById('marketTable'),
       assets,
-      state: ctx.state,
       onSelect: sym => {
         ctx.selected = sym;
         document.getElementById('chartTitle').textContent = `${sym} — ${ctx.assets.find(a => a.sym === sym).name}`;
@@ -34,10 +32,6 @@ export function initUI(ctx, handlers) {
       },
       onSell: (sym, qty, lev) => {
         sell(ctx, sym, qty, { leverage: lev, log });
-        renderAll();
-      },
-      onOption: (sym, opt) => {
-        buyOption(ctx, sym, opt.type, opt.strike, opt.dte, opt.qty, { log });
         renderAll();
       }
     });

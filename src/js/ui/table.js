@@ -1,8 +1,7 @@
 import { fmt, pct } from '../util/format.js';
-import { CFG } from '../config.js';
-import { openOptionsDialog } from './options.js';
+import { showTradeDrawer } from './trade.js';
 
-export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell, onOption }) {
+export function buildMarketTable({ table, assets, onSelect, onBuy, onSell }) {
   table.innerHTML = '';
 
   const thead = document.createElement('thead');
@@ -18,22 +17,7 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
   const tbody = document.createElement('tbody');
   table.appendChild(tbody);
 
-  const closeAllTradeBars = () => {
-    document.querySelectorAll('.trade-bar.open').forEach(bar => {
-      bar.classList.remove('open');
-      const btn = bar.previousElementSibling;
-      if (btn && btn.classList.contains('trade-btn')) {
-        btn.setAttribute('aria-expanded', 'false');
-      }
-    });
-  };
-
-  if (!document.body.dataset.tradeListener) {
-    document.addEventListener('click', e => {
-      if (!e.target.closest('.trade')) closeAllTradeBars();
-    });
-    document.body.dataset.tradeListener = '1';
-  }
+  // trade drawer rendered in overlay; no inline trade bars
 
   const rows = [];
   for (const a of assets) {
@@ -85,126 +69,24 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
     const tradeBtn = document.createElement('button');
     tradeBtn.className = 'trade-btn';
     tradeBtn.id = `t-${a.sym}`;
-    tradeBtn.textContent = 'Trade \u25BE';
+    tradeBtn.textContent = 'Trade';
     tradeBtn.setAttribute('aria-label', `Trade ${a.sym}`);
-    tradeBtn.setAttribute('aria-haspopup', 'true');
-    tradeBtn.setAttribute('aria-expanded', 'false');
-
-    const tradeBar = document.createElement('div');
-    tradeBar.className = 'trade-bar';
-    tradeBar.setAttribute('role', 'group');
-    tradeBar.setAttribute('aria-label', `Trade actions for ${a.sym}`);
-
-    const qtyId = `q-${a.sym}`;
-    const qtyLabel = document.createElement('label');
-    qtyLabel.htmlFor = qtyId;
-    qtyLabel.textContent = 'Quantity';
-    qtyLabel.className = 'sr-only';
-    const qtyInput = document.createElement('input');
-    qtyInput.className = 'qty';
-    qtyInput.type = 'number';
-    qtyInput.min = '1';
-    qtyInput.step = '1';
-    qtyInput.value = '10';
-    qtyInput.id = qtyId;
-    qtyInput.setAttribute('aria-label', `Quantity for ${a.sym}`);
-    tradeBar.append(qtyLabel, qtyInput);
-
-    let levSel;
-    if (state.upgrades.leverage > 0) {
-      const levId = `lv-${a.sym}`;
-      const levLabel = document.createElement('label');
-      levLabel.htmlFor = levId;
-      levLabel.textContent = 'Leverage';
-      levLabel.className = 'sr-only';
-      levSel = document.createElement('select');
-      levSel.className = 'lev';
-      levSel.id = levId;
-      levSel.setAttribute('aria-label', `Leverage for ${a.sym}`);
-      const levels = CFG.LEVERAGE_LEVELS.slice(0, state.upgrades.leverage + 1);
-      const last = state.ui?.lastLev?.[a.sym] || 1;
-      levels.forEach(lv => {
-        const opt = document.createElement('option');
-        opt.value = lv;
-        opt.textContent = lv + 'x';
-        if (lv === last) opt.selected = true;
-        levSel.appendChild(opt);
+    tradeBtn.addEventListener('click', () => {
+      onSelect(a.sym);
+      showTradeDrawer(tr.getBoundingClientRect(), {
+        symbol: a.sym,
+        onBuy: qty => onBuy(a.sym, qty, 1),
+        onSell: qty => onSell(a.sym, qty, 1),
+        onClose: () => tr.focus()
       });
-      levSel.addEventListener('change', e => {
-        state.ui.lastLev[a.sym] = parseInt(e.target.value, 10);
-      });
-      tradeBar.append(levLabel, levSel);
-    } else {
-      const lock = document.createElement('span');
-      lock.className = 'lock';
-      lock.id = `lv-${a.sym}`;
-      lock.setAttribute('aria-label', 'Unlock leverage in Upgrades');
-      lock.textContent = '\uD83D\uDD12';
-      tradeBar.appendChild(lock);
-    }
+    });
 
-    const buyBtn = document.createElement('button');
-    buyBtn.className = 'accent';
-    buyBtn.id = `b-${a.sym}`;
-    buyBtn.textContent = 'Buy';
-    buyBtn.setAttribute('aria-label', `Buy ${a.sym}`);
-    tradeBar.appendChild(buyBtn);
-
-    const buyMaxBtn = document.createElement('button');
-    buyMaxBtn.className = 'accent';
-    buyMaxBtn.id = `bm-${a.sym}`;
-    buyMaxBtn.textContent = 'Max';
-    buyMaxBtn.setAttribute('aria-label', `Buy max ${a.sym}`);
-    tradeBar.appendChild(buyMaxBtn);
-
-    const sellBtn = document.createElement('button');
-    sellBtn.className = 'bad';
-    sellBtn.id = `s-${a.sym}`;
-    sellBtn.textContent = 'Sell';
-    sellBtn.setAttribute('aria-label', `Sell ${a.sym}`);
-    tradeBar.appendChild(sellBtn);
-
-    let optBtn;
-    if (state.upgrades.options) {
-      optBtn = document.createElement('button');
-      optBtn.className = 'accent';
-      optBtn.id = `o-${a.sym}`;
-      optBtn.textContent = 'Opt';
-      optBtn.setAttribute('aria-label', `Options for ${a.sym}`);
-      tradeBar.appendChild(optBtn);
-      optBtn.addEventListener('click', () => {
-        openOptionsDialog(a, opt => {
-          onOption && onOption(a.sym, opt);
-        });
-      });
-    }
-
-    tradeTd.append(tradeBtn, tradeBar);
+    tradeTd.appendChild(tradeBtn);
     tr.appendChild(tradeTd);
     tbody.appendChild(tr);
 
-    const toggleTrade = show => {
-      closeAllTradeBars();
-      if (show) {
-        tradeBar.classList.add('open');
-        tradeBtn.setAttribute('aria-expanded', 'true');
-        qtyInput.focus();
-      } else {
-        tradeBar.classList.remove('open');
-        tradeBtn.setAttribute('aria-expanded', 'false');
-      }
-    };
-
-    tradeBtn.addEventListener('click', e => {
-      e.stopPropagation();
-      onSelect(a.sym);
-      const open = tradeBar.classList.contains('open');
-      toggleTrade(!open);
-    });
-
     tr.addEventListener('click', e => {
-      const tag = e.target.tagName;
-      if (['BUTTON', 'INPUT', 'SELECT', 'LABEL'].includes(tag)) return;
+      if (e.target.tagName === 'BUTTON') return;
       onSelect(a.sym);
     });
 
@@ -224,61 +106,8 @@ export function buildMarketTable({ table, assets, state, onSelect, onBuy, onSell
         moveFocus(-1);
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        onSelect(a.sym);
-        toggleTrade(true);
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        closeAllTradeBars();
-      } else if (e.key === 'Tab' && !e.shiftKey) {
-        const first = tr.querySelector('input,select,button');
-        if (first) {
-          e.preventDefault();
-          first.focus();
-        }
+        tradeBtn.click();
       }
-    });
-
-    const navEls = [qtyInput, levSel, buyBtn, buyMaxBtn, sellBtn, optBtn].filter(Boolean);
-    navEls.forEach(el => {
-      el.addEventListener('keydown', e => {
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          moveFocus(1);
-        } else if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          moveFocus(-1);
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          toggleTrade(false);
-          tr.focus();
-        }
-      });
-    });
-
-    const getLev = () => (state.upgrades.leverage > 0 ? parseInt(levSel.value, 10) : 1);
-    buyBtn.addEventListener('click', () => {
-      const qty = parseInt(qtyInput.value || '0', 10);
-      const lev = getLev();
-      onBuy(a.sym, qty, lev);
-    });
-    buyMaxBtn.addEventListener('click', () => {
-      const price = a.price;
-      const lev = getLev();
-      let qty = Math.floor((state.cash - state.minFee) / price);
-      if (qty < 0) qty = 0;
-      while (qty > 0) {
-        const exposure = qty * (lev > 1 ? lev : 1);
-        const fee = Math.max(state.minFee, exposure * price * state.feeRate);
-        const cost = qty * price + fee;
-        if (cost <= state.cash) break;
-        qty--;
-      }
-      onBuy(a.sym, qty, lev);
-    });
-    sellBtn.addEventListener('click', () => {
-      const qty = parseInt(qtyInput.value || '0', 10);
-      const lev = getLev();
-      onSell(a.sym, qty, lev);
     });
 
     rows.push(tr);

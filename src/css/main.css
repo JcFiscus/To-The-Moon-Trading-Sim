@@ -2,6 +2,7 @@
   --bg:#0b0f14; --panel:#0f151d; --muted:#7e8a9a; --text:#e6edf7;
   --accent:#68d391; --good:#6ee7b7; --bad:#ff6b6b; --warn:#f6c177;
   --btn:#14202b; --btn-hover:#1c2a37; --border:#1c2530; --table:#101720;
+  --z-base:0; --z-panel:1; --z-overlay:1000; --z-modal:1100;
   /* spacing scale */
   --space-1:4px;
   --space-2:8px;
@@ -19,8 +20,8 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
 .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
 .grid{display:grid;grid-template-columns:1fr 2fr 320px;grid-template-areas:"market mid right";gap:var(--space-4);padding:var(--space-4);max-width:1500px;margin:0}
 @media (max-width:1100px){.grid{grid-template-columns:1fr;grid-template-areas:"market" "mid" "right"}}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:var(--space-2)}
-.card.market-panel{padding:0;overflow:hidden}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:var(--space-2);position:relative;z-index:var(--z-panel)}
+.card.market-panel{padding:0;overflow:visible}
 .market-header{justify-content:space-between;align-items:center;padding:var(--space-3);border-bottom:1px solid var(--border)}
 .row{display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap}
 .mini{font-size:12px;color:var(--muted)}
@@ -37,8 +38,6 @@ body.high-contrast #marketTable tr.selected{background:var(--accent);color:#000}
 .change.up{color:var(--good)}.change.down{color:var(--bad)}
 td.trade{padding:var(--space-1);position:relative}
 .trade-btn{padding:3px 6px;font-size:12px}
-.trade-bar{display:none;position:absolute;top:100%;left:0;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:var(--space-2);gap:var(--space-1);align-items:center;z-index:10}
-.trade-bar.open{display:flex}
 input.qty{width:60px;background:#0a1118;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px;font-size:12px}
 select.lev{width:60px;background:#0a1118;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 2px;font-size:12px}
 .lock{color:var(--muted);font-size:16px}
@@ -46,7 +45,6 @@ select.lev{width:60px;background:#0a1118;border:1px solid var(--border);color:va
 .tip-indicator.bull{color:var(--accent)}
 .tip-indicator.bear{color:var(--bad)}
 #marketTable tr.tipped{background:rgba(104,211,145,0.12)}
-.trade-bar button{padding:3px 5px;font-size:12px}
 button{background:var(--btn);color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:8px;cursor:pointer;transition:.15s}
 button:hover{background:var(--btn-hover)} button.accent{background:#12301f;border-color:#1e4230}
 button.bad{background:#2a1313;border-color:#3b1b1b}
@@ -147,14 +145,21 @@ fieldset.rt-group{border:1px solid var(--border);border-radius:8px;padding:8px;m
 fieldset.rt-group legend{padding:0 4px}
 .upgrade-card{border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:8px;background:#0a1017}
 .upgrade-card button{margin-top:6px}
-/* ===== Summary modal ===== */
-.overlay{position:fixed;inset:0;background:rgba(11,15,20,.8);display:none;align-items:center;justify-content:center;z-index:100}
-.modal{width:min(960px,94vw);background:#0f151d;border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 15px 50px rgba(0,0,0,.45)}
-.modal h3{margin:6px 0 10px}
-.modal .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
-.modal table{width:100%;border-collapse:separate;border-spacing:0}
-.modal th,.modal td{padding:6px 8px;border-bottom:1px dashed rgba(255,255,255,.08);vertical-align:top}
-.modal th.r,.modal td.r{text-align:right}
+/* ===== Overlays ===== */
+#overlay-root{position:fixed;inset:0;pointer-events:none;z-index:var(--z-overlay)}
+.ui-modal,.ui-drawer,.trade-popover{position:fixed;pointer-events:auto;z-index:var(--z-modal)}
+.ui-modal{inset:0;background:rgba(11,15,20,.8);display:flex;align-items:center;justify-content:center}
+.ui-modal .modal{width:min(960px,94vw);background:#0f151d;border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 15px 50px rgba(0,0,0,.45)}
+.ui-modal .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+.ui-modal .modal h3{margin:6px 0 10px}
+.ui-modal .modal table{width:100%;border-collapse:separate;border-spacing:0}
+.ui-modal .modal th,.ui-modal .modal td{padding:6px 8px;border-bottom:1px dashed rgba(255,255,255,.08);vertical-align:top}
+.ui-modal .modal th.r,.ui-modal .modal td.r{text-align:right}
+.ui-drawer{background:var(--panel);border-left:1px solid var(--border);padding:var(--space-3);height:100vh;top:0;right:0;width:360px;display:flex;flex-direction:column}
+.ui-drawer .drawer-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-2)}
+.ui-drawer .drawer-body{display:flex;flex-direction:column;gap:var(--space-2)}
+.ui-drawer .btn-row{display:flex;gap:var(--space-2);margin-top:var(--space-2)}
+.ui-drawer .hint{font-size:12px;color:var(--muted);margin-top:auto}
 .badge{display:inline-block;padding:2px 6px;border:1px solid var(--border);border-radius:999px;font-size:11px;color:var(--muted)}
 .up{color:var(--good)} .down{color:var(--bad)}
 
