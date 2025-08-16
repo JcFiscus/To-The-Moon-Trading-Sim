@@ -2,7 +2,7 @@ import { save as saveGame, load as loadGame, SAVE_VERSION } from './core/persist
 
 export function setupPersistence(ctx, log = console.log) {
   function save() {
-    saveGame(ctx.state, ctx.market, ctx.assets, SAVE_VERSION);
+    saveGame(ctx.state, ctx.market, ctx.assets, ctx.riskTrack, SAVE_VERSION);
     log('Save complete.');
   }
   function load() {

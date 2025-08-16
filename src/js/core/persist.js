@@ -1,12 +1,13 @@
 const KEY = 'ttm_save';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
-export function save(state, market, assets, version = SAVE_VERSION) {
+export function save(state, market, assets, riskTrack = {}, version = SAVE_VERSION) {
   try {
     const payload = {
       version,
       state,
       market,
+      riskTrack,
       assets: assets.map(a => ({ ...a, history: a.history.slice(-700) }))
     };
     localStorage.setItem(KEY, JSON.stringify(payload));
@@ -21,9 +22,16 @@ export function load(ctx, version = SAVE_VERSION) {
     const raw = localStorage.getItem(KEY);
     if (!raw) return false;
     const data = JSON.parse(raw);
-    if (data.version !== version) return false;
+    if (data.version !== version) {
+      if (data.version === 1 && version === 2) {
+        data.riskTrack = data.riskTrack || {};
+      } else {
+        return false;
+      }
+    }
     Object.assign(ctx.state, data.state || {});
     Object.assign(ctx.market, data.market || {});
+    ctx.riskTrack = data.riskTrack || {};
     for (const a of ctx.assets) {
       const m = (data.assets || []).find(x => x.sym === a.sym);
       if (!m) continue;
