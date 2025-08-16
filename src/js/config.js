@@ -1,3 +1,5 @@
+export const VERSION = "1.0.0";
+
 export const CFG = {
   START_CASH: 10000,
   DAY_TICKS: 10,

@@ -1,5 +1,6 @@
 import { fmt } from '../util/format.js';
 import { clamp } from '../util/math.js';
+import { VERSION } from '../config.js';
 
 const last = {};
 
@@ -29,6 +30,8 @@ function updatePill(id, val, formatter) {
 }
 
 export function renderHUD(ctx) {
+  const verEl = document.getElementById('version');
+  if (verEl) verEl.textContent = `v${VERSION}`;
   document.getElementById('dayNum').textContent = ctx.day.idx;
   document.getElementById('dayTimer').textContent = ctx.day.active
     ? String(ctx.day.ticksLeft).padStart(2, '0') + 's'
