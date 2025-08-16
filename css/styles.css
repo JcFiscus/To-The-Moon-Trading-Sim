@@ -1,0 +1,143 @@
+:root{
+  --bg:#0b0f1a;
+  --bg-soft:#0f172a;
+  --card:#111826; /* near Tailwind slate-900-ish */
+  --muted:#9aa4b2;
+  --text:#e5e7eb;
+  --accent:#8b5cf6;
+  --accent-2:#22d3ee;
+  --good:#10b981;
+  --bad:#ef4444;
+  --line:#1f2937;
+  --ring: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font:14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+  color:var(--text);
+  background:radial-gradient(1000px 600px at 70% -10%, #121a2b 0%, var(--bg) 60%);
+}
+
+.app-header{
+  padding:16px 20px 10px;
+  border-bottom:1px solid var(--line);
+}
+.app-header h1{
+  margin:0 0 8px;
+  font-size:20px;
+  letter-spacing:0.3px;
+  font-weight:700;
+}
+
+.hud{display:flex; flex-direction:column; gap:6px}
+.hud__row{display:flex; gap:18px; align-items:center; flex-wrap:wrap}
+.hud__row > span{color:var(--muted)}
+.hud strong{color:var(--text)}
+.hud__controls .btn{margin-right:8px}
+.hint{opacity:.7; font-size:12px}
+
+.layout{
+  display:grid;
+  grid-template-columns: minmax(420px, 1fr) 420px;
+  gap:18px;
+  padding:18px 20px 24px;
+}
+@media (max-width: 980px){
+  .layout{grid-template-columns: 1fr}
+  .panel--right{order:-1}
+}
+
+.panel{
+  background:linear-gradient(180deg, var(--bg-soft), var(--card));
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25);
+}
+.panel__header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:8px;
+}
+.panel h2{margin:0; font-size:16px}
+.qty-picker{
+  display:flex; align-items:center; gap:8px; color:var(--muted)
+}
+.qty-picker input{
+  width:84px; padding:6px 8px; border-radius:8px; border:1px solid var(--line);
+  background:#0d1426; color:var(--text);
+}
+
+.table-wrap{overflow:auto; border-radius:10px; border:1px solid var(--line)}
+.table{
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  min-width:720px;
+}
+.table thead th{
+  text-align:left; font-weight:600; color:var(--muted);
+  padding:10px 12px; background:#0f1629; position:sticky; top:0; z-index:1;
+}
+.table tbody td{
+  padding:10px 12px; border-top:1px solid var(--line);
+}
+.table tbody tr:hover{background:rgba(139,92,246,.06)}
+.table .num{text-align:right}
+
+.badge{
+  display:inline-block; padding:2px 8px; border-radius:999px;
+  font-size:12px; font-weight:600;
+}
+.badge--good{color:var(--good); background:color-mix(in srgb, var(--good) 18%, transparent)}
+.badge--bad{color:var(--bad); background:color-mix(in srgb, var(--bad) 18%, transparent)}
+.badge--neutral{color:#cbd5e1; background:#0c1224}
+
+.btn{
+  appearance:none; border:1px solid var(--line); background:#121a2b;
+  color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer;
+  transition: transform .06s ease, background .2s ease, border-color .2s;
+}
+.btn:hover{background:#141f34; border-color:#2b3b58}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:none; box-shadow: var(--ring)}
+.btn-primary{
+  background:linear-gradient(180deg, color-mix(in srgb, var(--accent) 20%, #121a2b), #121a2b);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+.btn-danger{
+  background:linear-gradient(180deg, color-mix(in srgb, var(--bad) 20%, #121a2b), #121a2b);
+  border-color: color-mix(in srgb, var(--bad) 40%, var(--line));
+}
+
+.detail-card{margin-top:8px; border-top:1px solid var(--line); padding-top:10px}
+.detail-line{display:flex; justify-content:space-between; margin:6px 0; color:var(--muted)}
+.detail-line strong{color:var(--text)}
+
+#chart{
+  width:100%; height:auto; display:block;
+  margin:10px 0 14px; background:linear-gradient(180deg, #0c1224, #0a1020);
+  border:1px solid var(--line); border-radius:8px;
+}
+
+.trade-controls{display:flex; gap:10px; align-items:center}
+.trade-controls input{
+  width:100px; padding:8px; border-radius:8px; border:1px solid var(--line);
+  background:#0d1426; color:var(--text);
+}
+
+.messages{
+  margin-top:10px; min-height:22px; color:var(--muted);
+}
+
+.pl--good{color:var(--good)}
+.pl--bad{color:var(--bad)}
+.pl--neutral{color:#cbd5e1}
+
+.app-footer{
+  padding:10px 20px 30px; color:var(--muted); text-align:center;
+}
