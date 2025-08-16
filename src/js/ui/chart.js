@@ -102,15 +102,17 @@ export function drawChart(ctx) {
   c.fillStyle = '#8aa3bf'; c.font = '12px ui-monospace,monospace';
   [min, (min + max) / 2, max].forEach(v => c.fillText(fmt(v), w - 80, y(v) - 2));
 
-  // day boundaries
-  c.globalAlpha = 0.25; c.strokeStyle = '#223043';
-  for (const ix of a.dayBounds) {
-    if (ix <= startIdx || ix >= startIdx + data.length) continue;
-    const rel = ix - startIdx;
-    const x = rel * step;
-    c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke();
+  // day boundaries (only for ≥1D views)
+  if (ctx.chartInterval !== 'hour') {
+    c.globalAlpha = 0.25; c.strokeStyle = '#223043';
+    for (const ix of a.dayBounds) {
+      if (ix <= startIdx || ix >= startIdx + data.length) continue;
+      const rel = ix - startIdx;
+      const x = rel * step;
+      c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke();
+    }
+    c.globalAlpha = 1;
   }
-  c.globalAlpha = 1;
 
   const segments = [];
   const sizeMap = {
