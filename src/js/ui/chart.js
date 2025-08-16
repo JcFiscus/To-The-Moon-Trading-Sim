@@ -180,12 +180,12 @@ export function drawChart(ctx) {
   let demandCat;
   if (demandVal < 0.9) demandCat = 'Low';
   else if (demandVal < 1.1) demandCat = 'Medium';
-  else if (demandVal < 1.5) demandCat = 'High';
+  else if (demandVal < 1.3) demandCat = 'High';
   else demandCat = 'Extreme';
   const rows = [
     ['Supply', a.supply.toLocaleString()],
     ['Market Cap', fmt(last * a.supply)],
-    ['Local Demand', `${demandCat} (ev ${(a.evDemandBias >= 0 ? '+' : '')}${a.evDemandBias.toFixed(2)})`],
+    ['Local Demand', demandCat],
     ['Fair Value', fmt(a.fair)],
     ['Tomorrow (μ ± σ)', `${((a.outlook?.mu || 0) * 100).toFixed(2)}% ± ${((a.outlook?.sigma || a.daySigma || 0) * 100).toFixed(2)}%`],
     ['Expected Open Gap', `${(a.outlook?.gap || 0) >= 0 ? '+' : ''}${((a.outlook?.gap || 0) * 100).toFixed(1)}%`]
@@ -204,6 +204,7 @@ export function drawChart(ctx) {
     if (tips[k]) label.title = tips[k];
     const val = document.createElement('div');
     val.innerHTML = `<b>${v}</b>`;
+    if (k === 'Local Demand') val.title = demandVal.toFixed(2);
     d.append(label, val);
     stats.appendChild(d);
   }
