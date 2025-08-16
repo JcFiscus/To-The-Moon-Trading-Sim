@@ -1,12 +1,9 @@
 import { initToaster } from './toast.js';
 import { buildMarketTable, renderMarketTable } from './table.js';
 import { drawChart, initChart } from './chart.js';
-import { renderInsight } from './insight.js';
 import { renderAssetNewsTable, initNewsControls } from './newsAssets.js';
 import { renderHUD } from './hud.js';
 import { initRiskTools } from './risktools.js';
-import { renderPortfolio } from './portfolio.js';
-import { renderUpgrades } from './upgrades.js';
 import { buy, sell } from '../core/trading.js';
 import { showHelp } from './modal.js';
 import { renderDebug } from './debug.js';
@@ -41,9 +38,9 @@ export function initUI(ctx, handlers) {
 
   const tabs = document.createElement('div');
   tabs.id = 'marketTabs';
-  tabs.className = 'row tabs';
+  tabs.className = 'row market-tabs';
   tabs.setAttribute('role', 'tablist');
-  const panel = document.querySelector('.market-col .panel');
+  const panel = document.getElementById('market');
   panel.insertBefore(tabs, document.getElementById('marketTable'));
 
   function renderTabs() {
@@ -71,6 +68,22 @@ export function initUI(ctx, handlers) {
   renderTabs();
 
   initNewsControls(ctx);
+
+  const detailTabs = document.querySelectorAll('#details nav [role=tab]');
+  const panels = {
+    chart: document.getElementById('panel-chart'),
+    risk: document.getElementById('panel-risk'),
+    news: document.getElementById('panel-news')
+  };
+  detailTabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      detailTabs.forEach(b => b.setAttribute('aria-selected', b === btn));
+      Object.entries(panels).forEach(([id, el]) => {
+        el.hidden = id !== tab;
+      });
+    });
+  });
 
   ctx.chartMode = 'line';
   ctx.chartInterval = 'hour';
@@ -136,16 +149,13 @@ export function initUI(ctx, handlers) {
   document.getElementById('helpBtn').addEventListener('click', showHelp);
   document.getElementById('resetBtn').addEventListener('click', reset);
 
-  initRiskTools(document.getElementById('riskTools'), ctx, toast);
+  initRiskTools(document.getElementById('panel-risk'), ctx, toast);
 
   function renderAll() {
     renderHUD(ctx);
     renderMarketTable(ctx);
     drawChart(ctx);
-    renderInsight(ctx);
     renderAssetNewsTable(ctx);
-    renderPortfolio(ctx);
-    renderUpgrades(ctx, toast);
     ctx.renderMarketTabs();
     ctx.renderRiskStats?.();
     renderDebug(ctx);
