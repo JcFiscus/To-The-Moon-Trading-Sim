@@ -71,18 +71,20 @@ export function randomSupplyEvent(assets, rng){
           severity:(Math.abs(frac)>0.05 ? "major":"minor"), blurb:`Supply ${up?"+":""}${Math.round(frac*100)}%.`};
 }
 
-export function pushAssetNews(newsByAsset, ev, whenLabel, state){
+export function pushAssetNews(newsByAsset, ev, whenLabel, state, lastEvent){
   if (ev.requires && state && !ev.requires.every(id => state.upgrades[id])) return;
   const targets = ev.scope === 'asset' ? [ev.sym] : null;
   if (targets) {
     newsByAsset[ev.sym] = newsByAsset[ev.sym] || [];
     newsByAsset[ev.sym].unshift({ when: whenLabel, ev, remaining: ev.days || 2 });
     if (newsByAsset[ev.sym].length > 50) newsByAsset[ev.sym].pop();
+    if (lastEvent) lastEvent[ev.sym] = ev;
   } else {
     // global → copy into each asset stream
     Object.keys(newsByAsset).forEach(sym => {
       newsByAsset[sym].unshift({ when: whenLabel, ev, remaining: ev.days || 2 });
       if (newsByAsset[sym].length > 50) newsByAsset[sym].pop();
+      if (lastEvent) lastEvent[sym] = ev;
     });
   }
 }
