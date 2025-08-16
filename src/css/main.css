@@ -13,7 +13,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
 .stats{display:flex;gap:var(--space-sm);flex-wrap:wrap;align-items:center}
 .pill{background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:6px 10px;display:flex;gap:var(--space-sm);align-items:center}
 .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
-.grid{display:grid;grid-template-columns:3fr 1fr 320px;grid-template-areas:"market mid right";gap:var(--space);padding:var(--space);max-width:1500px;margin:0 auto}
+.grid{display:grid;grid-template-columns:1fr 2fr 320px;grid-template-areas:"market mid right";gap:var(--space);padding:var(--space);max-width:1500px;margin:0}
 @media (max-width:1100px){.grid{grid-template-columns:1fr;grid-template-areas:"market" "mid" "right"}}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:var(--space-sm)}
 .card.market-panel{padding:0;overflow:hidden}
@@ -31,11 +31,10 @@ tr:hover{background:#0e141d}
 body.high-contrast #marketTable tr.selected{background:var(--accent);color:#000}
 .price,.change,.holdings,.value{font-variant-numeric:tabular-nums}
 .change.up{color:var(--good)}.change.down{color:var(--bad)}
-td.trade{padding:8px}
-.trade-bar{display:none;gap:4px;align-items:center}
-tr:hover .trade-bar,
-tr:focus-within .trade-bar,
-tr.selected .trade-bar{display:flex}
+td.trade{padding:4px;position:relative}
+.trade-btn{padding:3px 6px;font-size:12px}
+.trade-bar{display:none;position:absolute;top:100%;left:0;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:6px;gap:4px;align-items:center;z-index:10}
+.trade-bar.open{display:flex}
 input.qty{width:60px;background:#0a1118;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px;font-size:12px}
 select.lev{width:60px;background:#0a1118;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 2px;font-size:12px}
 .lock{color:var(--muted);font-size:16px}
@@ -60,9 +59,9 @@ button.bad{background:#2a1313;border-color:#3b1b1b}
 #marketTable th:nth-child(6){width:10%}
 #marketTable th:nth-child(7){width:30%}
 .market-col,.mid-col,.right-rail{display:grid;gap:var(--space)}
-.market-col{grid-area:market}
-.mid-col{grid-area:mid}
-.right-rail{grid-area:right;width:320px}
+.market-col{grid-area:market;grid-column:1}
+.mid-col{grid-area:mid;grid-column:2}
+.right-rail{grid-area:right;grid-column:3;width:320px}
 #newsPanel.collapsed{display:none}
 #newsScroll{height:28rem;overflow:auto;padding-right:4px}
 @media (max-width:600px){#newsScroll{height:18rem}}
