@@ -1,4 +1,4 @@
-// src/js/core/margin.js
+// js/core/margin.js
 // Margin mechanics that any trading code can call.
 
 import { hasUpgrade, UPGRADE_IDS } from "./upgrades.js";
