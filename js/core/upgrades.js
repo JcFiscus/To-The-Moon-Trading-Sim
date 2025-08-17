@@ -1,4 +1,4 @@
-// src/js/core/upgrades.js
+// js/core/upgrades.js
 // Simple, framework-free upgrade engine.
 // State shape added: state.upgrades = { owned: { [id]: 1 }, cashSpent: number }
 
