@@ -1,4 +1,4 @@
-// src/js/ui/upgrades.js
+// js/ui/upgrades.js
 // Minimal, DOM-only shop UI. Re-renders on state changes.
 
 import { UPGRADE_DEF, hasUpgrade, canAfford, purchaseUpgrade } from "../core/upgrades.js";
