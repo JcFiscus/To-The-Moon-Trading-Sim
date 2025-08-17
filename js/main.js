@@ -139,6 +139,8 @@
       safeRenderAll();
       if (state.tick % 16 === 0) save();
     }
+    
+    Upgrades.applyBiasOnTick(asset);
 
     function stepAll(steps = 1, varianceBoost = 1.0) {
       for (let s = 0; s < steps; s++) {
@@ -282,6 +284,12 @@
    
      const hasMargin = !!(window.ttm && window.ttm.margin);
      const pv = portfolioValue();
+
+     const cost = price * qty;
+     const borrowed = Upgrades.maybeBorrow({ cost, cash: state.cash, equity: state.cash + portfolioValue() });
+     state.cash += borrowed;
+     // proceed with your existing buy logic
+
    
      if (hasMargin) {
        if (window.ttm.margin.isUnderMaintenance(state, pv)) {
@@ -694,6 +702,7 @@
         startNewDay();
         save();
         safeRenderAll();
+        Upgrades.accrueDailyInterest({ getCash:()=>state.cash, setCash:v=>{ state.cash=v; renderCash(v); } });
       });
     if (elReset)
       elReset.addEventListener("click", () => {
