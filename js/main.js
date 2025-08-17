@@ -277,24 +277,41 @@
 
     // ----- Trading -----
     function doBuy(id, qty) {
-      const a = findAsset(id);
-      const cost = a.price * qty;
-      if (cost > state.cash + 1e-9) {
-        bumpNews(`Not enough cash to buy ${qty} ${id}. Consider being richer.`);
-        return;
-      }
-      state.cash -= cost;
+     const a = findAsset(id);
+     const cost = a.price * qty;
+   
+     const hasMargin = !!(window.ttm && window.ttm.margin);
+     const pv = portfolioValue();
+   
+     if (hasMargin) {
+       if (window.ttm.margin.isUnderMaintenance(state, pv)) {
+         bumpNews("Buy blocked: maintenance margin breached.");
+         return;
+       }
+       const ok = window.ttm.margin.buyWithMargin(state, cost, pv);
+       if (!ok) {
+         bumpNews(`Insufficient buying power for ${qty} ${id}.`);
+         return;
+       }
+     } else {
+       if (cost > state.cash + 1e-9) {
+         bumpNews(`Not enough cash to buy ${qty} ${id}.`);
+         return;
+       }
+       state.cash -= cost;
+     }
+   
+     const p = state.positions[id] || { qty: 0, avgCost: 0 };
+     const newQty = p.qty + qty;
+     const newCostBasis = (p.avgCost * p.qty + cost) / newQty;
+     state.positions[id] = { qty: newQty, avgCost: newCostBasis };
+   
+     save();
+     safeRenderAll();
+     selectAsset(id);
+     bumpNews(`Bought ${qty} ${id} @ ${formatPrice(a.price)}.`);
+   }
 
-      const p = state.positions[id] || { qty: 0, avgCost: 0 };
-      const newQty = p.qty + qty;
-      const newCostBasis = (p.avgCost * p.qty + cost) / newQty;
-      state.positions[id] = { qty: newQty, avgCost: newCostBasis };
-
-      save();
-      safeRenderAll();
-      selectAsset(id);
-      bumpNews(`Bought ${qty} ${id} @ ${formatPrice(a.price)}.`);
-    }
 
     function doSell(id, qty) {
       const p = state.positions[id];
@@ -307,7 +324,11 @@
       const proceeds = a.price * actualQty;
       const profit = (a.price - p.avgCost) * actualQty;
 
-      state.cash += proceeds;
+      if (window.ttm && window.ttm.margin) {
+        window.ttm.margin.applyProceeds(state, proceeds);
+      } else {
+        state.cash += proceeds;
+      }
       state.realized += profit;
 
       const leftover = p.qty - actualQty;
