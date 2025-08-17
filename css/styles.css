@@ -139,3 +139,13 @@ body{
 
 /* Footer */
 .app-footer{padding:10px 20px 30px;color:var(--muted);text-align:center}
+
+/* Upgrades */
+#panel-upgrades { padding: 8px; }
+.upgrade-card { border: 1px solid #222; padding: 8px; margin: 6px 0; border-radius: 6px; }
+.upgrade-title { font-weight: 600; }
+.upgrade-desc { font-size: 0.9rem; opacity: 0.8; margin: 4px 0 8px; }
+.upgrade-cta { display: flex; justify-content: space-between; align-items: center; }
+#insider-banner { position: sticky; top: 0; padding: 6px 8px; border-bottom: 1px solid #333; }
+#insider-banner.hidden { display: none; }
+
