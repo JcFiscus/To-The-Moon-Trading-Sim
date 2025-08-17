@@ -123,6 +123,8 @@
   <script type="module" src="./js/ui/upgrades.js"></script>
   <script type="module" src="./js/ui/insiderBanner.js"></script>
   <script type="module" src="./js/featurePack.js"></script>
+  <script src="js/upgrades.js"></script>
+
 
   <script type="module">
     import { init } from "./js/featurePack.js";
@@ -132,6 +134,16 @@
     const onTick = (cb) => window.gameLoop?.onTick ? window.gameLoop.onTick(cb) : null; // optional
   
     init({ state: window.state, getPortfolioValue, getAssetIds, onTick });
+  </script>
+
+  <script>
+  // Example mappings — adjust to your actual state + UI
+  Upgrades.configure({
+    getCash: () => state.cash,
+    setCash: v => { state.cash = v; renderCash(v); },
+    getEquity: () => state.cash + portfolioValue(),          // your function to compute holdings value
+    listAssetKeys: () => assets.map(a => a.symbol || a.key)   // optional
+  });
   </script>
 
 </body>
