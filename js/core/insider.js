@@ -1,4 +1,4 @@
-// src/js/core/insider.js
+// js/core/insider.js
 // Insider tip scheduler + price boost hook.
 
 import { hasUpgrade, UPGRADE_IDS } from "./upgrades.js";
