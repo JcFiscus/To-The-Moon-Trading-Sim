@@ -432,6 +432,17 @@
       drawChart(a.history);
     }
 
+     function selectAsset(id) {
+        if (!id) return;
+        state.selected = id;
+        // keep the side-panel qty aligned with the global default
+        if (elTradeQty) elTradeQty.value = parseQty(elQtyGlobal.value);
+        // re-render table highlight and the detail panel
+        renderTable();
+        renderDetail();
+      }
+
+
     function renderEffectsForSelected() {
       const id = state.selected;
       const list = state.events.filter(
@@ -674,15 +685,20 @@
       });
     if (elTableBody)
       elTableBody.addEventListener("click", (e) => {
-        const row = e.target.closest("tr[data-id]");
-        if (!row) return;
-        const id = row.getAttribute("data-id");
-        selectAsset(id);
-        if (e.target.matches("[data-buy]"))
-          doBuy(id, parseQty(elQtyGlobal.value));
-        if (e.target.matches("[data-sell]"))
-          doSell(id, parseQty(elQtyGlobal.value));
-      });
+     const row = e.target.closest("tr[data-id]");
+     if (!row) return;
+     const id = row.getAttribute("data-id");
+   
+     const buyBtn = e.target.closest("[data-buy]");
+     const sellBtn = e.target.closest("[data-sell]");
+   
+     if (buyBtn) { doBuy(id, parseQty(elQtyGlobal.value)); return; }
+     if (sellBtn) { doSell(id, parseQty(elQtyGlobal.value)); return; }
+   
+     // plain row click selects the asset
+     selectAsset(id);
+   });
+
     if (elBuy)
       elBuy.addEventListener("click", () =>
         doBuy(state.selected, parseQty(elTradeQty.value))
