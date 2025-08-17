@@ -149,7 +149,10 @@
           const drift = 0.0005 + mods.driftShift;
           const shock = gaussian() * vol;
           const pct = drift + shock;
-          a.price = Math.max(0.0001, a.price * (1 + pct));
+          const nextPrice = Math.max(0.0001, a.price * (1 + pct));
+          const boostFn = window.ttm && window.ttm.insider && window.ttm.insider.applyInsiderBoost;
+          a.price = boostFn ? boostFn(state, a.id, nextPrice) : nextPrice;
+
           a.changePct = ((a.price - a.prev) / a.prev) * 100;
 
           a.history.push(a.price);
