@@ -24,6 +24,10 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
   const cashEl = root.querySelector('[data-field="cash"]');
   const equityEl = root.querySelector('[data-field="equity"]');
   const plEl = root.querySelector('[data-field="pl"]');
+  const dayTimerEl = root.querySelector('[data-field="day-timer"]');
+  const dayTimerBarEl = dayTimerEl?.querySelector('[data-element="timer-bar"]');
+  const dayTimerProgressEl = dayTimerEl?.querySelector('[data-element="timer-progress"]');
+  const dayTimerLabelEl = dayTimerEl?.querySelector('[data-element="timer-label"]');
 
   const toggleBtn = root.querySelector('[data-action="toggle-run"]');
   const endBtn = root.querySelector('[data-action="end-day"]');
@@ -44,7 +48,16 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
   }
 
   return {
-    render({ day = 1, cash = 0, equity = 0, totalPL = 0, unrealized = 0, running = false } = {}) {
+    render({
+      day = 1,
+      cash = 0,
+      equity = 0,
+      totalPL = 0,
+      unrealized = 0,
+      running = false,
+      dayRemainingMs = null,
+      dayDurationMs = null
+    } = {}) {
       if (dayEl) dayEl.textContent = String(day);
       if (cashEl) cashEl.textContent = fmtMoney(cash);
       if (equityEl) equityEl.textContent = fmtMoney(equity);
@@ -57,6 +70,40 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
       if (toggleBtn) {
         toggleBtn.textContent = running ? "Pause" : "Start";
         toggleBtn.dataset.state = running ? "running" : "idle";
+      }
+      if (dayTimerEl) {
+        const baseDuration = Number.isFinite(dayDurationMs) && dayDurationMs > 0 ? dayDurationMs : Number(dayTimerEl.dataset.duration) || 10000;
+        const remaining = Number.isFinite(dayRemainingMs) ? Math.max(0, dayRemainingMs) : baseDuration;
+        const safeDuration = baseDuration > 0 ? baseDuration : remaining || 1;
+        const ratio = safeDuration > 0 ? remaining / safeDuration : 0;
+        const percent = Math.max(0, Math.min(100, ratio * 100));
+        const seconds = remaining / 1000;
+        const decimals = seconds < 10 ? 1 : 0;
+        const isClosing = running && remaining <= 50;
+
+        dayTimerEl.dataset.duration = String(safeDuration);
+        dayTimerEl.dataset.state = running ? (isClosing ? "closing" : "running") : "paused";
+        if (dayTimerProgressEl) {
+          dayTimerProgressEl.style.width = `${percent}%`;
+        }
+        if (dayTimerBarEl) {
+          dayTimerBarEl.setAttribute("aria-valuenow", String(Math.round(percent)));
+          const ariaText = !running
+            ? "Market paused"
+            : isClosing
+              ? "Market closing"
+              : `${seconds.toFixed(decimals)} seconds remaining`;
+          dayTimerBarEl.setAttribute("aria-valuetext", ariaText);
+        }
+        if (dayTimerLabelEl) {
+          if (!running) {
+            dayTimerLabelEl.textContent = "Paused";
+          } else if (isClosing) {
+            dayTimerLabelEl.textContent = "Market closing…";
+          } else {
+            dayTimerLabelEl.textContent = `${seconds.toFixed(decimals)}s remaining`;
+          }
+        }
       }
     }
   };

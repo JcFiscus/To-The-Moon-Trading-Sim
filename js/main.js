@@ -189,7 +189,10 @@ function setupControllers() {
     },
     onEndDay: () => {
       if (!engine) return;
-      engine.endDay({ overnightSteps: 6, varianceBoost: 1.8 });
+      engine.endDay({ overnightSteps: 6, varianceBoost: 1.8, reason: "manual" });
+      if (typeof engine.restartDayTimer === "function") {
+        engine.restartDayTimer();
+      }
       bumpNews("Market closed. Overnight risk intensifies. Try not to panic.");
     },
     onReset: () => {
@@ -240,7 +243,8 @@ function handleStartNewRun() {
   engine.reset(createInitialState({
     startingCash: config.startingCash,
     assetIds: config.assetIds,
-    runConfig: config
+    runConfig: config,
+    dayDurationMs: engine.dayDurationMs
   }));
   state = engine.getState();
   eventSystem.bootstrap(state);
@@ -387,7 +391,9 @@ function renderAll(currentState) {
     equity,
     totalPL,
     unrealized,
-    running: currentState.running
+    running: currentState.running,
+    dayRemainingMs: currentState.dayRemainingMs,
+    dayDurationMs: engine?.dayDurationMs
   });
 
   controllers.market?.render(currentState);
@@ -494,6 +500,7 @@ function handleTick(currentState) {
   if (outcome) {
     completeRun(outcome);
   }
+
 }
 
 function handleDayEnd(currentState, context = {}) {
@@ -522,6 +529,9 @@ function handleDayEnd(currentState, context = {}) {
   const outcome = evaluateEndCondition(currentState, { netWorth: metrics.netWorth });
   if (outcome) {
     completeRun(outcome);
+  }
+  if (!outcome && engine && typeof engine.restartDayTimer === "function") {
+    engine.restartDayTimer();
   }
 }
 
