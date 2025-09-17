@@ -141,8 +141,6 @@
       if (state.tick % 16 === 0) save();
     }
     
-    Upgrades.applyBiasOnTick(asset);
-
     function stepAll(steps = 1, varianceBoost = 1.0) {
       for (let s = 0; s < steps; s++) {
         for (const a of state.assets) {
@@ -160,6 +158,10 @@
 
           a.history.push(a.price);
           if (a.history.length > 240) a.history.shift();
+
+          if (window.Upgrades?.applyBiasOnTick) {
+            window.Upgrades.applyBiasOnTick(a);
+          }
         }
       }
     }
@@ -280,46 +282,47 @@
 
     // ----- Trading -----
     function doBuy(id, qty) {
-     const a = findAsset(id);
-     const cost = a.price * qty;
-   
-     const hasMargin = !!(window.ttm && window.ttm.margin);
-     const pv = portfolioValue();
+      const a = findAsset(id);
+      const cost = a.price * qty;
 
-     const cost = price * qty;
-     const borrowed = Upgrades.maybeBorrow({ cost, cash: state.cash, equity: state.cash + portfolioValue() });
-     state.cash += borrowed;
-     // proceed with your existing buy logic
+      const hasMargin = !!(window.ttm && window.ttm.margin);
+      const pv = portfolioValue();
 
-   
-     if (hasMargin) {
-       if (window.ttm.margin.isUnderMaintenance(state, pv)) {
-         bumpNews("Buy blocked: maintenance margin breached.");
-         return;
-       }
-       const ok = window.ttm.margin.buyWithMargin(state, cost, pv);
-       if (!ok) {
-         bumpNews(`Insufficient buying power for ${qty} ${id}.`);
-         return;
-       }
-     } else {
-       if (cost > state.cash + 1e-9) {
-         bumpNews(`Not enough cash to buy ${qty} ${id}.`);
-         return;
-       }
-       state.cash -= cost;
-     }
-   
-     const p = state.positions[id] || { qty: 0, avgCost: 0 };
-     const newQty = p.qty + qty;
-     const newCostBasis = (p.avgCost * p.qty + cost) / newQty;
-     state.positions[id] = { qty: newQty, avgCost: newCostBasis };
-   
-     save();
-     safeRenderAll();
-     selectAsset(id);
-     bumpNews(`Bought ${qty} ${id} @ ${formatPrice(a.price)}.`);
-   }
+      const borrowed = window.Upgrades?.maybeBorrow?.({
+        cost,
+        cash: state.cash,
+        equity: state.cash + pv
+      }) ?? 0;
+      state.cash += borrowed;
+
+      if (hasMargin) {
+        if (window.ttm.margin.isUnderMaintenance(state, pv)) {
+          bumpNews("Buy blocked: maintenance margin breached.");
+          return;
+        }
+        const ok = window.ttm.margin.buyWithMargin(state, cost, pv);
+        if (!ok) {
+          bumpNews(`Insufficient buying power for ${qty} ${id}.`);
+          return;
+        }
+      } else {
+        if (cost > state.cash + 1e-9) {
+          bumpNews(`Not enough cash to buy ${qty} ${id}.`);
+          return;
+        }
+        state.cash -= cost;
+      }
+
+      const p = state.positions[id] || { qty: 0, avgCost: 0 };
+      const newQty = p.qty + qty;
+      const newCostBasis = (p.avgCost * p.qty + cost) / newQty;
+      state.positions[id] = { qty: newQty, avgCost: newCostBasis };
+
+      save();
+      safeRenderAll();
+      selectAsset(id);
+      bumpNews(`Bought ${qty} ${id} @ ${formatPrice(a.price)}.`);
+    }
 
 
     function doSell(id, qty) {
@@ -729,6 +732,17 @@
               safeRenderAll();
             }
           });
+        const accrueInterest = window.Upgrades?.accrueDailyInterest;
+        if (accrueInterest) {
+          accrueInterest({
+            getCash: () => state.cash,
+            setCash: (v) => {
+              state.cash = v;
+              safeRenderAll();
+            }
+          });
+        } else {
+          safeRenderAll();
         }
       });
     if (elReset)
