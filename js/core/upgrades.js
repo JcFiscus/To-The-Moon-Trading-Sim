@@ -49,3 +49,27 @@ export function purchaseUpgrade(state, id) {
   state.upgrades.cashSpent += def.price;
   return true;
 }
+
+/**
+ * Ensure upgrade state exists within the engine and surface the helper API
+ * that feature packs expect. Does not add any automatic behaviour beyond
+ * hydrating the state slice.
+ */
+export function registerUpgrades(engine) {
+  if (!engine || typeof engine.update !== "function") {
+    throw new Error("registerUpgrades requires a game engine instance");
+  }
+
+  engine.update((state) => {
+    ensureUpgradeState(state);
+  }, { save: false, render: false });
+
+  return {
+    ensureUpgradeState,
+    hasUpgrade,
+    canAfford,
+    purchaseUpgrade,
+    UPGRADE_IDS,
+    UPGRADE_DEF
+  };
+}

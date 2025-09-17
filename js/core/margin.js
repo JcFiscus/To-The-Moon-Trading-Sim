@@ -72,3 +72,38 @@ export function isUnderMaintenance(state, portfolioValue) {
   const req = MARGIN_PARAMS.maintenance * (portfolioValue || 0);
   return eq < req;
 }
+
+/**
+ * Register the margin subsystem against a running game engine.
+ * Ensures the margin state slice exists on load and wires daily
+ * interest accrual when the engine emits a day-end event.
+ *
+ * The returned API mirrors the standalone helpers so feature packs
+ * can continue to expose the same surface via window.ttm.margin.
+ */
+export function registerMargin(engine, { autoAccrueDailyInterest = true } = {}) {
+  if (!engine || typeof engine.update !== "function") {
+    throw new Error("registerMargin requires a game engine instance");
+  }
+
+  engine.update((state) => {
+    ensureMarginState(state);
+  }, { save: false, render: false });
+
+  if (autoAccrueDailyInterest && typeof engine.onDayEnd === "function") {
+    engine.onDayEnd((state, context = {}) => {
+      const days = Number.isFinite(context.days) ? context.days : 1;
+      accrueDailyInterest(state, days);
+    });
+  }
+
+  return {
+    ensureMarginState,
+    equity,
+    buyingPower,
+    buyWithMargin,
+    applyProceeds,
+    accrueDailyInterest,
+    isUnderMaintenance
+  };
+}
