@@ -36,7 +36,10 @@ export function createInitialState() {
     tick: 0,
     events: [],
     feed: [],
-    nextEventId: 1
+    nextEventId: 1,
+    pendingEvents: [],
+    eventHistory: {},
+    nextScenarioId: 1
   };
 }
 
@@ -109,7 +112,62 @@ function normalizeState(raw) {
     tick: Number.isFinite(raw.tick) ? raw.tick : base.tick,
     events: Array.isArray(raw.events) ? raw.events.map((event) => ({ ...event })) : [],
     feed: Array.isArray(raw.feed) ? raw.feed.slice(-60).map((entry) => ({ ...entry })) : [],
-    nextEventId: Number.isFinite(raw.nextEventId) ? raw.nextEventId : base.nextEventId
+    nextEventId: Number.isFinite(raw.nextEventId) ? raw.nextEventId : base.nextEventId,
+    pendingEvents: Array.isArray(raw.pendingEvents)
+      ? raw.pendingEvents
+          .map((entry) => {
+            if (!entry || typeof entry !== "object") return null;
+            const instanceId = Number.isFinite(entry.instanceId) ? entry.instanceId : null;
+            const definitionId = typeof entry.definitionId === "string" ? entry.definitionId : null;
+            if (instanceId == null || !definitionId) return null;
+            return {
+              instanceId,
+              definitionId,
+              label: typeof entry.label === "string" ? entry.label : "Scenario",
+              kind: typeof entry.kind === "string" ? entry.kind : "neutral",
+              triggeredDay: Number.isFinite(entry.triggeredDay) ? entry.triggeredDay : 0,
+              triggeredTick: Number.isFinite(entry.triggeredTick) ? entry.triggeredTick : 0,
+              phase: typeof entry.phase === "string" ? entry.phase : "dayStart",
+              context: entry.context && typeof entry.context === "object" ? { ...entry.context } : {},
+              description: typeof entry.description === "string" ? entry.description : "",
+              deadlineDay: Number.isFinite(entry.deadlineDay) ? entry.deadlineDay : null,
+              deadlineTick: Number.isFinite(entry.deadlineTick) ? entry.deadlineTick : null,
+              defaultChoiceId: typeof entry.defaultChoiceId === "string" ? entry.defaultChoiceId : null
+            };
+          })
+          .filter(Boolean)
+      : [],
+    eventHistory:
+      raw.eventHistory && typeof raw.eventHistory === "object"
+        ? Object.fromEntries(
+            Object.entries(raw.eventHistory).map(([key, value]) => {
+              if (!value || typeof value !== "object") {
+                return [key, {
+                  count: 0,
+                  lastTriggeredDay: null,
+                  lastResolvedDay: null,
+                  cooldownUntilDay: null,
+                  cooldownUntilTick: null,
+                  pendingInstance: null,
+                  lastChoice: null
+                }];
+              }
+              return [
+                key,
+                {
+                  count: Number.isFinite(value.count) ? value.count : 0,
+                  lastTriggeredDay: Number.isFinite(value.lastTriggeredDay) ? value.lastTriggeredDay : null,
+                  lastResolvedDay: Number.isFinite(value.lastResolvedDay) ? value.lastResolvedDay : null,
+                  cooldownUntilDay: Number.isFinite(value.cooldownUntilDay) ? value.cooldownUntilDay : null,
+                  cooldownUntilTick: Number.isFinite(value.cooldownUntilTick) ? value.cooldownUntilTick : null,
+                  pendingInstance: Number.isFinite(value.pendingInstance) ? value.pendingInstance : null,
+                  lastChoice: typeof value.lastChoice === "string" ? value.lastChoice : null
+                }
+              ];
+            })
+          )
+        : {},
+    nextScenarioId: Number.isFinite(raw.nextScenarioId) ? raw.nextScenarioId : base.nextScenarioId
   };
 
   // Ensure feed entries always have defaults.

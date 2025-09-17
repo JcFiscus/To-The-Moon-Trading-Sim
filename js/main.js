@@ -1,5 +1,7 @@
 import { createGameEngine, createInitialState } from "./core/gameEngine.js";
 import { createMarketModel } from "./core/marketModel.js";
+import { createEventScheduler } from "./core/eventScheduler.js";
+import { EVENT_DEFINITION_MAP } from "./content/events.js";
 
 const DOM = {};
 let engine = null;
@@ -8,6 +10,7 @@ let chartCtx = null;
 let lastMsgTimeout = null;
 let upgradesConfigured = false;
 const marketModel = createMarketModel();
+let eventSystem = null;
 
 const fmtMoney = (n) =>
   (n < 0 ? "-$" : "$") +
@@ -37,6 +40,58 @@ const formatPrice = (price) => {
 
 const clock = (currentState) => `D${currentState.day} · T${currentState.tick}`;
 
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const evaluateMaybeFn = (value, payload) => {
+  if (typeof value === "function") {
+    try {
+      return value(payload);
+    } catch (error) {
+      console.error(error);
+      return null;
+    }
+  }
+  return value;
+};
+
+const predictChoiceKind = (choice, definition, state, context) => {
+  if (!choice) return definition?.kind ?? "neutral";
+  const payload = { state, context, choice, definition };
+  const outcomeKind = evaluateMaybeFn(choice.outcome?.kind, payload);
+  return (typeof outcomeKind === "string" && outcomeKind) || choice.kind || definition?.kind || "neutral";
+};
+
+const checkChoiceRequirements = (choice, definition, state, context) => {
+  if (!choice || typeof choice.requirements !== "function") return true;
+  try {
+    return !!choice.requirements({ state, context, choice, definition });
+  } catch (error) {
+    console.error(error);
+    return false;
+  }
+};
+
+const choiceDescription = (choice, definition, state, context) => {
+  if (!choice) return "";
+  const payload = { state, context, choice, definition };
+  const desc = evaluateMaybeFn(choice.description, payload);
+  return typeof desc === "string" ? desc : "";
+};
+
+const choiceDisabledReason = (choice, definition, state, context) => {
+  if (!choice) return "";
+  const payload = { state, context, choice, definition };
+  const reason = evaluateMaybeFn(choice.disabledReason, payload);
+  if (typeof reason === "string" && reason.trim()) return reason;
+  return "Requirements not met.";
+};
+
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init, { once: true });
 } else {
@@ -49,6 +104,20 @@ function init() {
 
   engine = createGameEngine();
   state = engine.getState();
+
+  eventSystem = createEventScheduler({
+    engine,
+    logFeed: (inlineState, entry) => {
+      if (!inlineState) return;
+      logFeedEntry(inlineState, entry);
+    },
+    applyEffect: (inlineState, eventDef) => {
+      if (!inlineState || !eventDef) return null;
+      return createEvent(inlineState, eventDef);
+    },
+    random: Math.random
+  });
+  eventSystem.bootstrap(state);
 
   ensureSelection(state);
 
@@ -107,6 +176,9 @@ function cacheDom() {
   DOM.driversList = $("#drivers-list");
   DOM.feed = $("#feed");
 
+  DOM.eventPanel = $("#event-panel");
+  DOM.eventList = $("#event-queue");
+
   DOM.chart = $("#chart");
 }
 
@@ -134,6 +206,7 @@ function setupListeners() {
       engine.clearSave();
       engine.reset(createInitialState());
       state = engine.getState();
+      if (eventSystem) eventSystem.bootstrap(state);
       ensureSelection(state);
       bumpNews("Fresh start. Your future mistakes haven’t happened yet.");
       pushFeed({ text: "New game." });
@@ -156,6 +229,19 @@ function setupListeners() {
         return;
       }
       setSelected(id);
+    });
+  }
+
+  if (DOM.eventList) {
+    DOM.eventList.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-event-choice]");
+      if (!button || button.disabled) return;
+      const instanceId = Number(button.getAttribute("data-event-id"));
+      if (!Number.isFinite(instanceId)) return;
+      const choiceId = button.getAttribute("data-choice-id") || null;
+      if (eventSystem) {
+        eventSystem.resolve(instanceId, choiceId);
+      }
     });
   }
 
@@ -239,16 +325,8 @@ function decayRecentTrades(currentState, sequence) {
 }
 
 function handleTick(currentState) {
-  if (Math.random() < 0.04 && currentState.assets.length) {
-    const asset = randomAsset(currentState);
-    const up = Math.random() < 0.5;
-    createEvent(currentState, {
-      label: `${up ? "Rumor surge" : "Short report"} on ${asset.id}`,
-      kind: up ? "good" : "bad",
-      targetId: asset.id,
-      durationTicks: 24,
-      effect: { volMult: 1.6, driftShift: up ? 0.003 : -0.003 }
-    });
+  if (eventSystem) {
+    eventSystem.onTick(currentState);
   }
 
   cleanupExpiredEvents(currentState);
@@ -372,11 +450,6 @@ function findAsset(currentState, id) {
   return currentState.assets?.find((asset) => asset.id === id) || null;
 }
 
-function randomAsset(currentState) {
-  if (!currentState.assets || currentState.assets.length === 0) return null;
-  return currentState.assets[(Math.random() * currentState.assets.length) | 0];
-}
-
 function cleanupExpiredEvents(currentState) {
   const nowTick = currentState.tick;
   currentState.events = currentState.events.filter((event) => {
@@ -412,46 +485,10 @@ function createEvent(currentState, { label, kind = "neutral", targetId = null, d
 
 function startNewDay(currentState) {
   cleanupExpiredEvents(currentState);
-  pushFeed({ text: `Day ${currentState.day} begins.` }, { state: currentState });
-
-  if (Math.random() >= 0.6) return;
-
-  const roll = Math.random();
-  if (roll < 0.25) {
-    createEvent(currentState, {
-      label: "Calm markets",
-      kind: "good",
-      durationDays: 1,
-      effect: { volMult: 0.8 }
-    });
-  } else if (roll < 0.5) {
-    createEvent(currentState, {
-      label: "Volatility spike",
-      kind: "bad",
-      durationDays: 1,
-      effect: { volMult: 1.4 }
-    });
-  } else if (roll < 0.75) {
-    const asset = randomAsset(currentState);
-    if (!asset) return;
-    createEvent(currentState, {
-      label: `Analyst upgrade on ${asset.id}`,
-      kind: "good",
-      targetId: asset.id,
-      durationDays: 1,
-      effect: { driftShift: 0.002 }
-    });
-  } else {
-    const asset = randomAsset(currentState);
-    if (!asset) return;
-    createEvent(currentState, {
-      label: `Regulator scrutiny on ${asset.id}`,
-      kind: "bad",
-      targetId: asset.id,
-      durationDays: 1,
-      effect: { driftShift: -0.002 }
-    });
+  if (eventSystem) {
+    eventSystem.onDayStart(currentState);
   }
+  pushFeed({ text: `Day ${currentState.day} begins.` }, { state: currentState });
 }
 
 function stepAll(currentState, steps = 1, varianceBoost = 1.0) {
@@ -582,6 +619,7 @@ function renderAll(currentState) {
   renderHUD(currentState);
   renderTable(currentState);
   renderDetail(currentState);
+  renderEventQueue(currentState);
   renderFeed(currentState);
 }
 
@@ -670,6 +708,92 @@ function renderDetail(currentState) {
   }
 }
 
+function renderEventQueue(currentState) {
+  if (!DOM.eventList) return;
+  const queue = Array.isArray(currentState.pendingEvents) ? currentState.pendingEvents : [];
+  if (DOM.eventPanel) {
+    DOM.eventPanel.classList.toggle("panel--events-empty", queue.length === 0);
+  }
+  if (queue.length === 0) {
+    DOM.eventList.innerHTML = '<div class="event-empty"><span class="meta">No active scenarios.</span></div>';
+    return;
+  }
+
+  const cards = queue.map((pending) => renderEventCard(pending, currentState)).filter(Boolean);
+  DOM.eventList.innerHTML = cards.length
+    ? cards.join("")
+    : '<div class="event-empty"><span class="meta">No active scenarios.</span></div>';
+}
+
+function renderEventCard(pending, currentState) {
+  if (!pending) return "";
+  const definition = pending.definitionId ? EVENT_DEFINITION_MAP.get(pending.definitionId) : null;
+  const context = pending.context && typeof pending.context === "object" ? pending.context : {};
+  const labelText = pending.label || definition?.label || "Event";
+  const fallbackDescription = definition
+    ? evaluateMaybeFn(definition.description, { state: currentState, context, definition })
+    : null;
+  const description = pending.description || (typeof fallbackDescription === "string" ? fallbackDescription : "");
+  const kind = pending.kind || definition?.kind || "neutral";
+  const kindTag = kind === "good" ? "tag--good" : kind === "bad" ? "tag--bad" : "tag--neutral";
+  const kindLabel = kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : "Neutral";
+  const deadlineBits = [];
+  if (Number.isFinite(pending.deadlineDay)) deadlineBits.push(`D${pending.deadlineDay}`);
+  if (Number.isFinite(pending.deadlineTick)) deadlineBits.push(`T${pending.deadlineTick}`);
+  const deadlineLabel = deadlineBits.length ? `Resolve by ${deadlineBits.join(" · ")}` : "No fixed deadline";
+  const assetTag = context.assetId
+    ? `<span class="event-card__asset">${escapeHtml(context.assetId)}</span>`
+    : "";
+
+  const choices = Array.isArray(definition?.choices) ? definition.choices : [];
+  const renderedChoices = choices.length
+    ? choices
+        .map((choice) => renderEventChoice(choice, definition, pending, currentState))
+        .join("")
+    : '<li class="event-choice"><div class="event-choice__body"><p>No actions available.</p></div></li>';
+
+  return `
+    <article class="event-card" data-event-instance="${pending.instanceId}">
+      <header class="event-card__header">
+        <div class="event-card__title">
+          <span class="tag ${kindTag}">${escapeHtml(kindLabel)}</span>
+          <strong>${escapeHtml(labelText)}</strong>
+          ${assetTag}
+        </div>
+        <div class="event-card__deadline">${escapeHtml(deadlineLabel)}</div>
+      </header>
+      <p class="event-card__description">${description ? escapeHtml(description) : "—"}</p>
+      <ul class="event-card__choices">
+        ${renderedChoices}
+      </ul>
+    </article>
+  `;
+}
+
+function renderEventChoice(choice, definition, pending, currentState) {
+  if (!choice) return "";
+  const context = pending.context && typeof pending.context === "object" ? pending.context : {};
+  const allowed = checkChoiceRequirements(choice, definition, currentState, context);
+  const desc = choiceDescription(choice, definition, currentState, context);
+  const reason = !allowed ? choiceDisabledReason(choice, definition, currentState, context) : "";
+  const predictedKind = predictChoiceKind(choice, definition, currentState, context);
+  const className =
+    predictedKind === "good" ? "btn btn-primary" : predictedKind === "bad" ? "btn btn-danger" : "btn";
+  const choiceId = choice.id != null ? String(choice.id) : "";
+  const instanceId = String(pending.instanceId ?? "");
+  return `
+    <li class="event-choice">
+      <button type="button" class="${className}" data-event-choice data-event-id="${escapeHtml(instanceId)}" data-choice-id="${escapeHtml(choiceId)}" ${
+        allowed ? "" : "disabled"
+      }>${escapeHtml(choice.label || "Choose")}</button>
+      <div class="event-choice__body">
+        <p>${desc ? escapeHtml(desc) : "—"}</p>
+        ${!allowed && reason ? `<p class="event-choice__reason">${escapeHtml(reason)}</p>` : ""}
+      </div>
+    </li>
+  `;
+}
+
 function renderEffectsForSelected(currentState) {
   if (!DOM.effectsList) return;
   const id = currentState.selected;
@@ -693,6 +817,18 @@ function renderEffectsForSelected(currentState) {
         const cls = event.effect.driftShift > 0 ? "tag--good" : "tag--bad";
         const arrow = event.effect.driftShift > 0 ? "Drift ↑ " : "Drift ↓ ";
         tags.push(`<span class="tag ${cls}">${arrow}${event.effect.driftShift.toFixed(3)}</span>`);
+      }
+      if (Number.isFinite(event.effect?.liquidityShift) && event.effect.liquidityShift !== 0) {
+        const cls = event.effect.liquidityShift > 0 ? "tag--good" : "tag--bad";
+        const label = event.effect.liquidityShift > 0 ? "Liq ↑ " : "Liq ↓ ";
+        tags.push(
+          `<span class="tag ${cls}">${label}${Math.abs(event.effect.liquidityShift).toFixed(2)}</span>`
+        );
+      }
+      if (Number.isFinite(event.effect?.riskShift) && event.effect.riskShift !== 0) {
+        const cls = event.effect.riskShift > 0 ? "tag--bad" : "tag--good";
+        const label = event.effect.riskShift > 0 ? "Risk ↑ " : "Risk ↓ ";
+        tags.push(`<span class="tag ${cls}">${label}${Math.abs(event.effect.riskShift).toFixed(2)}</span>`);
       }
       const expiry = [];
       if (event.expiresAtTick != null) expiry.push(`T${event.expiresAtTick}`);
