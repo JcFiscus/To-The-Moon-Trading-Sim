@@ -116,7 +116,7 @@
     <p>Prototype v0.1. Prices are simulated. If you lose money here, that’s on your decision-making, not the physics engine.</p>
   </footer>
 
-  <script src="js/main.js"></script>
+  <script type="module" src="./js/main.js"></script>
   <script type="module" src="./js/core/upgrades.js"></script>
   <script type="module" src="./js/core/margin.js"></script>
   <script type="module" src="./js/core/insider.js"></script>
@@ -132,18 +132,27 @@
     let started = false;
     const tryStart = (game) => {
       if (started) return true;
-      if (!game || !game.state) return false;
+      if (!game || typeof game.getState !== "function") return false;
 
-      const getPortfolioValue =
-        typeof game.portfolioValue === "function"
-          ? () => game.portfolioValue()
-          : () => 0;
+      const getPortfolioValue = (state) => {
+        if (typeof game.portfolioValue === "function") {
+          return game.portfolioValue(state);
+        }
+        const snapshot = state ?? game.getState();
+        if (!snapshot || !Array.isArray(snapshot.assets)) return 0;
+        return snapshot.assets.reduce((sum, asset) => {
+          const pos = snapshot.positions?.[asset.id];
+          return sum + (pos ? pos.qty * asset.price : 0);
+        }, 0);
+      };
 
-      const getAssetIds = () =>
-        Array.isArray(game.state?.assets) ? game.state.assets.map((asset) => asset.id) : [];
+      const getAssetIds = (state) => {
+        const snapshot = state ?? game.getState();
+        if (!snapshot || !Array.isArray(snapshot.assets)) return [];
+        return snapshot.assets.map((asset) => asset.id);
+      };
 
-      init({
-        state: game.state,
+      init(game, {
         getPortfolioValue,
         getAssetIds
       });

@@ -61,3 +61,42 @@ export function applyInsiderBoost(state, assetId, basePrice) {
   // Guarantee no dip during the window
   return Math.max(basePrice, p);
 }
+
+/**
+ * Attach insider scheduling to the shared game engine.
+ * Automatically hydrates insider state and drives the tip scheduler
+ * from the engine's tick loop. Returns the raw helper API so hosts
+ * can forward the surface to window.ttm.insider.
+ */
+export function registerInsider(engine, { getAssetIds } = {}) {
+  if (!engine || typeof engine.update !== "function") {
+    throw new Error("registerInsider requires a game engine instance");
+  }
+
+  engine.update((state) => {
+    ensureInsiderState(state);
+  }, { save: false, render: false });
+
+  const assetIds = typeof getAssetIds === "function"
+    ? () => getAssetIds(engine.getState())
+    : () => {
+        const assets = engine.getState().assets || [];
+        return assets.map((asset) => asset.id);
+      };
+
+  if (typeof engine.onTick === "function") {
+    engine.onTick((state) => {
+      const now = Date.now();
+      maybeScheduleTip(state, now, assetIds());
+      clearIfExpired(state, now);
+    });
+  }
+
+  return {
+    ensureInsiderState,
+    maybeScheduleTip,
+    clearIfExpired,
+    activeTip,
+    applyInsiderBoost
+  };
+}
