@@ -58,7 +58,12 @@ export function init(engine, {
 
   const renderExtras = (state) => {
     const snapshot = state ?? engine.getState();
-    renderUpgradeShop(snapshot);
+    const upgradesUi = window.__TTM_UI__?.upgrades;
+    if (upgradesUi && typeof upgradesUi.render === "function") {
+      upgradesUi.render(snapshot);
+    } else {
+      renderUpgradeShop(snapshot);
+    }
     updateInsiderBanner(snapshot);
     renderHudPatch(snapshot, portfolioValueFn(snapshot));
   };
@@ -70,7 +75,12 @@ export function init(engine, {
   });
 
   const offState = engine.onStateChange((currentState) => {
-    renderUpgradeShop(currentState);
+    const upgradesUi = window.__TTM_UI__?.upgrades;
+    if (upgradesUi && typeof upgradesUi.render === "function") {
+      upgradesUi.render(currentState);
+    } else {
+      renderUpgradeShop(currentState);
+    }
   });
 
   exposeGlobals(engine, marginApi, insiderApi, upgradesApi);

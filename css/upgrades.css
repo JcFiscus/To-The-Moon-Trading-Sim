@@ -1,12 +1,71 @@
-/* Upgrade pack styles. Non-invasive. */
-#panel-upgrades { padding: 8px; }
-.upgrade-card { border: 1px solid #222; padding: 8px; margin: 6px 0; border-radius: 6px; }
-.upgrade-title { font-weight: 600; }
-.upgrade-desc { font-size: 0.9rem; opacity: 0.8; margin: 4px 0 8px; }
-.upgrade-cta { display: flex; justify-content: space-between; align-items: center; }
-#insider-banner { position: sticky; top: 0; padding: 6px 8px; border-bottom: 1px solid #333; background: #111; }
-#insider-banner.hidden { display: none; }
+/* Feature pack + optional overlays adopt the design tokens from styles.css */
+:root {
+  --upg-surface: rgba(12, 20, 38, 0.95);
+  --upg-border: rgba(255, 255, 255, 0.08);
+  --upg-text: #f1f4ff;
+  --upg-muted: #9aa6c8;
+}
 
-#ttm-hud { position: fixed; right: 8px; bottom: 8px; z-index: 50; }
-#ttm-hud .ttm-hud { background: rgba(0,0,0,0.6); padding: 8px 10px; border: 1px solid #222; border-radius: 6px; font-size: 12px; line-height: 1.3; }
-#ttm-hud .ttm-hud div { white-space: nowrap; }
+#panel-upgrades {
+  padding: var(--space-3, 0.75rem);
+}
+
+.upgrade-card {
+  border: 1px solid var(--upg-border);
+  padding: var(--space-3, 0.75rem);
+  margin: var(--space-2, 0.5rem) 0;
+  border-radius: var(--radius-md, 0.75rem);
+  background: var(--upg-surface);
+  color: var(--upg-text);
+}
+
+.upgrade-title {
+  font-weight: 600;
+}
+
+.upgrade-desc {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  margin: 0.35rem 0 0.6rem;
+}
+
+.upgrade-cta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#insider-banner {
+  position: sticky;
+  top: 0;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--upg-border);
+  background: rgba(14, 24, 46, 0.85);
+  color: var(--upg-text);
+}
+
+#insider-banner.hidden {
+  display: none;
+}
+
+#ttm-hud {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+}
+
+#ttm-hud .ttm-hud {
+  background: rgba(5, 9, 20, 0.75);
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--upg-border);
+  border-radius: var(--radius-md, 0.75rem);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: var(--upg-text);
+  box-shadow: 0 12px 28px rgba(5, 9, 20, 0.45);
+}
+
+#ttm-hud .ttm-hud div {
+  white-space: nowrap;
+}

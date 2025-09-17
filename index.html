@@ -11,121 +11,170 @@
   <noscript>This game needs JavaScript. Which, yes, is still a thing in 2025.</noscript>
 
   <header class="app-header">
-    <h1>🚀 To The Moon — Trading Sim</h1>
-    <div class="hud" role="status" aria-live="polite">
-      <div class="hud__row">
-        <span>Day <strong id="hud-day">1</strong></span>
-        <span>Cash <strong id="hud-cash">$10,000.00</strong></span>
-        <span>Equity <strong id="hud-equity">$10,000.00</strong></span>
-        <span>P&amp;L <strong id="hud-pl" class="pl--neutral">$0.00</strong></span>
+    <div class="app-header__intro">
+      <h1 class="app-header__title">🚀 To The Moon — Trading Sim</h1>
+      <p class="app-header__tagline">Prototype command deck. Built for fast iteration and questionable decisions.</p>
+    </div>
+    <div class="hud" data-module="hud" role="status" aria-live="polite">
+      <div class="hud__metrics">
+        <div class="hud-metric">
+          <span class="hud-metric__label">Day</span>
+          <strong class="hud-metric__value" data-field="day">1</strong>
+        </div>
+        <div class="hud-metric">
+          <span class="hud-metric__label">Cash</span>
+          <strong class="hud-metric__value" data-field="cash">$10,000.00</strong>
+        </div>
+        <div class="hud-metric">
+          <span class="hud-metric__label">Equity</span>
+          <strong class="hud-metric__value" data-field="equity">$10,000.00</strong>
+        </div>
+        <div class="hud-metric">
+          <span class="hud-metric__label">P&amp;L</span>
+          <strong class="hud-metric__value hud-metric__value--pl" data-field="pl">$0.00</strong>
+        </div>
       </div>
-      <div class="hud__row hud__controls">
-        <button id="btn-start" class="btn btn-primary">Start</button>
-        <button id="btn-end" class="btn">End Day</button>
-        <button id="btn-reset" class="btn btn-danger">Reset</button>
-        <button id="btn-meta" class="btn">Mission Control</button>
-        <span class="hint">Autosaves locally. No crypto wallet required. You're welcome.</span>
+      <div class="hud__actions">
+        <button class="btn btn-primary" data-action="toggle-run" data-tooltip="Start or pause the market clock">Start</button>
+        <button class="btn" data-action="end-day" data-tooltip="Advance to the next trading day">End Day</button>
+        <button class="btn btn-danger" data-action="reset-run" data-tooltip="Retire this run and cash out">Reset</button>
+        <button class="btn" data-action="open-meta" data-tooltip="Open Mission Control to spend research credits">Mission Control</button>
       </div>
+      <span class="hud__hint">Autosaves locally. No crypto wallet required. You're welcome.</span>
     </div>
   </header>
 
-  <main class="layout">
-    <section class="panel panel--left">
-      <div class="panel__header">
-        <h2>Market</h2>
-        <div class="qty-picker">
-          <label for="qty-global">Default Qty</label>
-          <input id="qty-global" type="number" min="1" step="1" value="10" />
+  <main id="dashboard" class="app-grid">
+    <section class="panel panel--market" data-module="market">
+      <header class="panel__header">
+        <div>
+          <h2>Market Radar</h2>
+          <p class="panel__subtitle">Live tickers, quick actions, and the pulse of chaos.</p>
         </div>
-      </div>
-
+        <div class="qty-picker" data-tooltip="Default quantity used for quick trades from the market table">
+          <label for="qty-global">Default Qty</label>
+          <input id="qty-global" data-element="default-qty" type="number" min="1" step="1" value="10" />
+        </div>
+      </header>
       <div class="table-wrap">
         <table class="table" aria-label="Market table">
           <thead>
             <tr>
-              <th>Ticker</th>
-              <th>Name</th>
-              <th class="num">Price</th>
-              <th class="num">Δ%</th>
-              <th class="num">Position</th>
-              <th class="num">Unrl. P&amp;L</th>
-              <th class="num">Actions</th>
+              <th scope="col">Ticker</th>
+              <th scope="col">Name</th>
+              <th scope="col" class="num">Price</th>
+              <th scope="col" class="num">Δ%</th>
+              <th scope="col" class="num">Position</th>
+              <th scope="col" class="num">Unrl. P&amp;L</th>
+              <th scope="col" class="num">Actions</th>
             </tr>
           </thead>
-          <tbody id="market-body">
-            <!-- rows inserted by JS -->
-          </tbody>
+          <tbody data-region="market-body"></tbody>
         </table>
+        <div class="table-empty" data-element="market-empty">No assets yet. Launch a run to load the market.</div>
       </div>
     </section>
 
-    <aside class="panel panel--right">
-      <h2 id="detail-title">Details</h2>
-
+    <section class="panel panel--detail" data-module="asset-detail">
+      <header class="panel__header">
+        <div>
+          <h2 data-element="detail-title">Asset Details</h2>
+          <p class="panel__subtitle">Inspect drivers and positions before you pull the trigger.</p>
+        </div>
+        <div class="detail-reason" data-element="detail-reason" aria-live="polite">Select an asset to inspect market context.</div>
+      </header>
       <div class="detail-card">
-        <div class="detail-line">
-          <span>Asset</span>
-          <strong id="detail-asset">—</strong>
-        </div>
-        <div class="detail-line">
-          <span>Price</span>
-          <strong id="detail-price">—</strong>
-        </div>
-        <div class="detail-line">
-          <span>Your Position</span>
-          <strong id="detail-position">—</strong>
+        <dl class="detail-grid">
+          <div class="detail-line">
+            <dt>Asset</dt>
+            <dd data-element="detail-asset">—</dd>
+          </div>
+          <div class="detail-line">
+            <dt>Price</dt>
+            <dd data-element="detail-price">—</dd>
+          </div>
+          <div class="detail-line">
+            <dt>Your Position</dt>
+            <dd data-element="detail-position">—</dd>
+          </div>
+        </dl>
+
+        <div class="detail-panels">
+          <section class="effects" aria-label="Active effects">
+            <div class="effects__title">Active Effects</div>
+            <ul class="effects__list" data-element="effects-list"></ul>
+          </section>
+
+          <section class="effects effects--drivers" aria-label="Price drivers">
+            <div class="effects__title">Price Drivers</div>
+            <ul class="effects__list" data-element="drivers-list"></ul>
+          </section>
         </div>
 
-        <div class="effects">
-          <div class="effects__title">Active Effects</div>
-          <ul id="effects-list" class="effects__list"></ul>
-        </div>
+        <canvas data-element="chart" width="560" height="240" aria-label="Price chart"></canvas>
 
-        <div class="effects effects--drivers">
-          <div class="effects__title">Price Drivers</div>
-          <ul id="drivers-list" class="effects__list"></ul>
-        </div>
-
-        <canvas id="chart" width="560" height="240" aria-label="Price chart"></canvas>
-
-        <div class="trade-controls">
-          <label for="trade-qty">Qty</label>
-          <input id="trade-qty" type="number" min="1" step="1" value="10" />
-          <button id="btn-buy" class="btn btn-primary">Buy</button>
-          <button id="btn-sell" class="btn">Sell</button>
-        </div>
-
-        <div id="messages" class="messages" aria-live="polite"></div>
+        <section class="trade-shell" data-module="trade-controls">
+          <header class="trade-shell__header">
+            <h3>Trade Controls</h3>
+            <span class="trade-shell__asset" data-element="trade-asset">Select an asset from the market table.</span>
+          </header>
+          <div class="trade-controls">
+            <label for="trade-qty">Qty</label>
+            <input id="trade-qty" data-element="trade-qty" type="number" min="1" step="1" value="10" />
+            <button class="btn btn-primary" data-action="trade-buy" data-tooltip="Submit a buy order for the selected asset">Buy</button>
+            <button class="btn" data-action="trade-sell" data-tooltip="Submit a sell order for the selected asset">Sell</button>
+          </div>
+          <div class="trade-confirm is-hidden" data-element="trade-message" role="status" aria-live="polite"></div>
+        </section>
       </div>
+    </section>
+
+    <section class="panel panel--events" data-module="events">
+      <header class="panel__header">
+        <div>
+          <h2>Situation Room</h2>
+          <p class="panel__subtitle">Story events with lasting market impact.</p>
+        </div>
+      </header>
+      <div class="event-queue" data-region="event-list">
+        <div class="event-empty" data-element="events-empty"><span class="meta">No active scenarios.</span></div>
+      </div>
+    </section>
+
+    <section class="panel panel--feed" data-module="news">
+      <header class="panel__header">
+        <div>
+          <h2>News Feed</h2>
+          <p class="panel__subtitle">Events apply temporary market effects. Because vibes move prices.</p>
+        </div>
+      </header>
+      <ul class="feed" data-region="news-list" aria-live="polite"></ul>
+      <div class="feed-empty" data-element="news-empty">Waiting for market chatter…</div>
+    </section>
+
+    <aside class="panel panel--upgrades" data-module="upgrade-shop">
+      <header class="panel__header">
+        <div>
+          <h2>Upgrade Hangar</h2>
+          <p class="panel__subtitle">Invest in tech that rewrites the rules mid-run.</p>
+        </div>
+      </header>
+      <div id="insider-banner" class="insider-banner hidden" role="status" aria-live="polite"></div>
+      <div class="upgrade-status is-hidden" data-element="upgrade-status" aria-live="polite"></div>
+      <div class="upgrade-grid" data-region="upgrade-list"></div>
     </aside>
 
-    <section id="event-panel" class="panel panel--events">
-      <div class="panel__header">
-        <h2>Situation Room</h2>
-        <span class="hint">Make the call before the market does.</span>
+    <aside class="panel panel--meta-preview">
+      <header class="panel__header">
+        <div>
+          <h2>Mission Brief</h2>
+          <p class="panel__subtitle">Space reserved for tutorials, goals, or meta progression.</p>
+        </div>
+      </header>
+      <div class="meta-preview">
+        <p>Coming soon: guideposts for your next moonshot. Feature packs can mount here without reworking the dashboard layout.</p>
       </div>
-      <div id="event-queue" class="event-queue">
-        <div class="event-empty"><span class="meta">No active scenarios.</span></div>
-      </div>
-    </section>
-
-    <section class="panel panel--feed">
-      <div class="panel__header">
-        <h2>News Feed</h2>
-        <span class="hint">Events apply temporary market effects. Because vibes move prices.</span>
-      </div>
-      <ul id="feed" class="feed" aria-live="polite"></ul>
-    </section>
-    
-    <!-- Insider banner -->
-    <div id="insider-banner" class="hidden"></div>
-    
-    <!-- Upgrade Shop -->
-    <section id="panel-upgrades">
-      <h3>Upgrades</h3>
-      <div id="upgrades"></div>
-    </section>
-
+    </aside>
   </main>
 
   <div id="meta-layer" class="meta-layer" aria-hidden="true">
