@@ -186,6 +186,44 @@
     </aside>
   </main>
 
+  <div id="daily-briefing" class="daily-briefing" aria-hidden="true">
+    <div class="daily-briefing__dialog" role="dialog" aria-modal="true" aria-labelledby="daily-briefing-title" tabindex="-1">
+      <button class="daily-briefing__close" type="button" data-action="briefing-dismiss" aria-label="Dismiss daily briefing">×</button>
+      <header class="daily-briefing__header">
+        <p class="daily-briefing__eyebrow">Daily Briefing</p>
+        <h2 id="daily-briefing-title" data-field="title">End of day summary</h2>
+        <p class="daily-briefing__lede" data-field="lede">Daily telemetry will appear here once the market closes.</p>
+      </header>
+      <section class="daily-briefing__section">
+        <h3>Key Metrics</h3>
+        <dl class="daily-briefing__metrics" data-region="metrics"></dl>
+      </section>
+      <section class="daily-briefing__section">
+        <h3>Highlights</h3>
+        <div class="daily-briefing__highlights">
+          <article class="daily-briefing__card" data-region="best">
+            <h4>Top Performer</h4>
+            <p class="daily-briefing__placeholder">Awaiting intel…</p>
+          </article>
+          <article class="daily-briefing__card" data-region="worst">
+            <h4>Lagging Asset</h4>
+            <p class="daily-briefing__placeholder">Awaiting intel…</p>
+          </article>
+        </div>
+      </section>
+      <section class="daily-briefing__section">
+        <h3>Notable Signals</h3>
+        <ul class="daily-briefing__events" data-region="events">
+          <li class="daily-briefing__placeholder">No reports yet.</li>
+        </ul>
+      </section>
+      <footer class="daily-briefing__footer">
+        <button class="btn" type="button" data-action="briefing-dismiss">Dismiss</button>
+        <button class="btn btn-primary" type="button" data-action="briefing-next">Launch Next Day</button>
+      </footer>
+    </div>
+  </div>
+
   <div id="meta-layer" class="meta-layer" aria-hidden="true">
     <div class="meta-dialog" role="dialog" aria-modal="true" aria-labelledby="meta-title">
       <button id="btn-meta-close" class="meta-close" aria-label="Close mission control">×</button>
