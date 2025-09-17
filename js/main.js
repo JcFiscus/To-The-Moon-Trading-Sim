@@ -31,6 +31,7 @@ import { createAssetDetailController } from "./ui/assetDetail.js";
 import { createTradeControlsController } from "./ui/tradeControls.js";
 import { createNewsFeedController } from "./ui/newsFeed.js";
 import { createEventQueueController } from "./ui/eventQueue.js";
+import { createDailySummaryController } from "./ui/dailySummary.js";
 import { createUpgradeShopController } from "./ui/upgrades.js";
 import { updateInsiderBanner } from "./ui/insiderBanner.js";
 
@@ -164,6 +165,7 @@ function setupControllers() {
       }
     }
   });
+  controllers.dailySummary = createDailySummaryController();
   controllers.upgrades = createUpgradeShopController({
     onRequestPurchase: (id) => {
       if (!engine || !id) return { success: false };
@@ -191,9 +193,6 @@ function setupControllers() {
     onEndDay: () => {
       if (!engine) return;
       engine.endDay({ overnightSteps: 6, varianceBoost: 1.8, reason: "manual" });
-      if (typeof engine.restartDayTimer === "function") {
-        engine.restartDayTimer();
-      }
       bumpNews("Market closed. Overnight risk intensifies. Try not to panic.");
     },
     onReset: () => {
@@ -218,7 +217,8 @@ function setupControllers() {
     trade: controllers.trade,
     news: controllers.news,
     upgrades: controllers.upgrades,
-    events: controllers.events
+    events: controllers.events,
+    dailySummary: controllers.dailySummary
   };
 }
 
@@ -523,32 +523,93 @@ function handleDayEnd(currentState, context = {}) {
   } else {
     currentState.lastDaySummary = null;
   }
-  currentState.day += 1;
-  startNewDay(currentState);
 
-  const accrueInterest = window.Upgrades?.accrueDailyInterest;
-  if (typeof accrueInterest === "function") {
-    accrueInterest({
-      getCash: () => currentState.cash,
-      setCash: (value) => {
-        currentState.cash = value;
-      }
+  const formatSummaryMoney = (value) => {
+    if (!Number.isFinite(value)) return "—";
+    const prefix = value > 0 ? "+" : "";
+    return `${prefix}${fmtMoney(value)}`;
+  };
+
+  const summaryPayload = currentState.lastDaySummary;
+  if (summaryPayload) {
+    const netTone = Number.isFinite(summaryPayload.netChange)
+      ? summaryPayload.netChange > 0
+        ? "good"
+        : summaryPayload.netChange < 0
+          ? "bad"
+          : "neutral"
+      : "neutral";
+    const dayLabel = Number.isFinite(summaryPayload.day) ? summaryPayload.day : currentState.day;
+    logFeedEntry(currentState, {
+      text: `Day ${dayLabel} closed ${formatSummaryMoney(summaryPayload.netChange)} (Realized ${formatSummaryMoney(summaryPayload.realizedDelta)}, Unrealized ${formatSummaryMoney(summaryPayload.unrealizedDelta)}).`,
+      kind: netTone
     });
   }
-  refreshDailyMetrics(currentState);
 
-  const metrics = updateRunStats(currentState, { dayTick: true });
-  const portfolio = Number.isFinite(metrics.portfolioValue) ? metrics.portfolioValue : portfolioValue(currentState);
-  const debt = Number.isFinite(metrics.debt) ? metrics.debt : currentState.margin?.debt ?? 0;
-  const maintenanceRequirement = portfolio * (MARGIN_PARAMS?.maintenance ?? 0.25);
-  const underMaintenance = debt > 0 && metrics.netWorth < maintenanceRequirement;
-  noteMaintenanceStrike(currentState, underMaintenance);
-  const outcome = evaluateEndCondition(currentState, { netWorth: metrics.netWorth });
-  if (outcome) {
-    completeRun(outcome);
+  const wasRunning = engine?.isRunning?.() ?? false;
+  if (engine) {
+    engine.pause();
   }
-  if (!outcome && engine && typeof engine.restartDayTimer === "function") {
-    engine.restartDayTimer();
+
+  let advanced = false;
+  const continueToNextDay = () => {
+    if (advanced) return;
+    advanced = true;
+    let outcome = null;
+    const advanceState = (draft) => {
+      draft.day += 1;
+      startNewDay(draft);
+
+      const accrueInterest = window.Upgrades?.accrueDailyInterest;
+      if (typeof accrueInterest === "function") {
+        accrueInterest({
+          getCash: () => draft.cash,
+          setCash: (value) => {
+            draft.cash = value;
+          }
+        });
+      }
+
+      refreshDailyMetrics(draft);
+      const metrics = updateRunStats(draft, { dayTick: true });
+      const portfolio = Number.isFinite(metrics.portfolioValue) ? metrics.portfolioValue : portfolioValue(draft);
+      const debt = Number.isFinite(metrics.debt) ? metrics.debt : draft.margin?.debt ?? 0;
+      const maintenanceRequirement = portfolio * (MARGIN_PARAMS?.maintenance ?? 0.25);
+      const underMaintenance = debt > 0 && metrics.netWorth < maintenanceRequirement;
+      noteMaintenanceStrike(draft, underMaintenance);
+      return evaluateEndCondition(draft, { netWorth: metrics.netWorth });
+    };
+
+    if (engine) {
+      engine.update((draft) => {
+        outcome = advanceState(draft);
+      }, { save: true });
+    } else {
+      outcome = advanceState(currentState);
+    }
+
+    if (outcome) {
+      completeRun(outcome);
+      return;
+    }
+
+    if (engine) {
+      if (typeof engine.restartDayTimer === "function") {
+        engine.restartDayTimer();
+      }
+      if (wasRunning) {
+        engine.start();
+      }
+    }
+  };
+
+  if (controllers.dailySummary && typeof controllers.dailySummary.show === "function") {
+    controllers.dailySummary.show(summaryPayload, {
+      onDismiss: continueToNextDay,
+      onLaunchNextDay: continueToNextDay
+    });
+  } else {
+    continueToNextDay();
   }
 }
 
