@@ -116,6 +116,8 @@ body{
 .effects{margin:8px 0 6px}
 .effects__title{color:var(--muted);font-size:12px;margin-bottom:6px}
 .effects__list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.effects--drivers{margin-top:12px}
+.effects--drivers .effects__title{color:#f8fafc}
 .effect{
   display:flex;justify-content:space-between;gap:10px;
   background:#0c1224;border:1px solid var(--line);border-radius:8px;padding:6px 8px
@@ -125,6 +127,13 @@ body{
 .tag--good{color:var(--good);background:color-mix(in srgb, var(--good) 18%, transparent)}
 .tag--bad{color:var(--bad);background:color-mix(in srgb, var(--bad) 18%, transparent)}
 .tag--neutral{color:#cbd5e1;background:#0b1426}
+.tag--player{color:#38bdf8;background:color-mix(in srgb,#38bdf8 24%,transparent)}
+.tag--sentiment{color:#f97316;background:color-mix(in srgb,#f97316 22%,transparent)}
+.tag--macro{color:#facc15;background:color-mix(in srgb,#facc15 22%,transparent)}
+.tag--event{color:#fb7185;background:color-mix(in srgb,#fb7185 22%,transparent)}
+.tag--volatility{color:#a855f7;background:color-mix(in srgb,#a855f7 22%,transparent)}
+.tag--baseline{color:#94a3b8;background:color-mix(in srgb,#94a3b8 18%,transparent)}
+.tag--noise{color:#cbd5f5;background:color-mix(in srgb,#cbd5f5 12%,transparent)}
 .effect .meta{color:var(--muted);font-size:12px}
 
 /* Feed */

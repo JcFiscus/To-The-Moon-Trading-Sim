@@ -1,4 +1,5 @@
 import { createGameEngine, createInitialState } from "./core/gameEngine.js";
+import { createMarketModel } from "./core/marketModel.js";
 
 const DOM = {};
 let engine = null;
@@ -6,6 +7,7 @@ let state = null;
 let chartCtx = null;
 let lastMsgTimeout = null;
 let upgradesConfigured = false;
+const marketModel = createMarketModel();
 
 const fmtMoney = (n) =>
   (n < 0 ? "-$" : "$") +
@@ -15,14 +17,6 @@ const fmtMoney = (n) =>
   });
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-
-const gaussian = () => {
-  let u = 0;
-  let v = 0;
-  while (u === 0) u = Math.random();
-  while (v === 0) v = Math.random();
-  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-};
 
 const parseQty = (value) => {
   const n = Math.floor(Number(value));
@@ -110,6 +104,7 @@ function cacheDom() {
   DOM.message = $("#messages");
 
   DOM.effectsList = $("#effects-list");
+  DOM.driversList = $("#drivers-list");
   DOM.feed = $("#feed");
 
   DOM.chart = $("#chart");
@@ -205,6 +200,44 @@ function ensureSelection(currentState) {
   }
 }
 
+function recordTrade(currentState, { id, side, qty, price }) {
+  if (!currentState || !id || !Number.isFinite(qty) || qty <= 0) return;
+  if (!Array.isArray(currentState.recentTrades)) currentState.recentTrades = [];
+  const safePrice = Number.isFinite(price) ? price : 0;
+  const units = Math.max(1, Math.floor(qty));
+  currentState.recentTrades.push({
+    assetId: id,
+    side: side === "sell" ? "sell" : "buy",
+    qty: units,
+    price: safePrice,
+    notional: safePrice * units,
+    tick: Number.isFinite(currentState.tick) ? currentState.tick : 0,
+    day: Number.isFinite(currentState.day) ? currentState.day : 0
+  });
+  if (currentState.recentTrades.length > 200) {
+    currentState.recentTrades.splice(0, currentState.recentTrades.length - 200);
+  }
+}
+
+function decayRecentTrades(currentState, sequence) {
+  if (!currentState) return;
+  const seq = Number.isFinite(sequence) ? sequence : currentState.tick ?? 0;
+  const threshold = Math.floor(seq) - 360;
+  const currentDay = Number.isFinite(currentState.day) ? currentState.day : 0;
+  if (!Array.isArray(currentState.recentTrades)) {
+    currentState.recentTrades = [];
+    return;
+  }
+  currentState.recentTrades = currentState.recentTrades
+    .filter((trade) => {
+      if (!trade) return false;
+      if (trade.tick != null && trade.tick < threshold) return false;
+      if (trade.day != null && currentDay - trade.day > 2) return false;
+      return trade.qty > 0 && typeof trade.assetId === "string";
+    })
+    .slice(-200);
+}
+
 function handleTick(currentState) {
   if (Math.random() < 0.04 && currentState.assets.length) {
     const asset = randomAsset(currentState);
@@ -279,6 +312,7 @@ function doBuy(id, qty) {
     const newQty = existing.qty + qty;
     const newCostBasis = (existing.avgCost * existing.qty + cost) / newQty;
     draft.positions[id] = { qty: newQty, avgCost: newCostBasis };
+    recordTrade(draft, { id, side: "buy", qty, price: asset.price });
     draft.selected = id;
 
     bumpNews(`Bought ${qty} ${id} @ ${formatPrice(asset.price)}.`, { state: draft });
@@ -316,6 +350,7 @@ function doSell(id, qty) {
       draft.positions[id] = { qty: leftover, avgCost: position.avgCost };
     }
 
+    recordTrade(draft, { id, side: "sell", qty: actualQty, price: asset.price });
     draft.selected = id;
 
     const prefix = profit >= 0 ? "+" : "";
@@ -340,18 +375,6 @@ function findAsset(currentState, id) {
 function randomAsset(currentState) {
   if (!currentState.assets || currentState.assets.length === 0) return null;
   return currentState.assets[(Math.random() * currentState.assets.length) | 0];
-}
-
-function getModifiersForAsset(currentState, assetId) {
-  let volMult = 1.0;
-  let driftShift = 0.0;
-  for (const event of currentState.events) {
-    const applies = event.targetId == null || event.targetId === assetId;
-    if (!applies) continue;
-    if (event.effect?.volMult) volMult *= event.effect.volMult;
-    if (event.effect?.driftShift) driftShift += event.effect.driftShift;
-  }
-  return { volMult, driftShift };
 }
 
 function cleanupExpiredEvents(currentState) {
@@ -432,20 +455,70 @@ function startNewDay(currentState) {
 }
 
 function stepAll(currentState, steps = 1, varianceBoost = 1.0) {
-  for (let s = 0; s < steps; s++) {
-    for (const asset of currentState.assets) {
+  if (!currentState || !Array.isArray(currentState.assets)) return;
+  const assets = currentState.assets;
+  const baseTick = Number.isFinite(currentState.tick) ? currentState.tick : 0;
+
+  for (let stepIndex = 0; stepIndex < steps; stepIndex++) {
+    const sequence = baseTick + (steps > 1 ? stepIndex + 1 : 1);
+    decayRecentTrades(currentState, sequence);
+
+    for (let index = 0; index < assets.length; index++) {
+      const asset = assets[index];
+      if (!asset) continue;
+
       asset.prev = asset.price;
-      const modifiers = getModifiersForAsset(currentState, asset.id);
-      const vol = asset.volatility * varianceBoost * modifiers.volMult;
-      const drift = 0.0005 + modifiers.driftShift;
-      const shock = gaussian() * vol;
-      const pct = drift + shock;
-      const nextPrice = Math.max(0.0001, asset.price * (1 + pct));
+
+      const result = marketModel.evaluate({
+        asset,
+        state: currentState,
+        tickContext: {
+          varianceBoost,
+          stepIndex,
+          totalSteps: steps,
+          sequence,
+          tick: currentState.tick,
+          day: currentState.day,
+          assetIndex: index,
+          assetCount: assets.length,
+          isOvernight: steps > 1
+        }
+      });
+
       const boostFn = window.ttm?.insider?.applyInsiderBoost;
-      asset.price = boostFn ? boostFn(currentState, asset.id, nextPrice) : nextPrice;
-      asset.changePct = ((asset.price - asset.prev) / asset.prev) * 100;
+      const computedNext = Number.isFinite(result.nextPrice) ? result.nextPrice : asset.price;
+      const nextPrice = Math.max(0.0001, boostFn ? boostFn(currentState, asset.id, computedNext) : computedNext);
+
+      asset.price = nextPrice;
+      asset.changePct = asset.prev > 0 ? ((asset.price - asset.prev) / asset.prev) * 100 : 0;
+      if (!Array.isArray(asset.history)) asset.history = [];
       asset.history.push(asset.price);
       if (asset.history.length > 240) asset.history.shift();
+
+      const influences = Array.isArray(result.influences) ? result.influences : [];
+      asset.lastTickMeta = {
+        influences,
+        diagnostics: result.diagnostics || {},
+        flags: result.flags || {},
+        sequence,
+        volatility: result.volatility,
+        drift: result.drift,
+        shock: result.shock
+      };
+      asset.lastInfluences = influences;
+
+      if (Array.isArray(result.news) && result.news.length) {
+        for (const item of result.news) {
+          if (!item || !item.text) continue;
+          logFeedEntry(currentState, {
+            text: item.text,
+            kind: item.kind ?? "neutral",
+            targetId: item.targetId !== undefined ? item.targetId : asset.id,
+            effect: item.effect ?? {}
+          });
+        }
+      }
+
       if (window.Upgrades?.applyBiasOnTick) {
         window.Upgrades.applyBiasOnTick(asset);
       }
@@ -589,6 +662,7 @@ function renderDetail(currentState) {
   }
 
   renderEffectsForSelected(currentState);
+  renderDriversForSelected(currentState);
   drawChart(asset.history);
 
   if (DOM.tradeQty && DOM.qtyGlobal) {
@@ -636,6 +710,70 @@ function renderEffectsForSelected(currentState) {
       `;
     })
     .join("");
+}
+
+function renderDriversForSelected(currentState) {
+  if (!DOM.driversList) return;
+  const asset = findAsset(currentState, currentState.selected);
+  if (!asset || !asset.lastTickMeta) {
+    DOM.driversList.innerHTML = '<li class="effect"><span class="meta">No price drivers yet — make a move or wait for the next tick.</span></li>';
+    return;
+  }
+
+  const influences = Array.isArray(asset.lastTickMeta.influences) ? asset.lastTickMeta.influences : [];
+  if (influences.length === 0) {
+    DOM.driversList.innerHTML = '<li class="effect"><span class="meta">No major forces moved this asset on the last update.</span></li>';
+    return;
+  }
+
+  const flags = asset.lastTickMeta.flags || {};
+  const metaMessages = [];
+  if (flags.externalOverride) {
+    metaMessages.push('<li class="effect"><div class="effect__meta">External shocks overrode your order flow.</div></li>');
+  }
+  if (flags.playerDominant) {
+    metaMessages.push('<li class="effect"><div class="effect__meta">Your trading flow is steering the price for now.</div></li>');
+  }
+  if (flags.macroShock) {
+    metaMessages.push('<li class="effect"><div class="effect__meta">Macro regime turbulence is amplifying moves.</div></li>');
+  }
+  if (flags.highVolRegime && !flags.macroShock) {
+    metaMessages.push('<li class="effect"><div class="effect__meta">Volatility is running hotter than usual.</div></li>');
+  }
+
+  const rows = influences
+    .map((influence) => {
+      const label = influence.label ?? "Influence";
+      const typeClass = influence.type ? `tag--${influence.type}` : "tag--neutral";
+      const typeLabel = influence.typeLabel ?? (influence.type ? influence.type[0].toUpperCase() + influence.type.slice(1) : "Driver");
+      const magnitudePct = Number.isFinite(influence.magnitude) ? influence.magnitude * 100 : 0;
+      const magnitudeClass =
+        magnitudePct > 0.001 ? "tag--good" : magnitudePct < -0.001 ? "tag--bad" : "tag--neutral";
+      const magnitudeLabel =
+        Math.abs(magnitudePct) < 0.001 ? "≈0.00%" : `${magnitudePct > 0 ? "+" : ""}${magnitudePct.toFixed(2)}%`;
+      const volMult = Number.isFinite(influence.volMult) ? influence.volMult : 1;
+      const showVol = Math.abs(volMult - 1) > 0.05;
+      const volTag = showVol
+        ? `<span class="tag ${volMult > 1 ? "tag--bad" : "tag--good"}">Vol x${volMult.toFixed(2)}</span>`
+        : "";
+      const description = influence.description ? influence.description : "";
+      return `
+        <li class="effect">
+          <div class="effect__header">
+            <span class="tag ${typeClass}">${typeLabel}</span>
+            <strong>${label}</strong>
+          </div>
+          <div class="effect__meta">${description}</div>
+          <div class="effect__tags">
+            <span class="tag ${magnitudeClass}">${magnitudeLabel}</span>
+            ${volTag}
+          </div>
+        </li>
+      `;
+    })
+    .join("");
+
+  DOM.driversList.innerHTML = [...metaMessages, rows].join("");
 }
 
 function drawChart(history) {
