@@ -1,11 +1,15 @@
 // Bootstraps Margin + Insider + Shop + Persistence, and exposes globals.
 
-import { ensureUpgradeState } from "./core/upgrades.js";
-import { ensureMarginState, accrueDailyInterest } from "./core/margin.js";
-import { ensureInsiderState, maybeScheduleTip, clearIfExpired, applyInsiderBoost } from "./core/insider.js";
+import * as upgrades from "./core/upgrades.js";
+import * as margin from "./core/margin.js";
+import * as insider from "./core/insider.js";
 import { renderUpgradeShop } from "./ui/upgrades.js";
 import { updateInsiderBanner } from "./ui/insiderBanner.js";
 import { renderHudPatch } from "./ui/hudPatch.js";
+
+const { ensureUpgradeState } = upgrades;
+const { ensureMarginState, accrueDailyInterest } = margin;
+const { ensureInsiderState, maybeScheduleTip, clearIfExpired } = insider;
 
 // --- persistence (localStorage, our slices only) ---
 const LS_KEY = "ttm.upgrades.v1";
@@ -63,12 +67,10 @@ function tickOnce(state, getPV, getIds) {
 function exposeGlobals(api) {
   window.ttm = Object.freeze({
     ...api,
-    // Re-export frequently used helpers under a stable namespace
-    margin: await import("./core/margin.js"),
-    insider: await import("./core/insider.js"),
-    upgrades: await import("./core/upgrades.js"),
-    // Quick hook for price boost (for price model integration)
-    applyInsiderBoost: (state, assetId, basePrice) => applyInsiderBoost(state, assetId, basePrice),
+    margin: Object.freeze({ ...margin }),
+    insider: Object.freeze({ ...insider }),
+    upgrades: Object.freeze({ ...upgrades }),
+    applyInsiderBoost: insider.applyInsiderBoost,
   });
 }
 
