@@ -30,6 +30,7 @@ export function createInitialState() {
     realized: 0,
     assets: ASSET_DEFS.map(mkAssetRuntime),
     positions: {},
+    recentTrades: [],
     running: false,
     selected: "MOON",
     tick: 0,
@@ -69,6 +70,26 @@ function normalizeState(raw) {
   if (!raw || typeof raw !== "object") return createInitialState();
   const base = createInitialState();
 
+  const normalizeTrade = (entry) => {
+    if (!entry || typeof entry !== "object") return null;
+    const qty = Number.isFinite(entry.qty) ? Math.max(0, Math.floor(entry.qty)) : 0;
+    if (!qty) return null;
+    const price = Number.isFinite(entry.price) ? entry.price : 0;
+    const notional = Number.isFinite(entry.notional) ? entry.notional : price * qty;
+    const side = entry.side === "sell" ? "sell" : "buy";
+    const assetId = typeof entry.assetId === "string" ? entry.assetId : null;
+    if (!assetId) return null;
+    return {
+      assetId,
+      side,
+      qty,
+      price,
+      notional,
+      tick: Number.isFinite(entry.tick) ? entry.tick : 0,
+      day: Number.isFinite(entry.day) ? entry.day : 0
+    };
+  };
+
   const state = {
     day: Number.isFinite(raw.day) ? raw.day : base.day,
     cash: Number.isFinite(raw.cash) ? raw.cash : base.cash,
@@ -77,6 +98,12 @@ function normalizeState(raw) {
       ? raw.assets.map(normalizeAsset)
       : base.assets,
     positions: raw.positions && typeof raw.positions === "object" ? { ...raw.positions } : {},
+    recentTrades: Array.isArray(raw.recentTrades)
+      ? raw.recentTrades
+          .map(normalizeTrade)
+          .filter(Boolean)
+          .slice(-120)
+      : [],
     running: false,
     selected: typeof raw.selected === "string" ? raw.selected : base.selected,
     tick: Number.isFinite(raw.tick) ? raw.tick : base.tick,
