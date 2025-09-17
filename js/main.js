@@ -68,6 +68,7 @@
 
     let state = load() ?? initialState();
     let timer = null;
+    let upgradesConfigured = false;
 
     // ---------- DOM refs ----------
     const elDay = $("#hud-day");
@@ -365,6 +366,23 @@
         console.error(err);
         bumpNews("Render error. Recovered.");
       }
+    }
+
+    function configureUpgradesIntegration() {
+      if (upgradesConfigured) return;
+      if (!window.Upgrades || typeof window.Upgrades.configure !== "function") return;
+      window.Upgrades.configure({
+        getCash: () => state.cash,
+        setCash: (value) => {
+          state.cash = value;
+          save();
+          safeRenderAll();
+        },
+        getEquity: () => state.cash + portfolioValue(),
+        listAssetKeys: () =>
+          Array.isArray(state.assets) ? state.assets.map((asset) => asset.id) : []
+      });
+      upgradesConfigured = true;
     }
 
     function renderAll() {
@@ -702,7 +720,16 @@
         startNewDay();
         save();
         safeRenderAll();
-        Upgrades.accrueDailyInterest({ getCash:()=>state.cash, setCash:v=>{ state.cash=v; renderCash(v); } });
+        if (window.Upgrades && typeof window.Upgrades.accrueDailyInterest === "function") {
+          window.Upgrades.accrueDailyInterest({
+            getCash: () => state.cash,
+            setCash: (v) => {
+              state.cash = v;
+              save();
+              safeRenderAll();
+            }
+          });
+        }
       });
     if (elReset)
       elReset.addEventListener("click", () => {
@@ -744,6 +771,27 @@
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) pause();
     });
+
+    const ttmGameHandle = window.ttmGame || {};
+    Object.defineProperty(ttmGameHandle, "state", {
+      get: () => state,
+      configurable: true,
+      enumerable: true
+    });
+    ttmGameHandle.portfolioValue = portfolioValue;
+    ttmGameHandle.safeRenderAll = safeRenderAll;
+    window.ttmGame = ttmGameHandle;
+
+    configureUpgradesIntegration();
+    if (!upgradesConfigured) {
+      if (document.readyState === "complete") {
+        configureUpgradesIntegration();
+      } else {
+        window.addEventListener("load", configureUpgradesIntegration, { once: true });
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent("ttm:gameReady", { detail: window.ttmGame }));
 
     // Initial render
     if (state.feed.length === 0)
