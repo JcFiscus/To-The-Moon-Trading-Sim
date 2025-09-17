@@ -1,6 +1,7 @@
 const DEFAULT_SAVE_KEY = "ttm_v0_save";
 const DEFAULT_TICK_INTERVAL = 600;
 const DEFAULT_AUTOSAVE_TICKS = 16;
+const DEFAULT_DAY_DURATION_MS = 10000;
 
 export const ASSET_DEFS = [
   { id: "MOON", name: "Moon Mineral Co.", start: 50, volatility: 0.02 },
@@ -31,7 +32,8 @@ function mkAssetRuntime(def) {
 export function createInitialState({
   startingCash = 10000,
   assetIds,
-  runConfig
+  runConfig,
+  dayDurationMs = DEFAULT_DAY_DURATION_MS
 } = {}) {
   const chosenIds = Array.isArray(assetIds) && assetIds.length
     ? Array.from(new Set(assetIds))
@@ -55,6 +57,7 @@ export function createInitialState({
     running: false,
     selected: initialSelected,
     tick: 0,
+    dayRemainingMs: Number.isFinite(dayDurationMs) ? Math.max(0, dayDurationMs) : DEFAULT_DAY_DURATION_MS,
     events: [],
     feed: [],
     nextEventId: 1,
@@ -108,9 +111,9 @@ function normalizeAsset(asset = {}) {
   };
 }
 
-function normalizeState(raw) {
-  if (!raw || typeof raw !== "object") return createInitialState();
-  const base = createInitialState();
+function normalizeState(raw, { dayDurationMs = DEFAULT_DAY_DURATION_MS } = {}) {
+  if (!raw || typeof raw !== "object") return createInitialState({ dayDurationMs });
+  const base = createInitialState({ dayDurationMs });
 
   const normalizeTrade = (entry) => {
     if (!entry || typeof entry !== "object") return null;
@@ -149,6 +152,10 @@ function normalizeState(raw) {
     running: false,
     selected: typeof raw.selected === "string" ? raw.selected : base.selected,
     tick: Number.isFinite(raw.tick) ? raw.tick : base.tick,
+    dayRemainingMs:
+      Number.isFinite(raw.dayRemainingMs) && raw.dayRemainingMs >= 0
+        ? Math.min(Math.max(0, raw.dayRemainingMs), Math.max(0, dayDurationMs))
+        : base.dayRemainingMs,
     events: Array.isArray(raw.events) ? raw.events.map((event) => ({ ...event })) : [],
     feed: Array.isArray(raw.feed) ? raw.feed.slice(-60).map((entry) => ({ ...entry })) : [],
     nextEventId: Number.isFinite(raw.nextEventId) ? raw.nextEventId : base.nextEventId,
@@ -286,10 +293,21 @@ export function createGameEngine({
   state: providedState,
   storageKey = DEFAULT_SAVE_KEY,
   tickInterval = DEFAULT_TICK_INTERVAL,
-  autoSaveTicks = DEFAULT_AUTOSAVE_TICKS
+  autoSaveTicks = DEFAULT_AUTOSAVE_TICKS,
+  dayDurationMs = DEFAULT_DAY_DURATION_MS
 } = {}) {
-  let currentState = normalizeState(providedState ?? loadState({ storageKey }) ?? createInitialState());
+  let currentState = normalizeState(
+    providedState ?? loadState({ storageKey }) ?? createInitialState({ dayDurationMs }),
+    { dayDurationMs }
+  );
   currentState.running = false;
+
+  const dayLengthMs = Number.isFinite(dayDurationMs) && dayDurationMs > 0 ? dayDurationMs : DEFAULT_DAY_DURATION_MS;
+  if (!Number.isFinite(currentState.dayRemainingMs)) {
+    currentState.dayRemainingMs = dayLengthMs;
+  } else {
+    currentState.dayRemainingMs = Math.min(Math.max(0, currentState.dayRemainingMs), dayLengthMs);
+  }
 
   const tickHandlers = new Set();
   const dayHandlers = new Set();
@@ -297,6 +315,8 @@ export function createGameEngine({
   const stateHandlers = new Set();
 
   let timer = null;
+  let dayTimer = null;
+  let dayTimerExpiresAt = null;
 
   const context = {
     get state() {
@@ -304,8 +324,76 @@ export function createGameEngine({
     },
     requestSave,
     requestRender: renderNow,
-    storageKey
+    storageKey,
+    dayDurationMs: dayLengthMs,
+    getDayRemainingMs: () => computeDayRemaining()
   };
+
+  function clampDayRemaining(value) {
+    const numeric = Number.isFinite(value) ? value : dayLengthMs;
+    return Math.min(dayLengthMs, Math.max(0, numeric));
+  }
+
+  function computeDayRemaining() {
+    if (dayTimerExpiresAt != null) {
+      const remaining = Math.max(0, dayTimerExpiresAt - Date.now());
+      currentState.dayRemainingMs = clampDayRemaining(remaining);
+      return currentState.dayRemainingMs;
+    }
+    currentState.dayRemainingMs = clampDayRemaining(currentState.dayRemainingMs);
+    return currentState.dayRemainingMs;
+  }
+
+  function stopDayTimer({ preserve = true } = {}) {
+    if (dayTimer) {
+      clearTimeout(dayTimer);
+      dayTimer = null;
+    }
+    if (preserve && dayTimerExpiresAt != null) {
+      const remaining = Math.max(0, dayTimerExpiresAt - Date.now());
+      currentState.dayRemainingMs = clampDayRemaining(remaining);
+    }
+    dayTimerExpiresAt = null;
+  }
+
+  function setDayTimer(durationMs) {
+    const ms = clampDayRemaining(durationMs);
+    if (dayTimer) {
+      clearTimeout(dayTimer);
+      dayTimer = null;
+    }
+    currentState.dayRemainingMs = ms;
+    if (!currentState.running) {
+      dayTimerExpiresAt = null;
+      return ms;
+    }
+    const now = Date.now();
+    dayTimerExpiresAt = now + ms;
+    dayTimer = setTimeout(autoEndDay, Math.max(0, ms));
+    return ms;
+  }
+
+  function resumeDayTimer() {
+    const remaining = computeDayRemaining();
+    setDayTimer(remaining);
+  }
+
+  function restartDayTimer() {
+    setDayTimer(dayLengthMs);
+  }
+
+  function autoEndDay() {
+    dayTimer = null;
+    if (dayTimerExpiresAt != null) {
+      const remaining = Math.max(0, dayTimerExpiresAt - Date.now());
+      currentState.dayRemainingMs = clampDayRemaining(remaining);
+    }
+    dayTimerExpiresAt = null;
+    currentState.dayRemainingMs = 0;
+    notifyState();
+    renderNow();
+    endDay({ reason: "timer" });
+  }
 
   function safeCall(fn, ...args) {
     try {
@@ -316,6 +404,7 @@ export function createGameEngine({
   }
 
   function notifyState() {
+    computeDayRemaining();
     stateHandlers.forEach((handler) => safeCall(handler, currentState, context));
   }
 
@@ -328,6 +417,7 @@ export function createGameEngine({
   }
 
   function tickOnce() {
+    computeDayRemaining();
     currentState.tick = (currentState.tick ?? 0) + 1;
     tickHandlers.forEach((handler) => safeCall(handler, currentState, context));
     if (autoSaveTicks && currentState.tick % autoSaveTicks === 0) {
@@ -340,7 +430,9 @@ export function createGameEngine({
   function start() {
     if (timer) clearInterval(timer);
     currentState.running = true;
+    resumeDayTimer();
     timer = setInterval(tickOnce, tickInterval);
+    computeDayRemaining();
     notifyState();
   }
 
@@ -350,12 +442,16 @@ export function createGameEngine({
       timer = null;
     }
     currentState.running = false;
+    stopDayTimer({ preserve: true });
+    computeDayRemaining();
     notifyState();
   }
 
   function endDay(payload = {}) {
+    stopDayTimer({ preserve: false });
     const dayContext = { ...context, ...payload };
     dayHandlers.forEach((handler) => safeCall(handler, currentState, dayContext));
+    currentState.dayRemainingMs = dayLengthMs;
     requestSave();
     notifyState();
     renderNow();
@@ -386,7 +482,7 @@ export function createGameEngine({
     try {
       const next = mutator(currentState);
       if (next && next !== currentState) {
-        currentState = normalizeState(next);
+        currentState = normalizeState(next, { dayDurationMs: dayLengthMs });
       }
     } catch (error) {
       console.error(error);
@@ -397,13 +493,14 @@ export function createGameEngine({
   }
 
   function setState(nextState, { save = true, render = true } = {}) {
-    currentState = normalizeState(nextState);
+    currentState = normalizeState(nextState, { dayDurationMs: dayLengthMs });
+    currentState.dayRemainingMs = clampDayRemaining(currentState.dayRemainingMs);
     if (save) requestSave();
     notifyState();
     if (render) renderNow();
   }
 
-  function reset(newState = createInitialState()) {
+  function reset(newState = createInitialState({ dayDurationMs: dayLengthMs })) {
     pause();
     setState(newState, { save: true, render: true });
   }
@@ -432,15 +529,19 @@ export function createGameEngine({
     render: renderNow,
     requestSave,
     clearSave,
+    restartDayTimer,
+    getDayRemainingMs: () => computeDayRemaining(),
     isRunning: () => timer != null,
     get storageKey() {
       return storageKey;
     },
     tickInterval,
-    autoSaveTicks
+    autoSaveTicks,
+    dayDurationMs: dayLengthMs
   };
 
   context.engine = engine;
+  computeDayRemaining();
   notifyState();
 
   return engine;

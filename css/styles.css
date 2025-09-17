@@ -102,6 +102,61 @@ noscript {
   gap: var(--space-3);
 }
 
+.hud__timer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(21, 30, 56, 0.65), rgba(13, 22, 44, 0.55));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.hud-timer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.hud-timer__label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+}
+
+.hud-timer__value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.hud-timer__bar {
+  position: relative;
+  height: 0.45rem;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.hud-timer__progress {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(139, 92, 246, 0.85), rgba(59, 130, 246, 0.85));
+  transition: width 160ms linear;
+}
+
+.hud__timer[data-state="paused"] .hud-timer__progress {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.hud__timer[data-state="closing"] .hud-timer__progress {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.9), rgba(239, 68, 68, 0.9));
+}
+
 .hud-metric {
   display: flex;
   flex-direction: column;

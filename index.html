@@ -34,6 +34,15 @@
           <strong class="hud-metric__value hud-metric__value--pl" data-field="pl">$0.00</strong>
         </div>
       </div>
+      <div class="hud__timer" data-field="day-timer" data-state="paused" role="group" aria-label="Trading day countdown">
+        <div class="hud-timer__header">
+          <span class="hud-timer__label">Day Timer</span>
+          <span class="hud-timer__value" data-element="timer-label">Paused</span>
+        </div>
+        <div class="hud-timer__bar" data-element="timer-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-valuetext="Market paused">
+          <div class="hud-timer__progress" data-element="timer-progress" style="width: 100%;"></div>
+        </div>
+      </div>
       <div class="hud__actions">
         <button class="btn btn-primary" data-action="toggle-run" data-tooltip="Start or pause the market clock">Start</button>
         <button class="btn" data-action="end-day" data-tooltip="Advance to the next trading day">End Day</button>
