@@ -71,13 +71,20 @@ function normalizePhase(definition) {
   return [DEFAULT_PHASE];
 }
 
-function createEventScheduler({ engine, logFeed, applyEffect, random = Math.random } = {}) {
+function createEventScheduler({ engine, logFeed, applyEffect, random = Math.random, allowedEvents = null } = {}) {
   if (!engine) throw new Error("eventScheduler requires an engine instance");
   if (typeof logFeed !== "function") throw new Error("eventScheduler requires a logFeed handler");
   if (typeof applyEffect !== "function") throw new Error("eventScheduler requires an applyEffect handler");
 
+  const allowSet = Array.isArray(allowedEvents)
+    ? new Set(allowedEvents)
+    : allowedEvents instanceof Set
+      ? allowedEvents
+      : null;
+
   const definitionPhases = new Map();
   for (const def of EVENT_DEFINITIONS) {
+    if (allowSet && !allowSet.has(def.id)) continue;
     definitionPhases.set(def.id, normalizePhase(def));
   }
 
@@ -166,6 +173,7 @@ function createEventScheduler({ engine, logFeed, applyEffect, random = Math.rand
 
   function evaluatePhase(state, phase) {
     for (const def of EVENT_DEFINITIONS) {
+      if (allowSet && !allowSet.has(def.id)) continue;
       const phases = definitionPhases.get(def.id) ?? [DEFAULT_PHASE];
       if (!phases.includes(phase)) continue;
       evaluateDefinition(state, def, phase);

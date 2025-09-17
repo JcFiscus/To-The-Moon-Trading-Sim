@@ -8,8 +8,13 @@ export const ASSET_DEFS = [
   { id: "DOGE", name: "Dogecoin", start: 0.08, volatility: 0.06 },
   { id: "TSLA", name: "Teslor Motors", start: 240, volatility: 0.018 },
   { id: "BTC", name: "Bitcorn", start: 65000, volatility: 0.03 },
-  { id: "ETH", name: "Etheer", start: 3500, volatility: 0.035 }
+  { id: "ETH", name: "Etheer", start: 3500, volatility: 0.035 },
+  { id: "SOLAR", name: "HelioGrid Renewables", start: 62, volatility: 0.028, unlock: "global-access" },
+  { id: "OILX", name: "Petronova Crude ETN", start: 78, volatility: 0.022, unlock: "global-access" },
+  { id: "AIQ", name: "Sentience Systems ETF", start: 142, volatility: 0.026, unlock: "global-access" }
 ];
+
+export const CORE_ASSET_IDS = ["MOON", "STONK", "DOGE", "TSLA", "BTC", "ETH"];
 
 function mkAssetRuntime(def) {
   return {
@@ -23,23 +28,57 @@ function mkAssetRuntime(def) {
   };
 }
 
-export function createInitialState() {
+export function createInitialState({
+  startingCash = 10000,
+  assetIds,
+  runConfig
+} = {}) {
+  const chosenIds = Array.isArray(assetIds) && assetIds.length
+    ? Array.from(new Set(assetIds))
+    : [...CORE_ASSET_IDS];
+  const definitions = chosenIds
+    .map((id) => ASSET_DEFS.find((item) => item.id === id))
+    .filter(Boolean);
+  const assets = definitions.length ? definitions.map(mkAssetRuntime) : CORE_ASSET_IDS.map((id) => mkAssetRuntime(ASSET_DEFS.find((item) => item.id === id)));
+  const initialSelected = assets[0]?.id ?? CORE_ASSET_IDS[0];
+  const now = Date.now();
+
+  const netWorth = Number.isFinite(startingCash) ? startingCash : 10000;
+
   return {
     day: 1,
-    cash: 10000,
+    cash: startingCash,
     realized: 0,
-    assets: ASSET_DEFS.map(mkAssetRuntime),
+    assets,
     positions: {},
     recentTrades: [],
     running: false,
-    selected: "MOON",
+    selected: initialSelected,
     tick: 0,
     events: [],
     feed: [],
     nextEventId: 1,
     pendingEvents: [],
     eventHistory: {},
-    nextScenarioId: 1
+    nextScenarioId: 1,
+    run: {
+      id: `${now}`,
+      status: "pending",
+      startedAt: now,
+      config: runConfig
+        ? { ...runConfig, assetIds: Array.isArray(runConfig.assetIds) ? [...new Set(runConfig.assetIds)] : [...chosenIds] }
+        : { assetIds: [...chosenIds], startingCash },
+      stats: {
+        maxNetWorth: netWorth,
+        minNetWorth: netWorth,
+        lastNetWorth: netWorth,
+        days: 1,
+        trades: 0,
+        buyNotional: 0,
+        sellNotional: 0,
+        maintenanceStrikes: 0
+      }
+    }
   };
 }
 
@@ -186,6 +225,39 @@ function normalizeState(raw) {
     ...asset,
     history: asset.history.map((value) => (Number.isFinite(value) ? value : asset.price))
   }));
+
+  if (!Array.isArray(state.assets) || state.assets.length === 0) {
+    state.assets = CORE_ASSET_IDS.map((id) => {
+      const def = ASSET_DEFS.find((item) => item.id === id);
+      return mkAssetRuntime(def);
+    });
+  }
+
+  if (typeof state.selected !== "string" && state.assets.length) {
+    state.selected = state.assets[0].id;
+  }
+
+  const now = Date.now();
+  const rawRun = state.run && typeof state.run === "object" ? state.run : {};
+  const configAssetIds = Array.isArray(rawRun?.config?.assetIds) && rawRun.config.assetIds.length
+    ? Array.from(new Set(rawRun.config.assetIds.filter((id) => typeof id === "string")))
+    : state.assets.map((asset) => asset.id);
+  const runConfig = rawRun.config && typeof rawRun.config === "object"
+    ? { ...rawRun.config, assetIds: configAssetIds }
+    : { assetIds: configAssetIds, startingCash: Number.isFinite(state.cash) ? state.cash : 10000 };
+  if (!Number.isFinite(runConfig.startingCash)) {
+    runConfig.startingCash = Number.isFinite(state.cash) ? state.cash : 10000;
+  }
+
+  state.run = {
+    id: typeof rawRun.id === "string" ? rawRun.id : `${now}`,
+    status: typeof rawRun.status === "string" ? rawRun.status : "active",
+    startedAt: Number.isFinite(rawRun.startedAt) ? rawRun.startedAt : now,
+    endedAt: Number.isFinite(rawRun.endedAt) ? rawRun.endedAt : null,
+    reason: typeof rawRun.reason === "string" ? rawRun.reason : null,
+    config: runConfig,
+    stats: rawRun.stats && typeof rawRun.stats === "object" ? { ...rawRun.stats } : {}
+  };
 
   return state;
 }

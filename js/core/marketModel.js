@@ -30,7 +30,12 @@ function classifyRegime({ volatilityBias, drift }) {
   return "balanced";
 }
 
-export function createMarketModel() {
+export function createMarketModel({ volatilityMultiplier = 1, driftBonus = 0 } = {}) {
+  const modifiers = {
+    volatilityMultiplier: Number.isFinite(volatilityMultiplier) && volatilityMultiplier > 0 ? volatilityMultiplier : 1,
+    driftBonus: Number.isFinite(driftBonus) ? driftBonus : 0
+  };
+
   const sentiment = new Map();
   const lastNewsAt = new Map();
   const macro = {
@@ -94,8 +99,9 @@ export function createMarketModel() {
     macro.effectiveLiquidity = effectiveLiquidity;
     macro.effectiveRisk = effectiveRisk;
 
-    macro.volatilityBias = clamp(1 + effectiveRisk * 0.35, 0.55, 3.2) * volEvent;
-    macro.drift = driftEvent + macro.growth * 0.0007 + effectiveLiquidity * 0.0004;
+    const baseVolatility = clamp(1 + effectiveRisk * 0.35, 0.55, 3.2) * volEvent;
+    macro.volatilityBias = baseVolatility * modifiers.volatilityMultiplier;
+    macro.drift = driftEvent + macro.growth * 0.0007 + effectiveLiquidity * 0.0004 + modifiers.driftBonus;
     macro.sentimentShift = sentimentEvent * 0.4;
 
     const previousRegime = macro.regime;
@@ -472,5 +478,16 @@ export function createMarketModel() {
     };
   }
 
-  return { evaluate };
+  return {
+    evaluate,
+    setModifiers(next) {
+      if (!next || typeof next !== "object") return;
+      if (Number.isFinite(next.volatilityMultiplier) && next.volatilityMultiplier > 0) {
+        modifiers.volatilityMultiplier = next.volatilityMultiplier;
+      }
+      if (Number.isFinite(next.driftBonus)) {
+        modifiers.driftBonus = next.driftBonus;
+      }
+    }
+  };
 }
