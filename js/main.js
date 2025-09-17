@@ -1,7 +1,28 @@
-import { createGameEngine, createInitialState } from "./core/gameEngine.js";
+import { createGameEngine, createInitialState, loadState } from "./core/gameEngine.js";
 import { createMarketModel } from "./core/marketModel.js";
 import { createEventScheduler } from "./core/eventScheduler.js";
-import { EVENT_DEFINITION_MAP } from "./content/events.js";
+import { EVENT_DEFINITION_MAP, BASE_EVENT_IDS } from "./content/events.js";
+import {
+  updateRunStats,
+  recordTradeStats,
+  noteMaintenanceStrike,
+  evaluateEndCondition,
+  createRunSummary,
+  saveRunSummary,
+  loadRunHistory,
+  RUN_REASON_LABELS
+} from "./core/runSummary.js";
+import {
+  createInitialMetaState,
+  loadMetaState,
+  saveMetaState,
+  computeRunConfig,
+  listMetaUpgrades,
+  purchaseUpgrade as purchaseMetaUpgrade,
+  applyRunSummaryToMeta
+} from "./core/metaProgression.js";
+import { initMetaLayer, updateMetaLayer, showMetaLayer, hideMetaLayer } from "./ui/metaProgression.js";
+import { MARGIN_PARAMS } from "./core/margin.js";
 
 const DOM = {};
 let engine = null;
@@ -9,8 +30,13 @@ let state = null;
 let chartCtx = null;
 let lastMsgTimeout = null;
 let upgradesConfigured = false;
-const marketModel = createMarketModel();
+let marketModel = null;
 let eventSystem = null;
+let metaState = createInitialMetaState();
+let runHistory = [];
+let currentRunConfig = null;
+let hasSavedRun = false;
+let metaLayerReady = false;
 
 const fmtMoney = (n) =>
   (n < 0 ? "-$" : "$") +
@@ -92,19 +118,50 @@ const choiceDisabledReason = (choice, definition, state, context) => {
   return "Requirements not met.";
 };
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init, { once: true });
-} else {
-  init();
+function hasActiveRun() {
+  if (!state || !state.run) return false;
+  if (state.run.status === "ended") return false;
+  if (state.run.status === "pending" && (state.tick ?? 0) === 0) return false;
+  return true;
 }
 
-function init() {
-  cacheDom();
-  chartCtx = DOM.chart && DOM.chart.getContext ? DOM.chart.getContext("2d") : null;
+function canStartNewRun() {
+  if (!state || !state.run) return true;
+  if (state.run.status === "ended") return true;
+  if (state.run.status === "pending" && (state.tick ?? 0) === 0) return true;
+  return false;
+}
 
-  engine = createGameEngine();
-  state = engine.getState();
+function refreshMetaUI({ allowResume = hasActiveRun(), canStart = canStartNewRun() } = {}) {
+  if (!metaLayerReady) return;
+  const upgrades = listMetaUpgrades(metaState);
+  const summary = metaState?.lastSummary ?? null;
+  updateMetaLayer({
+    meta: metaState,
+    upgrades,
+    summary,
+    history: runHistory,
+    allowResume,
+    canStart
+  });
+}
 
+function handleMetaUpgradePurchase(id) {
+  if (!id || !metaState) return;
+  if (purchaseMetaUpgrade(metaState, id)) {
+    saveMetaState(metaState);
+    refreshMetaUI({ allowResume: hasActiveRun(), canStart: canStartNewRun() });
+  } else {
+    console.warn("Upgrade locked or insufficient currency", id);
+  }
+}
+
+function handleStartNewRun() {
+  if (!engine || !canStartNewRun()) return;
+  engine.pause();
+  const config = computeRunConfig(metaState);
+  currentRunConfig = config;
+  marketModel = createMarketModel(config.market ?? {});
   eventSystem = createEventScheduler({
     engine,
     logFeed: (inlineState, entry) => {
@@ -115,7 +172,98 @@ function init() {
       if (!inlineState || !eventDef) return null;
       return createEvent(inlineState, eventDef);
     },
-    random: Math.random
+    random: Math.random,
+    allowedEvents: config.events?.allowedIds ?? BASE_EVENT_IDS
+  });
+  engine.reset(createInitialState({
+    startingCash: config.startingCash,
+    assetIds: config.assetIds,
+    runConfig: config
+  }));
+  state = engine.getState();
+  eventSystem.bootstrap(state);
+  ensureSelection(state);
+  engine.render();
+  hasSavedRun = false;
+  refreshMetaUI({ allowResume: hasActiveRun(), canStart: canStartNewRun() });
+  hideMetaLayer();
+  bumpNews("Fresh start. Your future mistakes haven’t happened yet.");
+  pushFeed({ text: "New run launched." });
+}
+
+function completeRun(reason) {
+  if (!engine || !state) return;
+  if (state.run?.status === "ended") {
+    refreshMetaUI({ allowResume: false, canStart: true });
+    showMetaLayer();
+    return;
+  }
+
+  engine.pause();
+  const summary = createRunSummary(state, { reason });
+  const { meta, reward } = applyRunSummaryToMeta(metaState, summary);
+  metaState = meta;
+  summary.metaReward = reward;
+  runHistory = saveRunSummary(summary);
+  saveMetaState(metaState);
+  pushFeed({
+    text: `Run ended — ${summary.label}.`,
+    kind: summary.reason === "bankrupt" ? "bad" : summary.reason === "forced-liquidation" ? "bad" : "neutral"
+  });
+  engine.clearSave();
+  hasSavedRun = false;
+  updateControls(state);
+  engine.render();
+  refreshMetaUI({ allowResume: false, canStart: true });
+  showMetaLayer();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init, { once: true });
+} else {
+  init();
+}
+
+function init() {
+  cacheDom();
+  chartCtx = DOM.chart && DOM.chart.getContext ? DOM.chart.getContext("2d") : null;
+
+  metaState = loadMetaState();
+  runHistory = loadRunHistory();
+
+  const savedState = loadState();
+  hasSavedRun = !!savedState;
+
+  const nextConfig = computeRunConfig(metaState);
+  const initialState = savedState ?? createInitialState({
+    startingCash: nextConfig.startingCash,
+    assetIds: nextConfig.assetIds,
+    runConfig: nextConfig
+  });
+
+  engine = createGameEngine({ state: initialState });
+  state = engine.getState();
+
+  currentRunConfig = state.run?.config ?? nextConfig;
+  if (!currentRunConfig) currentRunConfig = computeRunConfig(metaState);
+  if (!currentRunConfig.events || !Array.isArray(currentRunConfig.events.allowedIds)) {
+    const allowed = currentRunConfig.events?.allowedIds ?? [];
+    currentRunConfig.events = { allowedIds: Array.from(new Set([...allowed, ...BASE_EVENT_IDS])) };
+  }
+
+  marketModel = createMarketModel(currentRunConfig.market ?? {});
+  eventSystem = createEventScheduler({
+    engine,
+    logFeed: (inlineState, entry) => {
+      if (!inlineState) return;
+      logFeedEntry(inlineState, entry);
+    },
+    applyEffect: (inlineState, eventDef) => {
+      if (!inlineState || !eventDef) return null;
+      return createEvent(inlineState, eventDef);
+    },
+    random: Math.random,
+    allowedEvents: currentRunConfig.events?.allowedIds ?? BASE_EVENT_IDS
   });
   eventSystem.bootstrap(state);
 
@@ -144,6 +292,20 @@ function init() {
   setupListeners();
   configureUpgradesIntegration();
 
+  initMetaLayer({
+    onStartRun: handleStartNewRun,
+    onResumeRun: () => {
+      hideMetaLayer();
+    },
+    onPurchaseUpgrade: handleMetaUpgradePurchase,
+    onClose: () => hideMetaLayer()
+  });
+  metaLayerReady = true;
+  refreshMetaUI({ allowResume: hasActiveRun(), canStart: canStartNewRun() });
+  if (!hasSavedRun || state.run?.status === "ended") {
+    showMetaLayer();
+  }
+
   exposeEngine();
   window.dispatchEvent(new CustomEvent("ttm:gameReady", { detail: engine }));
 }
@@ -159,6 +321,7 @@ function cacheDom() {
   DOM.startBtn = $("#btn-start");
   DOM.endBtn = $("#btn-end");
   DOM.resetBtn = $("#btn-reset");
+  DOM.metaBtn = $("#btn-meta");
 
   DOM.qtyGlobal = $("#qty-global");
   DOM.marketBody = $("#market-body");
@@ -203,13 +366,15 @@ function setupListeners() {
   if (DOM.resetBtn) {
     DOM.resetBtn.addEventListener("click", () => {
       if (!confirm("Reset game and clear local save?")) return;
-      engine.clearSave();
-      engine.reset(createInitialState());
-      state = engine.getState();
-      if (eventSystem) eventSystem.bootstrap(state);
-      ensureSelection(state);
-      bumpNews("Fresh start. Your future mistakes haven’t happened yet.");
-      pushFeed({ text: "New game." });
+      completeRun({ id: "retired", label: RUN_REASON_LABELS.retired });
+    });
+  }
+
+  if (DOM.metaBtn) {
+    DOM.metaBtn.addEventListener("click", () => {
+      engine.pause();
+      refreshMetaUI({ allowResume: hasActiveRun(), canStart: canStartNewRun() });
+      showMetaLayer();
     });
   }
 
@@ -300,6 +465,12 @@ function recordTrade(currentState, { id, side, qty, price }) {
     tick: Number.isFinite(currentState.tick) ? currentState.tick : 0,
     day: Number.isFinite(currentState.day) ? currentState.day : 0
   });
+  recordTradeStats(currentState, {
+    side,
+    qty: units,
+    price: safePrice,
+    notional: safePrice * units
+  });
   if (currentState.recentTrades.length > 200) {
     currentState.recentTrades.splice(0, currentState.recentTrades.length - 200);
   }
@@ -331,6 +502,18 @@ function handleTick(currentState) {
 
   cleanupExpiredEvents(currentState);
   stepAll(currentState, 1, 1.0);
+
+  const metrics = updateRunStats(currentState);
+  const portfolio = Number.isFinite(metrics.portfolioValue) ? metrics.portfolioValue : portfolioValue(currentState);
+  const debt = Number.isFinite(metrics.debt) ? metrics.debt : currentState.margin?.debt ?? 0;
+  const maintenanceRequirement = portfolio * (MARGIN_PARAMS?.maintenance ?? 0.25);
+  const underMaintenance = debt > 0 && metrics.netWorth < maintenanceRequirement;
+  noteMaintenanceStrike(currentState, underMaintenance);
+
+  const outcome = evaluateEndCondition(currentState, { netWorth: metrics.netWorth });
+  if (outcome) {
+    completeRun(outcome);
+  }
 }
 
 function handleDayEnd(currentState, context = {}) {
@@ -348,6 +531,17 @@ function handleDayEnd(currentState, context = {}) {
         currentState.cash = value;
       }
     });
+  }
+
+  const metrics = updateRunStats(currentState, { dayTick: true });
+  const portfolio = Number.isFinite(metrics.portfolioValue) ? metrics.portfolioValue : portfolioValue(currentState);
+  const debt = Number.isFinite(metrics.debt) ? metrics.debt : currentState.margin?.debt ?? 0;
+  const maintenanceRequirement = portfolio * (MARGIN_PARAMS?.maintenance ?? 0.25);
+  const underMaintenance = debt > 0 && metrics.netWorth < maintenanceRequirement;
+  noteMaintenanceStrike(currentState, underMaintenance);
+  const outcome = evaluateEndCondition(currentState, { netWorth: metrics.netWorth });
+  if (outcome) {
+    completeRun(outcome);
   }
 }
 

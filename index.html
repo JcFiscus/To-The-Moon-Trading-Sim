@@ -23,6 +23,7 @@
         <button id="btn-start" class="btn btn-primary">Start</button>
         <button id="btn-end" class="btn">End Day</button>
         <button id="btn-reset" class="btn btn-danger">Reset</button>
+        <button id="btn-meta" class="btn">Mission Control</button>
         <span class="hint">Autosaves locally. No crypto wallet required. You're welcome.</span>
       </div>
     </div>
@@ -126,6 +127,25 @@
     </section>
 
   </main>
+
+  <div id="meta-layer" class="meta-layer" aria-hidden="true">
+    <div class="meta-dialog" role="dialog" aria-modal="true" aria-labelledby="meta-title">
+      <button id="btn-meta-close" class="meta-close" aria-label="Close mission control">×</button>
+      <header class="meta-dialog__header">
+        <h2 id="meta-title">Mission Control</h2>
+        <div class="meta-balance">Research Credits: <span id="meta-balance">0</span></div>
+      </header>
+      <div class="meta-dialog__body">
+        <section class="meta-summary" id="meta-summary"></section>
+        <section class="meta-history" id="meta-history"></section>
+        <section class="meta-upgrades" id="meta-upgrades"></section>
+      </div>
+      <footer class="meta-dialog__footer">
+        <button id="btn-meta-start" class="btn btn-primary">Launch New Run</button>
+        <button id="btn-meta-resume" class="btn">Resume Run</button>
+      </footer>
+    </div>
+  </div>
 
   <footer class="app-footer">
     <p>Prototype v0.1. Prices are simulated. If you lose money here, that’s on your decision-making, not the physics engine.</p>

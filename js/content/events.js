@@ -277,7 +277,155 @@ export const EVENT_DEFINITIONS = [
         }
       }
     ]
+  },
+  {
+    id: "energy-crunch",
+    label: "Energy Supply Shock",
+    kind: "bad",
+    phase: "dayStart",
+    cooldownDays: 6,
+    deadlineDays: 1,
+    defaultChoiceId: "hedge",
+    metaTier: "scenario-lab",
+    evaluate({ state, random }) {
+      if (!state || state.day < 6) return false;
+      const energy = Array.isArray(state?.assets) ? state.assets.find((asset) => asset.id === "OILX") : null;
+      if (!energy) return false;
+      if (random() > 0.24) return false;
+      const severity = clamp(1.25 + random() * 0.55, 1.1, 2.0);
+      return {
+        context: { severity },
+        announcement: "Energy desks warn of a sudden supply shock across crude markets.",
+        description: `${energy.name} faces disrupted supply — volatility expected to surge.`
+      };
+    },
+    choices: [
+      {
+        id: "hedge",
+        label: "Deploy hedges ($1,500)",
+        description: "Spend $1,500 to cushion the shock and cap volatility.",
+        requirements: ({ state }) => Number.isFinite(state?.cash) && state.cash >= 1500,
+        disabledReason: "Need $1,500 cash to hedge.",
+        outcome: {
+          kind: "neutral",
+          text: () => "You absorb the supply shock with tactical hedges. Losses contained, but tension lingers.",
+          apply: ({ state }) => {
+            state.cash -= 1500;
+          },
+          effects: [
+            {
+              label: "Energy Hedged Shock",
+              kind: "neutral",
+              target: () => "OILX",
+              durationDays: 3,
+              effect: ({ context }) => ({ volMult: 1 + (context.severity - 1) * 0.6, driftShift: -0.0022 })
+            },
+            {
+              label: "Macro Jitters",
+              kind: "bad",
+              durationDays: 2,
+              effect: { driftShift: -0.0006, riskShift: 0.6 }
+            }
+          ]
+        }
+      },
+      {
+        id: "ride",
+        label: "Ride it out",
+        description: "Accept the turbulence and hope for a quick rebound.",
+        outcome: {
+          kind: "bad",
+          text: () => "You let the shock run its course. Energy markets whipsaw violently.",
+          effects: [
+            {
+              label: "Energy Supply Crisis",
+              kind: "bad",
+              target: () => "OILX",
+              durationDays: 3,
+              effect: ({ context }) => ({ volMult: context.severity, driftShift: -0.0035 })
+            },
+            {
+              label: "Inflation Fears",
+              kind: "bad",
+              durationDays: 2,
+              effect: { driftShift: -0.0009, riskShift: 0.9 }
+            }
+          ],
+          extraFeed: () => [
+            {
+              text: "Energy traders scramble for barrels as supply gaps widen.",
+              kind: "bad",
+              targetId: "OILX"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    id: "global-stimulus",
+    label: "Global Stimulus Wave",
+    kind: "good",
+    phase: "dayStart",
+    cooldownDays: 6,
+    deadlineDays: 2,
+    defaultChoiceId: "deploy",
+    metaTier: "scenario-lab",
+    evaluate({ state, random }) {
+      if (!state || state.day < 4) return false;
+      if (portfolioValue(state) < 15000) return false;
+      if (random() > 0.22) return false;
+      const boost = clamp(0.0008 + random() * 0.0014, 0.0008, 0.0024);
+      return {
+        context: { boost },
+        announcement: "Coordinated fiscal stimulus hits global markets.",
+        description: "Central banks flood liquidity while governments unleash relief packages."
+      };
+    },
+    choices: [
+      {
+        id: "deploy",
+        label: "Deploy risk capital",
+        description: "Lean into the liquidity wave and scale positions.",
+        outcome: {
+          kind: "good",
+          text: () => "You redeploy rapidly and front-run the stimulus bid.",
+          effects: [
+            {
+              label: "Stimulus Momentum",
+              kind: "good",
+              durationDays: 3,
+              effect: ({ context }) => ({ driftShift: context.boost * 6, liquidityShift: 1.6 })
+            }
+          ],
+          extraFeed: () => [
+            {
+              text: "Liquidity gushes into risk assets as policymakers over-deliver.",
+              kind: "good"
+            }
+          ]
+        }
+      },
+      {
+        id: "hold",
+        label: "Stay cautious",
+        description: "Let markets reprice while you manage exposure.",
+        outcome: {
+          kind: "neutral",
+          text: () => "You stay measured. Gains still drift higher on stimulus optimism.",
+          effects: [
+            {
+              label: "Measured Participation",
+              kind: "neutral",
+              durationDays: 3,
+              effect: ({ context }) => ({ driftShift: context.boost * 3, liquidityShift: 0.8 })
+            }
+          ]
+        }
+      }
+    ]
   }
 ];
 
 export const EVENT_DEFINITION_MAP = new Map(EVENT_DEFINITIONS.map((def) => [def.id, def]));
+export const BASE_EVENT_IDS = EVENT_DEFINITIONS.filter((def) => !def.metaTier).map((def) => def.id);
