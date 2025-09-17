@@ -1,4 +1,5 @@
 import { createGameEngine, createInitialState, loadState } from "./core/gameEngine.js";
+import { createDailySnapshot, normalizeDailyStats, summarizeDay } from "./core/daySummary.js";
 import { createMarketModel } from "./core/marketModel.js";
 import { createEventScheduler } from "./core/eventScheduler.js";
 import { BASE_EVENT_IDS } from "./content/events.js";
@@ -247,6 +248,7 @@ function handleStartNewRun() {
     dayDurationMs: engine.dayDurationMs
   }));
   state = engine.getState();
+  refreshDailyMetrics(state);
   eventSystem.bootstrap(state);
   ensureSelection(state);
   engine.render();
@@ -308,6 +310,7 @@ function init() {
 
   engine = createGameEngine({ state: initialState });
   state = engine.getState();
+  refreshDailyMetrics(state);
 
   currentRunConfig = state.run?.config ?? nextConfig;
   if (!currentRunConfig) currentRunConfig = computeRunConfig(metaState);
@@ -336,6 +339,7 @@ function init() {
 
   engine.onStateChange((nextState) => {
     state = nextState;
+    refreshDailyMetrics(state);
   });
 
   engine.onRender((currentState) => {
@@ -437,7 +441,7 @@ function bumpNews(text, { state: inlineState, tone = "info" } = {}) {
   }
 }
 
-function recordTrade(currentState, { id, side, qty, price }) {
+function recordTrade(currentState, { id, side, qty, price, realized = 0 }) {
   if (!currentState || !id || !Number.isFinite(qty) || qty <= 0) return;
   if (!Array.isArray(currentState.recentTrades)) currentState.recentTrades = [];
   const safePrice = Number.isFinite(price) ? price : 0;
@@ -457,6 +461,8 @@ function recordTrade(currentState, { id, side, qty, price }) {
     price: safePrice,
     notional: safePrice * units
   });
+  trackDailyTrade(currentState, { id, side, qty: units, price: safePrice, realized });
+  refreshDailyMetrics(currentState);
   if (currentState.recentTrades.length > 200) {
     currentState.recentTrades.splice(0, currentState.recentTrades.length - 200);
   }
@@ -495,6 +501,7 @@ function handleTick(currentState) {
   const maintenanceRequirement = portfolio * (MARGIN_PARAMS?.maintenance ?? 0.25);
   const underMaintenance = debt > 0 && metrics.netWorth < maintenanceRequirement;
   noteMaintenanceStrike(currentState, underMaintenance);
+  refreshDailyMetrics(currentState);
 
   const outcome = evaluateEndCondition(currentState, { netWorth: metrics.netWorth });
   if (outcome) {
@@ -507,6 +514,15 @@ function handleDayEnd(currentState, context = {}) {
   const steps = Number.isFinite(context.overnightSteps) ? context.overnightSteps : 6;
   const variance = Number.isFinite(context.varianceBoost) ? context.varianceBoost : 1.8;
   stepAll(currentState, steps, variance);
+  refreshDailyMetrics(currentState);
+  currentState.previousDailyStats = normalizeDailyStats(currentState.dailyStats, currentState);
+  const daySummary = summarizeDay({ snapshot: currentState.previousDailyStats, state: currentState });
+  if (daySummary && typeof daySummary === "object") {
+    const { snapshot, ...rest } = daySummary;
+    currentState.lastDaySummary = rest;
+  } else {
+    currentState.lastDaySummary = null;
+  }
   currentState.day += 1;
   startNewDay(currentState);
 
@@ -519,6 +535,7 @@ function handleDayEnd(currentState, context = {}) {
       }
     });
   }
+  refreshDailyMetrics(currentState);
 
   const metrics = updateRunStats(currentState, { dayTick: true });
   const portfolio = Number.isFinite(metrics.portfolioValue) ? metrics.portfolioValue : portfolioValue(currentState);
@@ -612,7 +629,7 @@ function doSell(id, qty) {
       draft.positions[id] = { qty: leftover, avgCost: position.avgCost };
     }
 
-    recordTrade(draft, { id, side: "sell", qty: actualQty, price: asset.price });
+    recordTrade(draft, { id, side: "sell", qty: actualQty, price: asset.price, realized: profit });
     draft.selected = id;
 
     const prefix = profit >= 0 ? "+" : "";
@@ -670,6 +687,8 @@ function startNewDay(currentState) {
   if (eventSystem) {
     eventSystem.onDayStart(currentState);
   }
+  currentState.dailyStats = createDailySnapshot(currentState);
+  refreshDailyMetrics(currentState);
   pushFeed({ text: `Day ${currentState.day} begins.` }, { state: currentState });
 }
 
@@ -787,6 +806,186 @@ function unrealizedPL(currentState) {
     sum += (asset.price - position.avgCost) * position.qty;
   }
   return sum;
+}
+
+function ensureDailyStats(currentState) {
+  if (!currentState) return null;
+  const normalized = normalizeDailyStats(currentState.dailyStats, currentState);
+  currentState.dailyStats = normalized;
+  return normalized;
+}
+
+function ensureDailyAssetEntry(currentState, assetId, daily = ensureDailyStats(currentState)) {
+  if (!daily || !assetId) return null;
+  if (!daily.priceBaselines) daily.priceBaselines = {};
+  if (!daily.positionBaselines) daily.positionBaselines = {};
+  if (!daily.assets) daily.assets = {};
+
+  if (!daily.assets[assetId]) {
+    const asset = findAsset(currentState, assetId);
+    const position = currentState.positions?.[assetId];
+    const baselinePrice = Number.isFinite(daily.priceBaselines?.[assetId])
+      ? daily.priceBaselines[assetId]
+      : Number.isFinite(asset?.price)
+        ? asset.price
+        : 0;
+    const baselineQty = Number.isFinite(daily.positionBaselines?.[assetId]?.qty)
+      ? daily.positionBaselines[assetId].qty
+      : Number.isFinite(position?.qty)
+        ? position.qty
+        : 0;
+    const baselineAvgCost = Number.isFinite(daily.positionBaselines?.[assetId]?.avgCost)
+      ? daily.positionBaselines[assetId].avgCost
+      : Number.isFinite(position?.avgCost)
+        ? position.avgCost
+        : 0;
+
+    const safePrice = Number.isFinite(baselinePrice) ? baselinePrice : 0;
+    const safeQty = Number.isFinite(baselineQty) ? baselineQty : 0;
+    const safeAvgCost = Number.isFinite(baselineAvgCost) ? baselineAvgCost : 0;
+
+    daily.priceBaselines[assetId] = safePrice;
+    daily.positionBaselines[assetId] = {
+      qty: safeQty,
+      avgCost: safeAvgCost
+    };
+
+    const startValue = safeQty * safePrice;
+    const startUnrealized = safeQty * (safePrice - safeAvgCost);
+
+    daily.assets[assetId] = {
+      id: assetId,
+      startPrice: safePrice,
+      startQty: safeQty,
+      startValue,
+      currentValue: startValue,
+      startUnrealized,
+      currentUnrealized: startUnrealized,
+      unrealizedChange: 0,
+      trades: 0,
+      buyVolume: 0,
+      sellVolume: 0,
+      tradedQty: 0,
+      buyNotional: 0,
+      sellNotional: 0,
+      realizedDelta: 0
+    };
+  }
+
+  const entry = daily.assets[assetId];
+  entry.trades = Number.isFinite(entry.trades) ? entry.trades : 0;
+  entry.buyVolume = Number.isFinite(entry.buyVolume) ? entry.buyVolume : 0;
+  entry.sellVolume = Number.isFinite(entry.sellVolume) ? entry.sellVolume : 0;
+  entry.tradedQty = Number.isFinite(entry.tradedQty) ? entry.tradedQty : entry.buyVolume + entry.sellVolume;
+  entry.buyNotional = Number.isFinite(entry.buyNotional) ? entry.buyNotional : 0;
+  entry.sellNotional = Number.isFinite(entry.sellNotional) ? entry.sellNotional : 0;
+  entry.realizedDelta = Number.isFinite(entry.realizedDelta) ? entry.realizedDelta : 0;
+  entry.startValue = Number.isFinite(entry.startValue) ? entry.startValue : entry.startQty * entry.startPrice;
+  entry.currentValue = Number.isFinite(entry.currentValue) ? entry.currentValue : entry.startValue;
+  entry.startUnrealized = Number.isFinite(entry.startUnrealized) ? entry.startUnrealized : 0;
+  entry.currentUnrealized = Number.isFinite(entry.currentUnrealized) ? entry.currentUnrealized : entry.startUnrealized;
+  entry.unrealizedChange = Number.isFinite(entry.unrealizedChange) ? entry.unrealizedChange : 0;
+  entry.netQtyChange = Number.isFinite(entry.netQtyChange) ? entry.netQtyChange : 0;
+  return entry;
+}
+
+function trackDailyTrade(currentState, { id, side, qty, price, realized = 0 }) {
+  const daily = ensureDailyStats(currentState);
+  if (!daily || !id || !Number.isFinite(qty) || qty <= 0) return;
+
+  if (!daily.trades || typeof daily.trades !== "object") {
+    daily.trades = { total: 0, buy: 0, sell: 0, volume: 0, notional: 0 };
+  }
+
+  const units = Math.max(1, Math.floor(qty));
+  const notional = Number.isFinite(price) ? price * units : 0;
+
+  daily.trades.total = Number.isFinite(daily.trades.total) ? daily.trades.total + 1 : 1;
+  daily.trades.volume = Number.isFinite(daily.trades.volume) ? daily.trades.volume + units : units;
+  daily.trades.notional = Number.isFinite(daily.trades.notional) ? daily.trades.notional + notional : notional;
+  if (side === "sell") {
+    daily.trades.sell = Number.isFinite(daily.trades.sell) ? daily.trades.sell + 1 : 1;
+  } else {
+    daily.trades.buy = Number.isFinite(daily.trades.buy) ? daily.trades.buy + 1 : 1;
+  }
+
+  const assetEntry = ensureDailyAssetEntry(currentState, id, daily);
+  if (!assetEntry) return;
+  assetEntry.trades += 1;
+  assetEntry.tradedQty += units;
+  if (side === "sell") {
+    assetEntry.sellVolume += units;
+    assetEntry.sellNotional += notional;
+    if (Number.isFinite(realized)) {
+      assetEntry.realizedDelta += realized;
+    }
+  } else {
+    assetEntry.buyVolume += units;
+    assetEntry.buyNotional += notional;
+  }
+  assetEntry.lastTradeSide = side === "sell" ? "sell" : "buy";
+  if (Number.isFinite(price)) {
+    assetEntry.lastTradePrice = price;
+  }
+
+  if (Number.isFinite(currentState.tick)) {
+    daily.lastTradeTick = currentState.tick;
+  }
+  if (Number.isFinite(currentState.day)) {
+    daily.lastTradeDay = currentState.day;
+  }
+}
+
+function refreshDailyMetrics(currentState) {
+  const daily = ensureDailyStats(currentState);
+  if (!daily) return;
+
+  const cash = Number.isFinite(currentState.cash) ? currentState.cash : 0;
+  const portfolio = portfolioValue(currentState);
+  const netWorth = cash + portfolio;
+  const realized = Number.isFinite(currentState.realized) ? currentState.realized : 0;
+  const unrealized = unrealizedPL(currentState);
+
+  if (Number.isFinite(currentState.day)) {
+    daily.day = currentState.day;
+  }
+  daily.currentNetWorth = netWorth;
+  daily.netWorthDelta = netWorth - (Number.isFinite(daily.startNetWorth) ? daily.startNetWorth : netWorth);
+  daily.realizedDelta = realized - (Number.isFinite(daily.startRealized) ? daily.startRealized : realized);
+  daily.unrealizedDelta = unrealized - (Number.isFinite(daily.startUnrealized) ? daily.startUnrealized : unrealized);
+  daily.endCash = cash;
+  daily.endPortfolioValue = portfolio;
+  daily.lastUpdatedTick = Number.isFinite(currentState.tick) ? currentState.tick : daily.lastUpdatedTick ?? 0;
+  daily.lastUpdatedDay = Number.isFinite(currentState.day) ? currentState.day : daily.lastUpdatedDay ?? daily.day;
+
+  const positions = currentState.positions && typeof currentState.positions === "object" ? currentState.positions : {};
+  for (const asset of currentState.assets ?? []) {
+    if (!asset || typeof asset.id !== "string") continue;
+    const entry = ensureDailyAssetEntry(currentState, asset.id, daily);
+    const startPrice = Number.isFinite(entry.startPrice) ? entry.startPrice : Number.isFinite(daily.priceBaselines?.[asset.id]) ? daily.priceBaselines[asset.id] : 0;
+    const position = positions[asset.id];
+    const currentQty = Number.isFinite(position?.qty) ? position.qty : 0;
+    const currentPrice = Number.isFinite(asset.price) ? asset.price : startPrice;
+    const startQty = Number.isFinite(entry.startQty) ? entry.startQty : 0;
+    const startAvgCost = Number.isFinite(daily.positionBaselines?.[asset.id]?.avgCost)
+      ? daily.positionBaselines[asset.id].avgCost
+      : Number.isFinite(position?.avgCost)
+        ? position.avgCost
+        : 0;
+    const currentAvgCost = Number.isFinite(position?.avgCost) ? position.avgCost : startAvgCost;
+
+    entry.endQty = currentQty;
+    entry.lastPrice = currentPrice;
+    entry.priceChange = currentPrice - startPrice;
+    entry.priceChangePct = startPrice !== 0 ? (entry.priceChange / startPrice) * 100 : 0;
+    entry.startValue = Number.isFinite(entry.startValue) ? entry.startValue : startQty * startPrice;
+    entry.currentValue = currentQty * currentPrice;
+    entry.valueChange = entry.currentValue - entry.startValue;
+    entry.startUnrealized = Number.isFinite(entry.startUnrealized) ? entry.startUnrealized : startQty * (startPrice - startAvgCost);
+    entry.currentUnrealized = currentQty * (currentPrice - currentAvgCost);
+    entry.unrealizedChange = entry.currentUnrealized - entry.startUnrealized;
+    entry.netQtyChange = currentQty - startQty;
+  }
 }
 
 function configureUpgradesIntegration() {

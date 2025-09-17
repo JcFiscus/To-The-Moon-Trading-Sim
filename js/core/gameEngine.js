@@ -1,3 +1,5 @@
+import { createDailySnapshot, normalizeDailyStats } from "./daySummary.js";
+
 const DEFAULT_SAVE_KEY = "ttm_v0_save";
 const DEFAULT_TICK_INTERVAL = 600;
 const DEFAULT_AUTOSAVE_TICKS = 16;
@@ -47,7 +49,7 @@ export function createInitialState({
 
   const netWorth = Number.isFinite(startingCash) ? startingCash : 10000;
 
-  return {
+  const state = {
     day: 1,
     cash: startingCash,
     realized: 0,
@@ -83,6 +85,10 @@ export function createInitialState({
       }
     }
   };
+  state.dailyStats = createDailySnapshot(state);
+  state.previousDailyStats = null;
+  state.lastDaySummary = null;
+  return state;
 }
 
 function normalizeAsset(asset = {}) {
@@ -265,6 +271,14 @@ function normalizeState(raw, { dayDurationMs = DEFAULT_DAY_DURATION_MS } = {}) {
     config: runConfig,
     stats: rawRun.stats && typeof rawRun.stats === "object" ? { ...rawRun.stats } : {}
   };
+
+  state.dailyStats = normalizeDailyStats(raw.dailyStats, state);
+  state.previousDailyStats = raw.previousDailyStats
+    ? normalizeDailyStats(raw.previousDailyStats, state)
+    : null;
+  state.lastDaySummary = raw.lastDaySummary && typeof raw.lastDaySummary === "object"
+    ? { ...raw.lastDaySummary }
+    : null;
 
   return state;
 }
