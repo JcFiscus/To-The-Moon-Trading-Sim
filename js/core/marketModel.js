@@ -67,22 +67,35 @@ export function createMarketModel() {
     const riskNoise = gaussian() * 0.06 * Math.sqrt(stepSpan);
 
     macro.growth = clamp(macro.growth * Math.pow(0.96, stepSpan) + growthNoise, -2.5, 2.5);
-    macro.liquidity = clamp(macro.liquidity * Math.pow(0.95, stepSpan) + liquidityNoise, -2.3, 2.3);
-    macro.risk = clamp(macro.risk * Math.pow(0.94, stepSpan) + riskNoise, -2.8, 2.8);
+    const baseLiquidity = clamp(macro.liquidity * Math.pow(0.95, stepSpan) + liquidityNoise, -2.3, 2.3);
+    const baseRisk = clamp(macro.risk * Math.pow(0.94, stepSpan) + riskNoise, -2.8, 2.8);
+
+    macro.liquidity = baseLiquidity;
+    macro.risk = baseRisk;
 
     let volEvent = 1;
     let driftEvent = 0;
     let sentimentEvent = 0;
+    let liquidityShift = 0;
+    let riskShift = 0;
     for (const event of state.events || []) {
       if (event?.targetId != null) continue;
       if (event.effect?.volMult) volEvent *= event.effect.volMult;
       if (event.effect?.driftShift) driftEvent += event.effect.driftShift;
+      if (Number.isFinite(event.effect?.liquidityShift)) liquidityShift += event.effect.liquidityShift;
+      if (Number.isFinite(event.effect?.riskShift)) riskShift += event.effect.riskShift;
       if (event.kind === "good") sentimentEvent += 0.18;
       else if (event.kind === "bad") sentimentEvent -= 0.18;
     }
 
-    macro.volatilityBias = clamp(1 + macro.risk * 0.35, 0.55, 3.2) * volEvent;
-    macro.drift = driftEvent + macro.growth * 0.0007 + macro.liquidity * 0.0004;
+    const effectiveLiquidity = clamp(baseLiquidity + liquidityShift, -3.2, 3.2);
+    const effectiveRisk = clamp(baseRisk + riskShift, -3.2, 3.2);
+
+    macro.effectiveLiquidity = effectiveLiquidity;
+    macro.effectiveRisk = effectiveRisk;
+
+    macro.volatilityBias = clamp(1 + effectiveRisk * 0.35, 0.55, 3.2) * volEvent;
+    macro.drift = driftEvent + macro.growth * 0.0007 + effectiveLiquidity * 0.0004;
     macro.sentimentShift = sentimentEvent * 0.4;
 
     const previousRegime = macro.regime;
@@ -259,6 +272,10 @@ export function createMarketModel() {
     }
 
     if (Math.abs(macroDrift) > 0.00005 || macroState.volatilityBias !== 1) {
+      const liqDisplay = Number.isFinite(macroState.effectiveLiquidity)
+        ? macroState.effectiveLiquidity
+        : macroState.liquidity;
+      const riskDisplay = Number.isFinite(macroState.effectiveRisk) ? macroState.effectiveRisk : macroState.risk;
       influences.push({
         id: "macro",
         label: macroState.label,
@@ -267,7 +284,7 @@ export function createMarketModel() {
         magnitude: macroDrift,
         direction: macroDrift === 0 ? 0 : macroDrift > 0 ? 1 : -1,
         volMult: macroState.volatilityBias,
-        description: `Growth ${macroState.growth.toFixed(2)}, liquidity ${macroState.liquidity.toFixed(2)}, risk ${macroState.risk.toFixed(2)}.`
+        description: `Growth ${macroState.growth.toFixed(2)}, liquidity ${liqDisplay.toFixed(2)}, risk ${riskDisplay.toFixed(2)}.`
       });
     }
 
