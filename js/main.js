@@ -1,7 +1,7 @@
 import { createGameEngine, createInitialState, loadState } from "./core/gameEngine.js";
 import { createMarketModel } from "./core/marketModel.js";
 import { createEventScheduler } from "./core/eventScheduler.js";
-import { EVENT_DEFINITION_MAP, BASE_EVENT_IDS } from "./content/events.js";
+import { BASE_EVENT_IDS } from "./content/events.js";
 import {
   updateRunStats,
   recordTradeStats,
@@ -23,20 +23,15 @@ import {
 } from "./core/metaProgression.js";
 import { initMetaLayer, updateMetaLayer, showMetaLayer, hideMetaLayer } from "./ui/metaProgression.js";
 import { MARGIN_PARAMS } from "./core/margin.js";
-
-const DOM = {};
-let engine = null;
-let state = null;
-let chartCtx = null;
-let lastMsgTimeout = null;
-let upgradesConfigured = false;
-let marketModel = null;
-let eventSystem = null;
-let metaState = createInitialMetaState();
-let runHistory = [];
-let currentRunConfig = null;
-let hasSavedRun = false;
-let metaLayerReady = false;
+import { purchaseUpgrade, UPGRADE_DEF } from "./core/upgrades.js";
+import { createHudController } from "./ui/hud.js";
+import { createMarketListController } from "./ui/marketList.js";
+import { createAssetDetailController } from "./ui/assetDetail.js";
+import { createTradeControlsController } from "./ui/tradeControls.js";
+import { createNewsFeedController } from "./ui/newsFeed.js";
+import { createEventQueueController } from "./ui/eventQueue.js";
+import { createUpgradeShopController } from "./ui/upgrades.js";
+import { updateInsiderBanner } from "./ui/insiderBanner.js";
 
 const fmtMoney = (n) =>
   (n < 0 ? "-$" : "$") +
@@ -66,14 +61,6 @@ const formatPrice = (price) => {
 
 const clock = (currentState) => `D${currentState.day} · T${currentState.tick}`;
 
-const escapeHtml = (value) =>
-  String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-
 const evaluateMaybeFn = (value, payload) => {
   if (typeof value === "function") {
     try {
@@ -86,37 +73,20 @@ const evaluateMaybeFn = (value, payload) => {
   return value;
 };
 
-const predictChoiceKind = (choice, definition, state, context) => {
-  if (!choice) return definition?.kind ?? "neutral";
-  const payload = { state, context, choice, definition };
-  const outcomeKind = evaluateMaybeFn(choice.outcome?.kind, payload);
-  return (typeof outcomeKind === "string" && outcomeKind) || choice.kind || definition?.kind || "neutral";
-};
+let engine = null;
+let state = null;
+let upgradesConfigured = false;
+let marketModel = null;
+let eventSystem = null;
+let metaState = createInitialMetaState();
+let runHistory = [];
+let currentRunConfig = null;
+let hasSavedRun = false;
+let metaLayerReady = false;
 
-const checkChoiceRequirements = (choice, definition, state, context) => {
-  if (!choice || typeof choice.requirements !== "function") return true;
-  try {
-    return !!choice.requirements({ state, context, choice, definition });
-  } catch (error) {
-    console.error(error);
-    return false;
-  }
-};
-
-const choiceDescription = (choice, definition, state, context) => {
-  if (!choice) return "";
-  const payload = { state, context, choice, definition };
-  const desc = evaluateMaybeFn(choice.description, payload);
-  return typeof desc === "string" ? desc : "";
-};
-
-const choiceDisabledReason = (choice, definition, state, context) => {
-  if (!choice) return "";
-  const payload = { state, context, choice, definition };
-  const reason = evaluateMaybeFn(choice.disabledReason, payload);
-  if (typeof reason === "string" && reason.trim()) return reason;
-  return "Requirements not met.";
-};
+const controllers = {};
+let sharedTradeQty = 10;
+let lastSelectedAssetId = null;
 
 function hasActiveRun() {
   if (!state || !state.run) return false;
@@ -154,6 +124,98 @@ function handleMetaUpgradePurchase(id) {
   } else {
     console.warn("Upgrade locked or insufficient currency", id);
   }
+}
+
+function setupControllers() {
+  controllers.trade = createTradeControlsController({
+    onBuy: (qty) => {
+      if (!state || !state.selected) return;
+      doBuy(state.selected, qty);
+    },
+    onSell: (qty) => {
+      if (!state || !state.selected) return;
+      doSell(state.selected, qty);
+    },
+    onQtyChange: (qty) => {
+      sharedTradeQty = parseQty(qty);
+      controllers.market?.setDefaultQty(sharedTradeQty);
+    },
+    parseQty
+  });
+
+  controllers.market = createMarketListController({
+    onSelectAsset: (id) => setSelected(id),
+    onQuickBuy: (id, qty) => doBuy(id, qty),
+    onQuickSell: (id, qty) => doSell(id, qty),
+    onDefaultQtyChange: (qty) => {
+      sharedTradeQty = parseQty(qty);
+      controllers.trade?.setQty(sharedTradeQty);
+    },
+    parseQty
+  });
+
+  controllers.assetDetail = createAssetDetailController();
+  controllers.news = createNewsFeedController();
+  controllers.events = createEventQueueController({
+    onResolve: (instanceId, choiceId) => {
+      if (eventSystem) {
+        eventSystem.resolve(instanceId, choiceId);
+      }
+    }
+  });
+  controllers.upgrades = createUpgradeShopController({
+    onRequestPurchase: (id) => {
+      if (!engine || !id) return { success: false };
+      let success = false;
+      let message = "Unable to purchase upgrade.";
+      engine.update((draft) => {
+        success = purchaseUpgrade(draft, id);
+        if (success) {
+          message = `${UPGRADE_DEF[id]?.name || "Upgrade"} unlocked.`;
+          bumpNews(message, { state: draft, tone: "good" });
+        }
+      }, { save: true });
+      return { success, message };
+    }
+  });
+  controllers.hud = createHudController({
+    onToggleRun: () => {
+      if (!engine) return;
+      if (engine.isRunning()) {
+        engine.pause();
+      } else {
+        engine.start();
+      }
+    },
+    onEndDay: () => {
+      if (!engine) return;
+      engine.endDay({ overnightSteps: 6, varianceBoost: 1.8 });
+      bumpNews("Market closed. Overnight risk intensifies. Try not to panic.");
+    },
+    onReset: () => {
+      if (!confirm("Reset game and clear local save?")) return;
+      completeRun({ id: "retired", label: RUN_REASON_LABELS.retired });
+    },
+    onOpenMeta: () => {
+      if (!engine) return;
+      engine.pause();
+      refreshMetaUI({ allowResume: hasActiveRun(), canStart: canStartNewRun() });
+      showMetaLayer();
+    }
+  });
+
+  controllers.market?.setDefaultQty(sharedTradeQty);
+  controllers.trade?.setQty(sharedTradeQty);
+
+  window.__TTM_UI__ = {
+    hud: controllers.hud,
+    market: controllers.market,
+    detail: controllers.assetDetail,
+    trade: controllers.trade,
+    news: controllers.news,
+    upgrades: controllers.upgrades,
+    events: controllers.events
+  };
 }
 
 function handleStartNewRun() {
@@ -212,7 +274,6 @@ function completeRun(reason) {
   });
   engine.clearSave();
   hasSavedRun = false;
-  updateControls(state);
   engine.render();
   refreshMetaUI({ allowResume: false, canStart: true });
   showMetaLayer();
@@ -225,8 +286,7 @@ if (document.readyState === "loading") {
 }
 
 function init() {
-  cacheDom();
-  chartCtx = DOM.chart && DOM.chart.getContext ? DOM.chart.getContext("2d") : null;
+  setupControllers();
 
   metaState = loadMetaState();
   runHistory = loadRunHistory();
@@ -235,11 +295,12 @@ function init() {
   hasSavedRun = !!savedState;
 
   const nextConfig = computeRunConfig(metaState);
-  const initialState = savedState ?? createInitialState({
-    startingCash: nextConfig.startingCash,
-    assetIds: nextConfig.assetIds,
-    runConfig: nextConfig
-  });
+  const initialState = savedState ??
+    createInitialState({
+      startingCash: nextConfig.startingCash,
+      assetIds: nextConfig.assetIds,
+      runConfig: nextConfig
+    });
 
   engine = createGameEngine({ state: initialState });
   state = engine.getState();
@@ -271,7 +332,6 @@ function init() {
 
   engine.onStateChange((nextState) => {
     state = nextState;
-    updateControls(nextState);
   });
 
   engine.onRender((currentState) => {
@@ -289,7 +349,6 @@ function init() {
 
   engine.render();
 
-  setupListeners();
   configureUpgradesIntegration();
 
   initMetaLayer({
@@ -308,119 +367,6 @@ function init() {
 
   exposeEngine();
   window.dispatchEvent(new CustomEvent("ttm:gameReady", { detail: engine }));
-}
-
-function cacheDom() {
-  const $ = (sel) => document.querySelector(sel);
-
-  DOM.day = $("#hud-day");
-  DOM.cash = $("#hud-cash");
-  DOM.equity = $("#hud-equity");
-  DOM.pl = $("#hud-pl");
-
-  DOM.startBtn = $("#btn-start");
-  DOM.endBtn = $("#btn-end");
-  DOM.resetBtn = $("#btn-reset");
-  DOM.metaBtn = $("#btn-meta");
-
-  DOM.qtyGlobal = $("#qty-global");
-  DOM.marketBody = $("#market-body");
-
-  DOM.detailAsset = $("#detail-asset");
-  DOM.detailPrice = $("#detail-price");
-  DOM.detailPosition = $("#detail-position");
-  DOM.detailTitle = $("#detail-title");
-  DOM.tradeQty = $("#trade-qty");
-  DOM.buyBtn = $("#btn-buy");
-  DOM.sellBtn = $("#btn-sell");
-  DOM.message = $("#messages");
-
-  DOM.effectsList = $("#effects-list");
-  DOM.driversList = $("#drivers-list");
-  DOM.feed = $("#feed");
-
-  DOM.eventPanel = $("#event-panel");
-  DOM.eventList = $("#event-queue");
-
-  DOM.chart = $("#chart");
-}
-
-function setupListeners() {
-  if (DOM.startBtn) {
-    DOM.startBtn.addEventListener("click", () => {
-      if (engine.isRunning()) {
-        engine.pause();
-      } else {
-        engine.start();
-      }
-    });
-  }
-
-  if (DOM.endBtn) {
-    DOM.endBtn.addEventListener("click", () => {
-      engine.endDay({ overnightSteps: 6, varianceBoost: 1.8 });
-      bumpNews("Market closed. Overnight risk intensifies. Try not to panic.");
-    });
-  }
-
-  if (DOM.resetBtn) {
-    DOM.resetBtn.addEventListener("click", () => {
-      if (!confirm("Reset game and clear local save?")) return;
-      completeRun({ id: "retired", label: RUN_REASON_LABELS.retired });
-    });
-  }
-
-  if (DOM.metaBtn) {
-    DOM.metaBtn.addEventListener("click", () => {
-      engine.pause();
-      refreshMetaUI({ allowResume: hasActiveRun(), canStart: canStartNewRun() });
-      showMetaLayer();
-    });
-  }
-
-  if (DOM.marketBody) {
-    DOM.marketBody.addEventListener("click", (event) => {
-      const row = event.target.closest("tr[data-id]");
-      if (!row) return;
-      const id = row.getAttribute("data-id");
-      const buyBtn = event.target.closest("[data-buy]");
-      const sellBtn = event.target.closest("[data-sell]");
-      if (buyBtn) {
-        doBuy(id, parseQty(DOM.qtyGlobal?.value));
-        return;
-      }
-      if (sellBtn) {
-        doSell(id, parseQty(DOM.qtyGlobal?.value));
-        return;
-      }
-      setSelected(id);
-    });
-  }
-
-  if (DOM.eventList) {
-    DOM.eventList.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-event-choice]");
-      if (!button || button.disabled) return;
-      const instanceId = Number(button.getAttribute("data-event-id"));
-      if (!Number.isFinite(instanceId)) return;
-      const choiceId = button.getAttribute("data-choice-id") || null;
-      if (eventSystem) {
-        eventSystem.resolve(instanceId, choiceId);
-      }
-    });
-  }
-
-  if (DOM.buyBtn) {
-    DOM.buyBtn.addEventListener("click", () => {
-      doBuy(state.selected, parseQty(DOM.tradeQty?.value));
-    });
-  }
-
-  if (DOM.sellBtn) {
-    DOM.sellBtn.addEventListener("click", () => {
-      doSell(state.selected, parseQty(DOM.tradeQty?.value));
-    });
-  }
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) engine.pause();
@@ -429,25 +375,59 @@ function setupListeners() {
   window.addEventListener("load", configureUpgradesIntegration, { once: true });
 }
 
-function exposeEngine() {
-  if (!engine) return;
-  Object.defineProperty(engine, "state", {
-    get() {
-      return engine.getState();
-    },
-    configurable: true,
-    enumerable: true
+function renderAll(currentState) {
+  const holdingsValue = portfolioValue(currentState);
+  const equity = currentState.cash + holdingsValue;
+  const unrealized = unrealizedPL(currentState);
+  const totalPL = currentState.realized + unrealized;
+
+  controllers.hud?.render({
+    day: currentState.day,
+    cash: currentState.cash,
+    equity,
+    totalPL,
+    unrealized,
+    running: currentState.running
   });
-  engine.portfolioValue = (currentState = engine.getState()) => portfolioValue(currentState);
-  engine.unrealizedPL = (currentState = engine.getState()) => unrealizedPL(currentState);
-  engine.renderAll = () => engine.render();
-  engine.pushFeed = (entry) => pushFeed(entry);
-  window.ttmGame = engine;
+
+  controllers.market?.render(currentState);
+
+  const asset = findAsset(currentState, currentState.selected);
+  controllers.assetDetail?.render(currentState, asset);
+  controllers.events?.render(currentState);
+  controllers.news?.render(currentState.feed ?? []);
+  controllers.upgrades?.render(currentState);
+  updateInsiderBanner(currentState);
+
+  const position = asset ? currentState.positions?.[asset.id] : null;
+  controllers.trade?.updateSelection({ asset, position });
+
+  if ((asset?.id ?? null) !== lastSelectedAssetId) {
+    controllers.trade?.setQty(sharedTradeQty);
+    lastSelectedAssetId = asset?.id ?? null;
+  }
 }
 
-function ensureSelection(currentState) {
-  if (!currentState.selected && Array.isArray(currentState.assets) && currentState.assets.length) {
-    currentState.selected = currentState.assets[0].id;
+function safeRender(renderFn) {
+  try {
+    renderFn();
+  } catch (error) {
+    console.error(error);
+    showMessage("Render error. Recovered.");
+  }
+}
+
+function showMessage(text, tone = "info") {
+  controllers.trade?.showMessage(text, tone);
+}
+
+function bumpNews(text, { state: inlineState, tone = "info" } = {}) {
+  showMessage(text, tone);
+  const entry = { text, kind: tone === "good" ? "good" : tone === "bad" ? "bad" : tone === "warn" ? "warn" : "neutral" };
+  if (inlineState) {
+    logFeedEntry(inlineState, entry);
+  } else {
+    pushFeed(entry);
   }
 }
 
@@ -564,17 +544,17 @@ function doBuy(id, qty) {
 
     if (marginApi) {
       if (marginApi.isUnderMaintenance(draft, pv)) {
-        bumpNews("Buy blocked: maintenance margin breached.", { state: draft });
+        bumpNews("Buy blocked: maintenance margin breached.", { state: draft, tone: "warn" });
         return;
       }
       const ok = marginApi.buyWithMargin(draft, cost, pv);
       if (!ok) {
-        bumpNews(`Insufficient buying power for ${qty} ${id}.`, { state: draft });
+        bumpNews(`Insufficient buying power for ${qty} ${id}.`, { state: draft, tone: "warn" });
         return;
       }
     } else {
       if (cost > draft.cash + 1e-9) {
-        bumpNews(`Not enough cash to buy ${qty} ${id}.`, { state: draft });
+        bumpNews(`Not enough cash to buy ${qty} ${id}.`, { state: draft, tone: "warn" });
         return;
       }
       draft.cash -= cost;
@@ -587,7 +567,7 @@ function doBuy(id, qty) {
     recordTrade(draft, { id, side: "buy", qty, price: asset.price });
     draft.selected = id;
 
-    bumpNews(`Bought ${qty} ${id} @ ${formatPrice(asset.price)}.`, { state: draft });
+    bumpNews(`Bought ${qty} ${id} @ ${formatPrice(asset.price)}.`, { state: draft, tone: "good" });
   });
 }
 
@@ -596,7 +576,7 @@ function doSell(id, qty) {
   engine.update((draft) => {
     const position = draft.positions[id];
     if (!position || position.qty <= 0) {
-      bumpNews("You don't own that asset. Imagination doesn’t count as collateral.", { state: draft });
+      bumpNews("You don't own that asset. Imagination doesn’t count as collateral.", { state: draft, tone: "warn" });
       return;
     }
 
@@ -626,10 +606,8 @@ function doSell(id, qty) {
     draft.selected = id;
 
     const prefix = profit >= 0 ? "+" : "";
-    bumpNews(
-      `Sold ${actualQty} ${id} @ ${formatPrice(asset.price)} (${prefix}${fmtMoney(profit)}).`,
-      { state: draft }
-    );
+    const tone = profit >= 0 ? "good" : "warn";
+    bumpNews(`Sold ${actualQty} ${id} @ ${formatPrice(asset.price)} (${prefix}${fmtMoney(profit)}).`, { state: draft, tone });
   });
 }
 
@@ -781,380 +759,6 @@ function pushFeed(entry, { state: inlineState } = {}) {
   }, { save: entry.save ?? true });
 }
 
-function showMessage(text) {
-  if (!DOM.message) return;
-  clearTimeout(lastMsgTimeout);
-  DOM.message.textContent = text;
-  lastMsgTimeout = setTimeout(() => {
-    DOM.message.textContent = "";
-  }, 4000);
-}
-
-function bumpNews(text, { state: inlineState } = {}) {
-  showMessage(text);
-  const entry = { text };
-  if (inlineState) {
-    logFeedEntry(inlineState, entry);
-  } else {
-    pushFeed(entry);
-  }
-}
-
-function safeRender(renderFn) {
-  try {
-    renderFn();
-  } catch (error) {
-    console.error(error);
-    showMessage("Render error. Recovered.");
-  }
-}
-
-function renderAll(currentState) {
-  renderHUD(currentState);
-  renderTable(currentState);
-  renderDetail(currentState);
-  renderEventQueue(currentState);
-  renderFeed(currentState);
-}
-
-function renderHUD(currentState) {
-  if (!DOM.day || !DOM.cash || !DOM.equity || !DOM.pl) return;
-  const holdingsValue = portfolioValue(currentState);
-  const equity = currentState.cash + holdingsValue;
-  const unrealized = unrealizedPL(currentState);
-  DOM.day.textContent = String(currentState.day);
-  DOM.cash.textContent = fmtMoney(currentState.cash);
-  DOM.equity.textContent = fmtMoney(equity);
-
-  const totalPL = currentState.realized + unrealized;
-  DOM.pl.textContent = `${fmtMoney(totalPL)} (${totalPL >= 0 ? "+" : ""}${fmtMoney(unrealized).replace("$", "")} unrl)`;
-  DOM.pl.classList.remove("pl--good", "pl--bad", "pl--neutral");
-  DOM.pl.classList.add(totalPL > 0 ? "pl--good" : totalPL < 0 ? "pl--bad" : "pl--neutral");
-
-  updateControls(currentState);
-}
-
-function renderTable(currentState) {
-  if (!DOM.marketBody) return;
-  const rows = currentState.assets
-    .map((asset) => {
-      const pos = currentState.positions[asset.id]?.qty ?? 0;
-      const avg = currentState.positions[asset.id]?.avgCost ?? 0;
-      const unrl = pos > 0 ? (asset.price - avg) * pos : 0;
-      const badge =
-        asset.changePct > 0.001
-          ? `<span class="badge badge--good">+${asset.changePct.toFixed(2)}%</span>`
-          : asset.changePct < -0.001
-          ? `<span class="badge badge--bad">${asset.changePct.toFixed(2)}%</span>`
-          : `<span class="badge badge--neutral">${asset.changePct.toFixed(2)}%</span>`;
-      const isSelected = asset.id === currentState.selected;
-      return `
-        <tr data-id="${asset.id}" ${
-          isSelected ? 'style="outline:1px solid #223456; background:rgba(139,92,246,.06)"' : ""
-        }>
-          <td><strong>${asset.id}</strong></td>
-          <td>${asset.name}</td>
-          <td class="num">${formatPrice(asset.price)}</td>
-          <td class="num">${badge}</td>
-          <td class="num">${pos}</td>
-          <td class="num">${
-            unrl === 0
-              ? "—"
-              : unrl >= 0
-              ? `<span class="pl--good">${fmtMoney(unrl)}</span>`
-              : `<span class="pl--bad">${fmtMoney(unrl)}</span>`
-          }</td>
-          <td class="num">
-            <button class="btn btn-primary" data-buy>Buy</button>
-            <button class="btn" data-sell>Sell</button>
-          </td>
-        </tr>
-      `;
-    })
-    .join("");
-  DOM.marketBody.innerHTML = rows;
-}
-
-function renderDetail(currentState) {
-  const asset = findAsset(currentState, currentState.selected);
-  if (!asset) return;
-  if (DOM.detailTitle) DOM.detailTitle.textContent = `Details — ${asset.id}`;
-  if (DOM.detailAsset) DOM.detailAsset.textContent = `${asset.id} · ${asset.name}`;
-  if (DOM.detailPrice) DOM.detailPrice.textContent = formatPrice(asset.price);
-
-  if (DOM.detailPosition) {
-    const position = currentState.positions[asset.id];
-    if (!position) {
-      DOM.detailPosition.textContent = "No position";
-    } else {
-      const unrl = (asset.price - position.avgCost) * position.qty;
-      const cls = unrl >= 0 ? "pl--good" : "pl--bad";
-      DOM.detailPosition.innerHTML = `${position.qty} @ ${formatPrice(position.avgCost)} — <span class="${cls}">${fmtMoney(unrl)}</span>`;
-    }
-  }
-
-  renderEffectsForSelected(currentState);
-  renderDriversForSelected(currentState);
-  drawChart(asset.history);
-
-  if (DOM.tradeQty && DOM.qtyGlobal) {
-    DOM.tradeQty.value = parseQty(DOM.qtyGlobal.value);
-  }
-}
-
-function renderEventQueue(currentState) {
-  if (!DOM.eventList) return;
-  const queue = Array.isArray(currentState.pendingEvents) ? currentState.pendingEvents : [];
-  if (DOM.eventPanel) {
-    DOM.eventPanel.classList.toggle("panel--events-empty", queue.length === 0);
-  }
-  if (queue.length === 0) {
-    DOM.eventList.innerHTML = '<div class="event-empty"><span class="meta">No active scenarios.</span></div>';
-    return;
-  }
-
-  const cards = queue.map((pending) => renderEventCard(pending, currentState)).filter(Boolean);
-  DOM.eventList.innerHTML = cards.length
-    ? cards.join("")
-    : '<div class="event-empty"><span class="meta">No active scenarios.</span></div>';
-}
-
-function renderEventCard(pending, currentState) {
-  if (!pending) return "";
-  const definition = pending.definitionId ? EVENT_DEFINITION_MAP.get(pending.definitionId) : null;
-  const context = pending.context && typeof pending.context === "object" ? pending.context : {};
-  const labelText = pending.label || definition?.label || "Event";
-  const fallbackDescription = definition
-    ? evaluateMaybeFn(definition.description, { state: currentState, context, definition })
-    : null;
-  const description = pending.description || (typeof fallbackDescription === "string" ? fallbackDescription : "");
-  const kind = pending.kind || definition?.kind || "neutral";
-  const kindTag = kind === "good" ? "tag--good" : kind === "bad" ? "tag--bad" : "tag--neutral";
-  const kindLabel = kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : "Neutral";
-  const deadlineBits = [];
-  if (Number.isFinite(pending.deadlineDay)) deadlineBits.push(`D${pending.deadlineDay}`);
-  if (Number.isFinite(pending.deadlineTick)) deadlineBits.push(`T${pending.deadlineTick}`);
-  const deadlineLabel = deadlineBits.length ? `Resolve by ${deadlineBits.join(" · ")}` : "No fixed deadline";
-  const assetTag = context.assetId
-    ? `<span class="event-card__asset">${escapeHtml(context.assetId)}</span>`
-    : "";
-
-  const choices = Array.isArray(definition?.choices) ? definition.choices : [];
-  const renderedChoices = choices.length
-    ? choices
-        .map((choice) => renderEventChoice(choice, definition, pending, currentState))
-        .join("")
-    : '<li class="event-choice"><div class="event-choice__body"><p>No actions available.</p></div></li>';
-
-  return `
-    <article class="event-card" data-event-instance="${pending.instanceId}">
-      <header class="event-card__header">
-        <div class="event-card__title">
-          <span class="tag ${kindTag}">${escapeHtml(kindLabel)}</span>
-          <strong>${escapeHtml(labelText)}</strong>
-          ${assetTag}
-        </div>
-        <div class="event-card__deadline">${escapeHtml(deadlineLabel)}</div>
-      </header>
-      <p class="event-card__description">${description ? escapeHtml(description) : "—"}</p>
-      <ul class="event-card__choices">
-        ${renderedChoices}
-      </ul>
-    </article>
-  `;
-}
-
-function renderEventChoice(choice, definition, pending, currentState) {
-  if (!choice) return "";
-  const context = pending.context && typeof pending.context === "object" ? pending.context : {};
-  const allowed = checkChoiceRequirements(choice, definition, currentState, context);
-  const desc = choiceDescription(choice, definition, currentState, context);
-  const reason = !allowed ? choiceDisabledReason(choice, definition, currentState, context) : "";
-  const predictedKind = predictChoiceKind(choice, definition, currentState, context);
-  const className =
-    predictedKind === "good" ? "btn btn-primary" : predictedKind === "bad" ? "btn btn-danger" : "btn";
-  const choiceId = choice.id != null ? String(choice.id) : "";
-  const instanceId = String(pending.instanceId ?? "");
-  return `
-    <li class="event-choice">
-      <button type="button" class="${className}" data-event-choice data-event-id="${escapeHtml(instanceId)}" data-choice-id="${escapeHtml(choiceId)}" ${
-        allowed ? "" : "disabled"
-      }>${escapeHtml(choice.label || "Choose")}</button>
-      <div class="event-choice__body">
-        <p>${desc ? escapeHtml(desc) : "—"}</p>
-        ${!allowed && reason ? `<p class="event-choice__reason">${escapeHtml(reason)}</p>` : ""}
-      </div>
-    </li>
-  `;
-}
-
-function renderEffectsForSelected(currentState) {
-  if (!DOM.effectsList) return;
-  const id = currentState.selected;
-  const list = currentState.events.filter((event) => event.targetId == null || event.targetId === id);
-  if (list.length === 0) {
-    DOM.effectsList.innerHTML = '<li class="effect"><span class="meta">None</span></li>';
-    return;
-  }
-
-  DOM.effectsList.innerHTML = list
-    .map((event) => {
-      const kindTag =
-        event.kind === "good" ? "tag--good" : event.kind === "bad" ? "tag--bad" : "tag--neutral";
-      const tags = [];
-      if (event.effect?.volMult && event.effect.volMult !== 1) {
-        const cls = event.effect.volMult > 1 ? "tag--bad" : "tag--good";
-        const label = event.effect.volMult > 1 ? "Vol ↑ x" : "Vol ↓ x";
-        tags.push(`<span class="tag ${cls}">${label}${event.effect.volMult.toFixed(2)}</span>`);
-      }
-      if (event.effect?.driftShift) {
-        const cls = event.effect.driftShift > 0 ? "tag--good" : "tag--bad";
-        const arrow = event.effect.driftShift > 0 ? "Drift ↑ " : "Drift ↓ ";
-        tags.push(`<span class="tag ${cls}">${arrow}${event.effect.driftShift.toFixed(3)}</span>`);
-      }
-      if (Number.isFinite(event.effect?.liquidityShift) && event.effect.liquidityShift !== 0) {
-        const cls = event.effect.liquidityShift > 0 ? "tag--good" : "tag--bad";
-        const label = event.effect.liquidityShift > 0 ? "Liq ↑ " : "Liq ↓ ";
-        tags.push(
-          `<span class="tag ${cls}">${label}${Math.abs(event.effect.liquidityShift).toFixed(2)}</span>`
-        );
-      }
-      if (Number.isFinite(event.effect?.riskShift) && event.effect.riskShift !== 0) {
-        const cls = event.effect.riskShift > 0 ? "tag--bad" : "tag--good";
-        const label = event.effect.riskShift > 0 ? "Risk ↑ " : "Risk ↓ ";
-        tags.push(`<span class="tag ${cls}">${label}${Math.abs(event.effect.riskShift).toFixed(2)}</span>`);
-      }
-      const expiry = [];
-      if (event.expiresAtTick != null) expiry.push(`T${event.expiresAtTick}`);
-      if (event.expiresOnDay != null) expiry.push(`D${event.expiresOnDay}`);
-      const expiryLabel = expiry.length ? expiry.join(" · ") : "—";
-      return `
-        <li class="effect">
-          <div class="effect__header">
-            <span class="tag ${kindTag}">${event.kind}</span>
-            <strong>${event.label}</strong>
-          </div>
-          <div class="effect__meta">Expires ${expiryLabel}</div>
-          <div class="effect__tags">${tags.join(" ")}</div>
-        </li>
-      `;
-    })
-    .join("");
-}
-
-function renderDriversForSelected(currentState) {
-  if (!DOM.driversList) return;
-  const asset = findAsset(currentState, currentState.selected);
-  if (!asset || !asset.lastTickMeta) {
-    DOM.driversList.innerHTML = '<li class="effect"><span class="meta">No price drivers yet — make a move or wait for the next tick.</span></li>';
-    return;
-  }
-
-  const influences = Array.isArray(asset.lastTickMeta.influences) ? asset.lastTickMeta.influences : [];
-  if (influences.length === 0) {
-    DOM.driversList.innerHTML = '<li class="effect"><span class="meta">No major forces moved this asset on the last update.</span></li>';
-    return;
-  }
-
-  const flags = asset.lastTickMeta.flags || {};
-  const metaMessages = [];
-  if (flags.externalOverride) {
-    metaMessages.push('<li class="effect"><div class="effect__meta">External shocks overrode your order flow.</div></li>');
-  }
-  if (flags.playerDominant) {
-    metaMessages.push('<li class="effect"><div class="effect__meta">Your trading flow is steering the price for now.</div></li>');
-  }
-  if (flags.macroShock) {
-    metaMessages.push('<li class="effect"><div class="effect__meta">Macro regime turbulence is amplifying moves.</div></li>');
-  }
-  if (flags.highVolRegime && !flags.macroShock) {
-    metaMessages.push('<li class="effect"><div class="effect__meta">Volatility is running hotter than usual.</div></li>');
-  }
-
-  const rows = influences
-    .map((influence) => {
-      const label = influence.label ?? "Influence";
-      const typeClass = influence.type ? `tag--${influence.type}` : "tag--neutral";
-      const typeLabel = influence.typeLabel ?? (influence.type ? influence.type[0].toUpperCase() + influence.type.slice(1) : "Driver");
-      const magnitudePct = Number.isFinite(influence.magnitude) ? influence.magnitude * 100 : 0;
-      const magnitudeClass =
-        magnitudePct > 0.001 ? "tag--good" : magnitudePct < -0.001 ? "tag--bad" : "tag--neutral";
-      const magnitudeLabel =
-        Math.abs(magnitudePct) < 0.001 ? "≈0.00%" : `${magnitudePct > 0 ? "+" : ""}${magnitudePct.toFixed(2)}%`;
-      const volMult = Number.isFinite(influence.volMult) ? influence.volMult : 1;
-      const showVol = Math.abs(volMult - 1) > 0.05;
-      const volTag = showVol
-        ? `<span class="tag ${volMult > 1 ? "tag--bad" : "tag--good"}">Vol x${volMult.toFixed(2)}</span>`
-        : "";
-      const description = influence.description ? influence.description : "";
-      return `
-        <li class="effect">
-          <div class="effect__header">
-            <span class="tag ${typeClass}">${typeLabel}</span>
-            <strong>${label}</strong>
-          </div>
-          <div class="effect__meta">${description}</div>
-          <div class="effect__tags">
-            <span class="tag ${magnitudeClass}">${magnitudeLabel}</span>
-            ${volTag}
-          </div>
-        </li>
-      `;
-    })
-    .join("");
-
-  DOM.driversList.innerHTML = [...metaMessages, rows].join("");
-}
-
-function drawChart(history) {
-  if (!chartCtx || !history || history.length === 0) return;
-  const { width: w, height: h } = chartCtx.canvas;
-  chartCtx.clearRect(0, 0, w, h);
-  chartCtx.strokeStyle = "#262638";
-  chartCtx.lineWidth = 1;
-  chartCtx.strokeRect(0, 0, w, h);
-
-  const min = Math.min(...history);
-  const max = Math.max(...history);
-  const pad = (max - min) * 0.1 || 1;
-  const yMin = min - pad;
-  const yMax = max + pad;
-
-  chartCtx.lineWidth = 2;
-  chartCtx.strokeStyle = "#8b5cf6";
-  chartCtx.beginPath();
-  history.forEach((value, index) => {
-    const x = (index / (history.length - 1)) * (w - 10) + 5;
-    const y = h - ((value - yMin) / (yMax - yMin)) * (h - 10) - 5;
-    if (index === 0) chartCtx.moveTo(x, y);
-    else chartCtx.lineTo(x, y);
-  });
-  chartCtx.stroke();
-}
-
-function renderFeed(currentState) {
-  if (!DOM.feed) return;
-  DOM.feed.innerHTML = currentState.feed
-    .slice()
-    .reverse()
-    .map((entry) => {
-      const kindCls =
-        entry.kind === "good" ? "feed__item--good" : entry.kind === "bad" ? "feed__item--bad" : "feed__item--neutral";
-      return `
-        <li class="feed__item ${kindCls}">
-          <span class="feed__time">${entry.time}</span>
-          <span class="feed__text">${entry.text}</span>
-        </li>
-      `;
-    })
-    .join("");
-}
-
-function updateControls(currentState) {
-  if (!DOM.startBtn) return;
-  DOM.startBtn.textContent = currentState.running ? "Pause" : "Start";
-}
-
 function portfolioValue(currentState) {
   let sum = 0;
   for (const [id, position] of Object.entries(currentState.positions || {})) {
@@ -1195,4 +799,26 @@ function configureUpgradesIntegration() {
     }
   });
   upgradesConfigured = true;
+}
+
+function ensureSelection(currentState) {
+  if (!currentState.selected && Array.isArray(currentState.assets) && currentState.assets.length) {
+    currentState.selected = currentState.assets[0].id;
+  }
+}
+
+function exposeEngine() {
+  if (!engine) return;
+  Object.defineProperty(engine, "state", {
+    get() {
+      return engine.getState();
+    },
+    configurable: true,
+    enumerable: true
+  });
+  engine.portfolioValue = (currentState = engine.getState()) => portfolioValue(currentState);
+  engine.unrealizedPL = (currentState = engine.getState()) => unrealizedPL(currentState);
+  engine.renderAll = () => engine.render();
+  engine.pushFeed = (entry) => pushFeed(entry);
+  window.ttmGame = engine;
 }
