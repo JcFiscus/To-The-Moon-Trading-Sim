@@ -32,8 +32,6 @@ const pickTone = (value) => {
 
 export function createMarketListController({
   onSelectAsset,
-  onQuickBuy,
-  onQuickSell,
   onDefaultQtyChange,
   parseQty
 } = {}) {
@@ -67,26 +65,6 @@ export function createMarketListController({
 
   if (tableBody) {
     tableBody.addEventListener("click", (event) => {
-      const buyButton = event.target.closest('[data-action="market-buy"]');
-      if (buyButton && typeof onQuickBuy === "function") {
-        const assetId = buyButton.getAttribute("data-id");
-        if (assetId) {
-          const qty = coerceQty(qtyInput ? qtyInput.value : 1);
-          onQuickBuy(assetId, qty);
-        }
-        return;
-      }
-
-      const sellButton = event.target.closest('[data-action="market-sell"]');
-      if (sellButton && typeof onQuickSell === "function") {
-        const assetId = sellButton.getAttribute("data-id");
-        if (assetId) {
-          const qty = coerceQty(qtyInput ? qtyInput.value : 1);
-          onQuickSell(assetId, qty);
-        }
-        return;
-      }
-
       const row = event.target.closest("tr[data-id]");
       if (!row) return;
       const id = row.getAttribute("data-id");
@@ -106,19 +84,26 @@ export function createMarketListController({
     const tone = pickTone(change);
     const badge = `<span class="badge badge--${tone}">${change >= 0 ? "+" : ""}${change.toFixed(2)}%</span>`;
     const plTone = pickTone(unrealized);
+    const hasPosition = qty > 0;
+    const qtyLabel = hasPosition ? qty.toLocaleString() : "—";
+    const positionMeta = hasPosition ? `Avg ${formatPrice(avg)}` : "No holdings";
+    const holdBadge = hasPosition ? '<span class="ticker__status">Held</span>' : "";
+    const plDisplay = hasPosition ? `<span class="pl--${plTone}">${formatMoney(unrealized)}</span>` : "—";
 
     return `
-      <tr data-id="${escapeHtml(asset.id)}" ${asset.id === lastSelectedId ? "data-selected=\"true\"" : ""}>
-        <td class="ticker">${escapeHtml(asset.id)}</td>
+      <tr data-id="${escapeHtml(asset.id)}" ${asset.id === lastSelectedId ? "data-selected=\"true\"" : ""} data-has-position="${hasPosition}">
+        <td class="ticker${hasPosition ? " ticker--held" : ""}">
+          <span class="ticker__symbol">${escapeHtml(asset.id)}</span>
+          ${holdBadge}
+        </td>
         <td class="name">${escapeHtml(asset.name)}</td>
         <td class="num">${formatPrice(asset.price)}</td>
-        <td class="num">${badge}</td>
-        <td class="num">${qty}</td>
-        <td class="num">${qty === 0 ? "—" : `<span class="pl--${plTone}">${formatMoney(unrealized)}</span>`}</td>
-        <td class="actions">
-          <button class="btn btn-primary" data-action="market-buy" data-id="${escapeHtml(asset.id)}" data-tooltip="Buy ${escapeHtml(asset.id)} using your default quantity">Buy</button>
-          <button class="btn" data-action="market-sell" data-id="${escapeHtml(asset.id)}" data-tooltip="Sell ${escapeHtml(asset.id)} using your default quantity">Sell</button>
+        <td class="change">${badge}</td>
+        <td class="position${hasPosition ? " position--active" : ""}">
+          <span class="position__qty">${qtyLabel}</span>
+          <span class="position__meta">${positionMeta}</span>
         </td>
+        <td class="num pl-cell">${plDisplay}</td>
       </tr>
     `;
   }

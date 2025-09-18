@@ -965,18 +965,17 @@ body.has-module-dock {
 
 .table thead th:nth-child(1),
 .table tbody td:nth-child(1) {
-  width: 12%;
+  width: 15%;
 }
 
 .table thead th:nth-child(2),
 .table tbody td:nth-child(2) {
-  width: 26%;
-  white-space: normal;
+  width: 32%;
 }
 
 .table thead th:nth-child(3),
 .table tbody td:nth-child(3) {
-  width: 12%;
+  width: 15%;
 }
 
 .table thead th:nth-child(4),
@@ -984,19 +983,18 @@ body.has-module-dock {
   width: 10%;
 }
 
+.table thead th:nth-child(4) {
+  text-align: center;
+}
+
 .table thead th:nth-child(5),
 .table tbody td:nth-child(5) {
-  width: 10%;
+  width: 14%;
 }
 
 .table thead th:nth-child(6),
 .table tbody td:nth-child(6) {
-  width: 13%;
-}
-
-.table thead th:nth-child(7),
-.table tbody td:nth-child(7) {
-  width: 17%;
+  width: 14%;
 }
 
 .table thead th {
@@ -1015,6 +1013,7 @@ body.has-module-dock {
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   white-space: nowrap;
+  vertical-align: middle;
 }
 
 .table tbody tr[data-selected="true"] {
@@ -1028,25 +1027,88 @@ body.has-module-dock {
 
 .table .num {
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
-.table .actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+.table .ticker {
+  display: inline-flex;
   align-items: center;
+  gap: var(--space-2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.table .actions .btn {
-  flex: 1 1 48%;
-  min-width: 0;
+.table .ticker__symbol {
+  font-weight: 600;
 }
 
-@media (max-width: 1280px) {
-  .table .actions .btn {
-    flex-basis: 100%;
-  }
+.table .ticker__status {
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--color-accent) 78%, var(--color-text) 22%);
+  background: rgba(245, 158, 11, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.32);
+}
+
+.table .ticker--held .ticker__symbol {
+  color: color-mix(in srgb, var(--color-accent) 72%, var(--color-text));
+}
+
+.table .name {
+  white-space: normal;
+  color: color-mix(in srgb, var(--color-text) 86%, var(--color-muted));
+  font-weight: 500;
+}
+
+.table .change {
+  text-align: center;
+}
+
+.table .position {
+  text-align: right;
+  white-space: normal;
+}
+
+.table .position__qty {
+  display: block;
+  font-weight: 600;
+}
+
+.table .position__meta {
+  display: block;
+  font-size: 0.75rem;
+  color: color-mix(in srgb, var(--color-muted) 84%, rgba(255, 255, 255, 0.38));
+}
+
+.table .position--active .position__qty {
+  color: color-mix(in srgb, var(--color-accent) 70%, var(--color-text));
+}
+
+.table .position--active .position__meta {
+  color: color-mix(in srgb, var(--color-accent) 45%, var(--color-muted));
+}
+
+.table .pl-cell span {
+  font-weight: 600;
+}
+
+.pl--good {
+  color: var(--color-good);
+}
+
+.pl--bad {
+  color: var(--color-bad);
+}
+
+.pl--neutral {
+  color: var(--color-muted);
+}
+
+.table tbody tr[data-has-position="true"] td:first-child {
+  box-shadow: inset 3px 0 0 rgba(245, 158, 11, 0.4);
 }
 
 .table-empty {
