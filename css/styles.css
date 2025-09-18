@@ -165,11 +165,14 @@ noscript {
     grid-template-columns: 1fr;
   }
 
+  .app-header__meta {
+    grid-template-columns: 1fr;
+  }
+
   .hud {
     grid-template-columns: 1fr;
     grid-template-areas:
       "metrics"
-      "timer"
       "options"
       "actions"
       "hint";
@@ -177,6 +180,10 @@ noscript {
 
   .hud__metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hud__timer {
+    max-width: 100%;
   }
 }
 
@@ -194,7 +201,16 @@ noscript {
 .app-header__intro {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.app-header__meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: start;
+  width: 100%;
 }
 
 .app-header__title {
@@ -216,9 +232,8 @@ noscript {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-areas:
-    "metrics timer"
-    "options timer"
-    "actions actions"
+    "metrics metrics"
+    "options actions"
     "hint hint";
   gap: var(--space-4);
   background: linear-gradient(140deg, rgba(10, 19, 40, 0.9), rgba(7, 13, 26, 0.9));
@@ -249,7 +264,6 @@ noscript {
 }
 
 .hud__timer {
-  grid-area: timer;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -260,6 +274,9 @@ noscript {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   position: relative;
   overflow: hidden;
+  max-width: 320px;
+  width: 100%;
+  justify-self: stretch;
 }
 
 .hud__timer::before {
@@ -553,7 +570,6 @@ noscript {
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  overflow-x: auto;
   position: relative;
   border-radius: calc(var(--radius-xl) * 1.05);
   border: 1px solid rgba(255, 255, 255, 0.04);
@@ -926,7 +942,8 @@ body.has-module-dock {
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: calc(var(--radius-lg) * 0.95);
   background: linear-gradient(160deg, rgba(7, 12, 26, 0.95), rgba(11, 19, 38, 0.88));
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   flex: 1 1 auto;
   min-height: 0;
   scrollbar-gutter: stable;
@@ -937,7 +954,49 @@ body.has-module-dock {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  min-width: 680px;
+  min-width: 100%;
+  table-layout: fixed;
+}
+
+.table thead th,
+.table tbody td {
+  min-width: 0;
+}
+
+.table thead th:nth-child(1),
+.table tbody td:nth-child(1) {
+  width: 12%;
+}
+
+.table thead th:nth-child(2),
+.table tbody td:nth-child(2) {
+  width: 26%;
+  white-space: normal;
+}
+
+.table thead th:nth-child(3),
+.table tbody td:nth-child(3) {
+  width: 12%;
+}
+
+.table thead th:nth-child(4),
+.table tbody td:nth-child(4) {
+  width: 10%;
+}
+
+.table thead th:nth-child(5),
+.table tbody td:nth-child(5) {
+  width: 10%;
+}
+
+.table thead th:nth-child(6),
+.table tbody td:nth-child(6) {
+  width: 13%;
+}
+
+.table thead th:nth-child(7),
+.table tbody td:nth-child(7) {
+  width: 17%;
 }
 
 .table thead th {
@@ -949,11 +1008,13 @@ body.has-module-dock {
   position: sticky;
   top: 0;
   z-index: 1;
+  white-space: nowrap;
 }
 
 .table tbody td {
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid rgba(255, 255, 255, 0.05);
+  white-space: nowrap;
 }
 
 .table tbody tr[data-selected="true"] {
@@ -973,6 +1034,19 @@ body.has-module-dock {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.table .actions .btn {
+  flex: 1 1 48%;
+  min-width: 0;
+}
+
+@media (max-width: 1280px) {
+  .table .actions .btn {
+    flex-basis: 100%;
+  }
 }
 
 .table-empty {
@@ -1109,6 +1183,10 @@ body.has-module-dock {
   padding: 0;
   display: grid;
   gap: var(--space-2);
+  max-height: clamp(140px, 24vh, 240px);
+  overflow-y: auto;
+  padding-right: calc(var(--space-1) * 0.75);
+  scrollbar-gutter: stable;
 }
 
 .effect {
