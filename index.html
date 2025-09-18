@@ -44,6 +44,16 @@
             <div class="hud-timer__progress" data-element="timer-progress" style="width: 100%;"></div>
           </div>
         </div>
+        <div class="hud__options">
+          <label class="hud-toggle">
+            <input type="checkbox" data-action="toggle-auto-day" />
+            <span class="hud-toggle__track" aria-hidden="true"></span>
+            <span class="hud-toggle__text">
+              <span class="hud-toggle__title">Auto Launch Next Day</span>
+              <span class="hud-toggle__status" data-field="auto-day-status">Manual start</span>
+            </span>
+          </label>
+        </div>
         <div class="hud__actions">
           <button class="btn btn-primary" data-action="toggle-run" data-tooltip="Start or pause the market clock">Start</button>
           <button class="btn" data-action="end-day" data-tooltip="Advance to the next trading day">End Day</button>
@@ -139,53 +149,92 @@
       </div>
     </section>
 
-    <section class="panel panel--events" data-module="events">
+    <section class="panel panel--command" data-module="command-modules">
       <header class="panel__header">
         <div>
-          <h2>Situation Room</h2>
-          <p class="panel__subtitle">Story events with lasting market impact.</p>
+          <h2>Command Modules</h2>
+          <p class="panel__subtitle">Spin up subsystems without losing sight of the market.</p>
         </div>
       </header>
-      <div class="event-queue" data-region="event-list">
-        <div class="event-empty" data-element="events-empty"><span class="meta">No active scenarios.</span></div>
+      <div class="command-grid">
+        <button class="command-tile" type="button" data-module-target="events" data-module-label="Situation Room">
+          <span class="command-tile__icon" aria-hidden="true">🛰️</span>
+          <span class="command-tile__eyebrow">Scenarios</span>
+          <span class="command-tile__title">Situation Room</span>
+          <span class="command-tile__meta" data-field="command-events-count">All clear</span>
+          <span class="command-tile__summary" data-field="command-events-summary">No active scenarios.</span>
+        </button>
+        <button class="command-tile" type="button" data-module-target="news" data-module-label="Market Intel">
+          <span class="command-tile__icon" aria-hidden="true">🛰</span>
+          <span class="command-tile__eyebrow">Signals</span>
+          <span class="command-tile__title">Market Intel</span>
+          <span class="command-tile__meta" data-field="command-news-count">News feed idle</span>
+          <span class="command-tile__summary" data-field="command-news-summary">Waiting for market chatter…</span>
+        </button>
+        <button class="command-tile" type="button" data-module-target="upgrade-shop" data-module-label="Upgrade Hangar">
+          <span class="command-tile__icon" aria-hidden="true">🛠️</span>
+          <span class="command-tile__eyebrow">Upgrades</span>
+          <span class="command-tile__title">Upgrade Hangar</span>
+          <span class="command-tile__meta" data-field="command-upgrade-status">No systems unlocked</span>
+          <span class="command-tile__summary" data-field="command-upgrade-summary">Earn cash to unlock new tech.</span>
+        </button>
+        <button class="command-tile" type="button" data-module-target="meta-preview" data-module-label="Mission Brief">
+          <span class="command-tile__icon" aria-hidden="true">📡</span>
+          <span class="command-tile__eyebrow">Meta</span>
+          <span class="command-tile__title">Mission Brief</span>
+          <span class="command-tile__meta" data-field="command-meta-status">0 research credits</span>
+          <span class="command-tile__summary" data-field="command-meta-summary">Chart long-term upgrades from Mission Control.</span>
+        </button>
       </div>
     </section>
-
-    <section class="panel panel--feed" data-module="news">
-      <header class="panel__header">
-        <div>
-          <h2>News Feed</h2>
-          <p class="panel__subtitle">Events apply temporary market effects. Because vibes move prices.</p>
-        </div>
-      </header>
-      <ul class="feed" data-region="news-list" aria-live="polite"></ul>
-      <div class="feed-empty" data-element="news-empty">Waiting for market chatter…</div>
-    </section>
-
-    <aside class="panel panel--upgrades" data-module="upgrade-shop">
-      <header class="panel__header">
-        <div>
-          <h2>Upgrade Hangar</h2>
-          <p class="panel__subtitle">Invest in tech that rewrites the rules mid-run.</p>
-        </div>
-      </header>
-      <div id="insider-banner" class="insider-banner hidden" role="status" aria-live="polite"></div>
-      <div class="upgrade-status is-hidden" data-element="upgrade-status" aria-live="polite"></div>
-      <div class="upgrade-grid" data-region="upgrade-list"></div>
-    </aside>
-
-    <aside class="panel panel--meta-preview">
-      <header class="panel__header">
-        <div>
-          <h2>Mission Brief</h2>
-          <p class="panel__subtitle">Space reserved for tutorials, goals, or meta progression.</p>
-        </div>
-      </header>
-      <div class="meta-preview">
-        <p>Coming soon: guideposts for your next moonshot. Feature packs can mount here without reworking the dashboard layout.</p>
-      </div>
-    </aside>
     </main>
+  </div>
+
+  <div class="module-dock" data-module-dock aria-hidden="true">
+    <div class="module-dock__backdrop" data-action="close-modules" tabindex="-1"></div>
+    <div class="module-dock__panel" role="dialog" aria-modal="true" aria-labelledby="module-dock-title">
+      <header class="module-dock__header">
+        <h2 id="module-dock-title" data-module-title>Command Module</h2>
+        <button class="module-dock__close" type="button" data-action="close-modules" aria-label="Close module">×</button>
+      </header>
+      <div class="module-dock__body">
+        <section class="module-screen" data-module="events" data-module-screen="events" aria-hidden="true">
+          <header class="module-screen__header">
+            <h3>Situation Room</h3>
+            <p>Story events with lasting market impact.</p>
+          </header>
+          <div class="event-queue" data-region="event-list">
+            <div class="event-empty" data-element="events-empty"><span class="meta">No active scenarios.</span></div>
+          </div>
+        </section>
+        <section class="module-screen" data-module="news" data-module-screen="news" aria-hidden="true">
+          <header class="module-screen__header">
+            <h3>Market Intel</h3>
+            <p>Events apply temporary market effects. Because vibes move prices.</p>
+          </header>
+          <ul class="feed" data-region="news-list" aria-live="polite"></ul>
+          <div class="feed-empty" data-element="news-empty">Waiting for market chatter…</div>
+        </section>
+        <section class="module-screen" data-module="upgrade-shop" data-module-screen="upgrade-shop" aria-hidden="true">
+          <header class="module-screen__header">
+            <h3>Upgrade Hangar</h3>
+            <p>Invest in tech that rewrites the rules mid-run.</p>
+          </header>
+          <div id="insider-banner" class="insider-banner hidden" role="status" aria-live="polite"></div>
+          <div class="upgrade-status is-hidden" data-element="upgrade-status" aria-live="polite"></div>
+          <div class="upgrade-grid" data-region="upgrade-list" data-module-focus></div>
+        </section>
+        <section class="module-screen" data-module="meta-preview" data-module-screen="meta-preview" aria-hidden="true">
+          <header class="module-screen__header">
+            <h3>Mission Brief</h3>
+            <p>Space reserved for tutorials, goals, or meta progression.</p>
+          </header>
+          <div class="meta-preview">
+            <p>Coming soon: guideposts for your next moonshot. Feature packs can mount here without reworking the dashboard layout.</p>
+          </div>
+        </section>
+      </div>
+    </div>
   </div>
 
   <div id="daily-briefing" class="daily-briefing" aria-hidden="true">
@@ -220,7 +269,7 @@
         </ul>
       </section>
       <footer class="daily-briefing__footer">
-        <button class="btn" type="button" data-action="briefing-dismiss">Dismiss</button>
+        <button class="btn" type="button" data-action="briefing-dismiss">Close Briefing</button>
         <button class="btn btn-primary" type="button" data-action="briefing-next">Launch Next Day</button>
       </footer>
     </div>

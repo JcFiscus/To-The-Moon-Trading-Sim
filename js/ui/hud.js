@@ -12,7 +12,7 @@ function toneForValue(value) {
   return "neutral";
 }
 
-export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta } = {}) {
+export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta, onToggleAutoDay } = {}) {
   const root = document.querySelector('[data-module="hud"]');
   if (!root) {
     return {
@@ -28,6 +28,8 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
   const dayTimerBarEl = dayTimerEl?.querySelector('[data-element="timer-bar"]');
   const dayTimerProgressEl = dayTimerEl?.querySelector('[data-element="timer-progress"]');
   const dayTimerLabelEl = dayTimerEl?.querySelector('[data-element="timer-label"]');
+  const autoToggle = root.querySelector('[data-action="toggle-auto-day"]');
+  const autoStatus = root.querySelector('[data-field="auto-day-status"]');
 
   const toggleBtn = root.querySelector('[data-action="toggle-run"]');
   const endBtn = root.querySelector('[data-action="end-day"]');
@@ -46,6 +48,14 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
   if (metaBtn && typeof onOpenMeta === "function") {
     metaBtn.addEventListener("click", () => onOpenMeta());
   }
+  if (autoToggle && typeof onToggleAutoDay === "function") {
+    autoToggle.addEventListener("change", () => {
+      onToggleAutoDay(autoToggle.checked);
+      if (autoStatus) {
+        autoStatus.textContent = autoToggle.checked ? "Auto start" : "Manual start";
+      }
+    });
+  }
 
   return {
     render({
@@ -56,7 +66,8 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
       unrealized = 0,
       running = false,
       dayRemainingMs = null,
-      dayDurationMs = null
+      dayDurationMs = null,
+      autoStartNextDay = false
     } = {}) {
       if (dayEl) dayEl.textContent = String(day);
       if (cashEl) cashEl.textContent = fmtMoney(cash);
@@ -104,6 +115,12 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
             dayTimerLabelEl.textContent = `${seconds.toFixed(decimals)}s remaining`;
           }
         }
+      }
+      if (autoToggle) {
+        autoToggle.checked = !!autoStartNextDay;
+      }
+      if (autoStatus) {
+        autoStatus.textContent = autoStartNextDay ? "Auto start" : "Manual start";
       }
     }
   };
