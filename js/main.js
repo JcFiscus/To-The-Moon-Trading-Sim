@@ -182,8 +182,6 @@ function setupControllers() {
 
   controllers.market = createMarketListController({
     onSelectAsset: (id) => setSelected(id),
-    onQuickBuy: (id, qty) => doBuy(id, qty),
-    onQuickSell: (id, qty) => doSell(id, qty),
     onDefaultQtyChange: (qty) => {
       sharedTradeQty = parseQty(qty);
       controllers.trade?.setQty(sharedTradeQty);
