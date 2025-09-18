@@ -24,7 +24,9 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
   const cashEl = root.querySelector('[data-field="cash"]');
   const equityEl = root.querySelector('[data-field="equity"]');
   const plEl = root.querySelector('[data-field="pl"]');
-  const dayTimerEl = root.querySelector('[data-field="day-timer"]');
+  const dayTimerEl =
+    root.querySelector('[data-field="day-timer"]') ||
+    document.querySelector('[data-field="day-timer"]');
   const dayTimerBarEl = dayTimerEl?.querySelector('[data-element="timer-bar"]');
   const dayTimerProgressEl = dayTimerEl?.querySelector('[data-element="timer-progress"]');
   const dayTimerLabelEl = dayTimerEl?.querySelector('[data-element="timer-label"]');
