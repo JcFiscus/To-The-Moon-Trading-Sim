@@ -34,6 +34,7 @@ import { createEventQueueController } from "./ui/eventQueue.js";
 import { createDailySummaryController } from "./ui/dailySummary.js";
 import { createUpgradeShopController } from "./ui/upgrades.js";
 import { updateInsiderBanner } from "./ui/insiderBanner.js";
+import { createCommandModulesController } from "./ui/commandModules.js";
 
 const fmtMoney = (n) =>
   (n < 0 ? "-$" : "$") +
@@ -90,6 +91,31 @@ const controllers = {};
 let sharedTradeQty = 10;
 let lastSelectedAssetId = null;
 
+const AUTO_START_KEY = "ttm_auto_next_day";
+
+function loadAutoStartPreference(defaultValue = false) {
+  if (typeof localStorage === "undefined") return defaultValue;
+  try {
+    const raw = localStorage.getItem(AUTO_START_KEY);
+    if (raw === "1") return true;
+    if (raw === "0") return false;
+  } catch (error) {
+    console.warn("ttm:autoStart:load", error);
+  }
+  return defaultValue;
+}
+
+function saveAutoStartPreference(value) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(AUTO_START_KEY, value ? "1" : "0");
+  } catch (error) {
+    console.warn("ttm:autoStart:save", error);
+  }
+}
+
+let autoStartNextDay = loadAutoStartPreference(false);
+
 function hasActiveRun() {
   if (!state || !state.run) return false;
   if (state.run.status === "ended") return false;
@@ -118,11 +144,20 @@ function refreshMetaUI({ allowResume = hasActiveRun(), canStart = canStartNewRun
   });
 }
 
+function refreshCommandModules(currentState = state) {
+  if (!controllers.commandModules || !currentState) return;
+  controllers.commandModules.render(currentState, {
+    feed: currentState.feed ?? [],
+    meta: metaState
+  });
+}
+
 function handleMetaUpgradePurchase(id) {
   if (!id || !metaState) return;
   if (purchaseMetaUpgrade(metaState, id)) {
     saveMetaState(metaState);
     refreshMetaUI({ allowResume: hasActiveRun(), canStart: canStartNewRun() });
+    refreshCommandModules();
   } else {
     console.warn("Upgrade locked or insufficient currency", id);
   }
@@ -204,11 +239,32 @@ function setupControllers() {
       engine.pause();
       refreshMetaUI({ allowResume: hasActiveRun(), canStart: canStartNewRun() });
       showMetaLayer();
+    },
+    onToggleAutoDay: (value) => {
+      const next = !!value;
+      if (next === autoStartNextDay) return;
+      autoStartNextDay = next;
+      saveAutoStartPreference(autoStartNextDay);
+      if (controllers.hud) {
+        controllers.hud.render({
+          day: state?.day,
+          cash: state?.cash,
+          equity: state ? state.cash + portfolioValue(state) : 0,
+          totalPL: state ? state.realized + unrealizedPL(state) : 0,
+          unrealized: state ? unrealizedPL(state) : 0,
+          running: engine?.isRunning?.() ?? false,
+          dayRemainingMs: state?.dayRemainingMs,
+          dayDurationMs: engine?.dayDurationMs,
+          autoStartNextDay
+        });
+      }
     }
   });
 
   controllers.market?.setDefaultQty(sharedTradeQty);
   controllers.trade?.setQty(sharedTradeQty);
+
+  controllers.commandModules = createCommandModulesController();
 
   window.__TTM_UI__ = {
     hud: controllers.hud,
@@ -218,7 +274,8 @@ function setupControllers() {
     news: controllers.news,
     upgrades: controllers.upgrades,
     events: controllers.events,
-    dailySummary: controllers.dailySummary
+    dailySummary: controllers.dailySummary,
+    commandModules: controllers.commandModules
   };
 }
 
@@ -248,6 +305,7 @@ function handleStartNewRun() {
     dayDurationMs: engine.dayDurationMs
   }));
   state = engine.getState();
+  refreshCommandModules(state);
   refreshDailyMetrics(state);
   eventSystem.bootstrap(state);
   ensureSelection(state);
@@ -274,6 +332,7 @@ function completeRun(reason) {
   summary.metaReward = reward;
   runHistory = saveRunSummary(summary);
   saveMetaState(metaState);
+  refreshCommandModules(state);
   pushFeed({
     text: `Run ended — ${summary.label}.`,
     kind: summary.reason === "bankrupt" ? "bad" : summary.reason === "forced-liquidation" ? "bad" : "neutral"
@@ -310,6 +369,7 @@ function init() {
 
   engine = createGameEngine({ state: initialState });
   state = engine.getState();
+  refreshCommandModules(state);
   refreshDailyMetrics(state);
 
   currentRunConfig = state.run?.config ?? nextConfig;
@@ -397,7 +457,8 @@ function renderAll(currentState) {
     unrealized,
     running: currentState.running,
     dayRemainingMs: currentState.dayRemainingMs,
-    dayDurationMs: engine?.dayDurationMs
+    dayDurationMs: engine?.dayDurationMs,
+    autoStartNextDay
   });
 
   controllers.market?.render(currentState);
@@ -416,6 +477,8 @@ function renderAll(currentState) {
     controllers.trade?.setQty(sharedTradeQty);
     lastSelectedAssetId = asset?.id ?? null;
   }
+
+  refreshCommandModules(currentState);
 }
 
 function safeRender(renderFn) {
@@ -597,10 +660,12 @@ function handleDayEnd(currentState, context = {}) {
       if (typeof engine.restartDayTimer === "function") {
         engine.restartDayTimer();
       }
-      if (wasRunning) {
+      const shouldAutoLaunch = autoStartNextDay && wasRunning;
+      if (shouldAutoLaunch) {
         engine.start();
       }
     }
+    refreshCommandModules(engine ? engine.getState() : currentState);
   };
 
   if (controllers.dailySummary && typeof controllers.dailySummary.show === "function") {
