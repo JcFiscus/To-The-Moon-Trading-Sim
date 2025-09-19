@@ -12,6 +12,16 @@ function toneForValue(value) {
   return "neutral";
 }
 
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function toneForExposure(percent) {
+  if (!Number.isFinite(percent)) return "neutral";
+  if (percent >= 130) return "bad";
+  if (percent >= 95) return "warn";
+  if (percent >= 60) return "good";
+  return "neutral";
+}
+
 export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta, onToggleAutoDay } = {}) {
   const root = document.querySelector('[data-module="hud"]');
   if (!root) {
@@ -32,11 +42,29 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
   const dayTimerLabelEl = dayTimerEl?.querySelector('[data-element="timer-label"]');
   const autoToggle = root.querySelector('[data-action="toggle-auto-day"]');
   const autoStatus = root.querySelector('[data-field="auto-day-status"]');
+  const exposureEl = root.querySelector('[data-field="exposure"]');
+  const marketStatusChip = root.querySelector('[data-element="market-status"]');
+  const marketStatusText = marketStatusChip?.querySelector('[data-element="market-status-text"]') || marketStatusChip;
+  const cycleStatusChip = root.querySelector('[data-element="cycle-status"]');
 
   const toggleBtn = root.querySelector('[data-action="toggle-run"]');
   const endBtn = root.querySelector('[data-action="end-day"]');
   const resetBtn = root.querySelector('[data-action="reset-run"]');
   const metaBtn = root.querySelector('[data-action="open-meta"]');
+
+  const updateAutoStatus = (isAuto) => {
+    const label = isAuto ? "Auto start" : "Manual start";
+    if (autoStatus) {
+      autoStatus.textContent = label;
+    }
+    if (cycleStatusChip) {
+      const cycleLabel = isAuto ? "Auto launch ready" : "Manual launch";
+      cycleStatusChip.textContent = cycleLabel;
+      cycleStatusChip.dataset.mode = isAuto ? "auto" : "manual";
+      cycleStatusChip.setAttribute("aria-label", cycleLabel);
+      cycleStatusChip.setAttribute("title", cycleLabel);
+    }
+  };
 
   if (toggleBtn && typeof onToggleRun === "function") {
     toggleBtn.addEventListener("click", () => onToggleRun());
@@ -52,10 +80,9 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
   }
   if (autoToggle && typeof onToggleAutoDay === "function") {
     autoToggle.addEventListener("change", () => {
-      onToggleAutoDay(autoToggle.checked);
-      if (autoStatus) {
-        autoStatus.textContent = autoToggle.checked ? "Auto start" : "Manual start";
-      }
+      const next = !!autoToggle.checked;
+      updateAutoStatus(next);
+      onToggleAutoDay(next);
     });
   }
 
@@ -66,6 +93,7 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
       equity = 0,
       totalPL = 0,
       unrealized = 0,
+      exposure = 0,
       running = false,
       dayRemainingMs = null,
       dayDurationMs = null,
@@ -78,12 +106,29 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
         const tone = toneForValue(totalPL);
         const unrl = fmtMoney(unrealized).replace("$", "");
         plEl.textContent = `${fmtMoney(totalPL)} (${totalPL >= 0 ? "+" : ""}${unrl} unrl)`;
-        plEl.dataset.tone = tone;
+        if (tone === "neutral") {
+          delete plEl.dataset.tone;
+        } else {
+          plEl.dataset.tone = tone;
+        }
+      }
+      if (exposureEl) {
+        const ratio = Number.isFinite(exposure) ? exposure : 0;
+        const percent = clamp(ratio * 100, 0, 999);
+        const decimals = percent >= 100 ? 0 : 1;
+        exposureEl.textContent = `${percent.toFixed(decimals)}%`;
+        const exposureTone = toneForExposure(percent);
+        if (exposureTone === "neutral") {
+          delete exposureEl.dataset.tone;
+        } else {
+          exposureEl.dataset.tone = exposureTone;
+        }
       }
       if (toggleBtn) {
         toggleBtn.textContent = running ? "Pause" : "Start";
         toggleBtn.dataset.state = running ? "running" : "idle";
       }
+      let isClosing = false;
       if (dayTimerEl) {
         const baseDuration = Number.isFinite(dayDurationMs) && dayDurationMs > 0 ? dayDurationMs : Number(dayTimerEl.dataset.duration) || 10000;
         const remaining = Number.isFinite(dayRemainingMs) ? Math.max(0, dayRemainingMs) : baseDuration;
@@ -92,7 +137,7 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
         const percent = Math.max(0, Math.min(100, ratio * 100));
         const seconds = remaining / 1000;
         const decimals = seconds < 10 ? 1 : 0;
-        const isClosing = running && remaining <= 50;
+        isClosing = running && remaining <= 50;
 
         dayTimerEl.dataset.duration = String(safeDuration);
         dayTimerEl.dataset.state = running ? (isClosing ? "closing" : "running") : "paused";
@@ -118,12 +163,24 @@ export function createHudController({ onToggleRun, onEndDay, onReset, onOpenMeta
           }
         }
       }
+      if (marketStatusChip) {
+        const state = running ? (isClosing ? "closing" : "live") : "idle";
+        const statusLabel = !running
+          ? "Systems idle"
+          : isClosing
+            ? "Market closing window"
+            : "Market live";
+        marketStatusChip.dataset.state = state;
+        marketStatusChip.setAttribute("aria-label", statusLabel);
+        marketStatusChip.setAttribute("title", statusLabel);
+        if (marketStatusText) {
+          marketStatusText.textContent = statusLabel;
+        }
+      }
       if (autoToggle) {
         autoToggle.checked = !!autoStartNextDay;
       }
-      if (autoStatus) {
-        autoStatus.textContent = autoStartNextDay ? "Auto start" : "Manual start";
-      }
+      updateAutoStatus(!!autoStartNextDay);
     }
   };
 }
