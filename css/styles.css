@@ -34,6 +34,8 @@
   --radius-xl: 1.25rem;
   --ring: 0 0 0 2px color-mix(in srgb, var(--color-accent) 55%, transparent);
   --ui-scale: 1;
+  --ui-min-scale: 0.6;
+  --ui-max-scale: 2;
   --ui-offset-top: 0px;
   --ui-offset-left: 0px;
   --ui-base-width: 1480px;
@@ -51,7 +53,9 @@ body {
 
 body {
   margin: 0;
-  font: 15px/1.5 var(--font-sans);
+  font-family: var(--font-sans);
+  font-size: calc(15px * clamp(0.85, var(--ui-scale, 1), 1.35));
+  line-height: 1.5;
   background:
     radial-gradient(1600px 960px at 52% -10%, rgba(77, 108, 187, 0.28) 0%, transparent 60%),
     radial-gradient(960px 720px at 12% 115%, rgba(20, 53, 103, 0.35) 0%, transparent 65%),
@@ -102,8 +106,8 @@ noscript {
   grid-template-rows: auto minmax(0, 1fr);
   gap: var(--space-6);
   padding: var(--space-6) var(--space-6) var(--space-7);
-  max-width: 1480px;
-  width: min(100%, 1480px);
+  max-width: var(--ui-base-width, 1480px);
+  width: min(100%, var(--ui-base-width, 1480px));
   margin: 0 auto;
   position: relative;
   min-height: 0;
