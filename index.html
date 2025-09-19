@@ -204,112 +204,113 @@
         </main>
       </div>
 
-      <div class="module-dock" data-module-dock aria-hidden="true">
-        <div class="module-dock__backdrop" data-action="close-modules" tabindex="-1"></div>
-        <div class="module-dock__panel" role="dialog" aria-modal="true" aria-labelledby="module-dock-title">
-          <header class="module-dock__header">
-            <h2 id="module-dock-title" data-module-title>Command Module</h2>
-            <button class="module-dock__close" type="button" data-action="close-modules" aria-label="Close module">×</button>
-          </header>
-          <div class="module-dock__body">
-            <section class="module-screen" data-module="events" data-module-screen="events" aria-hidden="true">
-              <header class="module-screen__header">
-                <h3>Situation Room</h3>
-                <p>Story events with lasting market impact.</p>
-              </header>
-              <div class="event-queue" data-region="event-list">
-                <div class="event-empty" data-element="events-empty"><span class="meta">No active scenarios.</span></div>
-              </div>
-            </section>
-            <section class="module-screen" data-module="news" data-module-screen="news" aria-hidden="true">
-              <header class="module-screen__header">
-                <h3>Market Intel</h3>
-                <p>Events apply temporary market effects. Because vibes move prices.</p>
-              </header>
-              <ul class="feed" data-region="news-list" aria-live="polite"></ul>
-              <div class="feed-empty" data-element="news-empty">Waiting for market chatter…</div>
-            </section>
-            <section class="module-screen" data-module="upgrade-shop" data-module-screen="upgrade-shop" aria-hidden="true">
-              <header class="module-screen__header">
-                <h3>Upgrade Hangar</h3>
-                <p>Invest in tech that rewrites the rules mid-run.</p>
-              </header>
-              <div id="insider-banner" class="insider-banner hidden" role="status" aria-live="polite"></div>
-              <div class="upgrade-status is-hidden" data-element="upgrade-status" aria-live="polite"></div>
-              <div class="upgrade-grid" data-region="upgrade-list" data-module-focus></div>
-            </section>
-            <section class="module-screen" data-module="meta-preview" data-module-screen="meta-preview" aria-hidden="true">
-              <header class="module-screen__header">
-                <h3>Mission Brief</h3>
-                <p>Space reserved for tutorials, goals, or meta progression.</p>
-              </header>
-              <div class="meta-preview">
-                <p>Coming soon: guideposts for your next moonshot. Feature packs can mount here without reworking the dashboard layout.</p>
-              </div>
-            </section>
-          </div>
-        </div>
-      </div>
-
-      <div id="daily-briefing" class="daily-briefing" aria-hidden="true">
-        <div class="daily-briefing__dialog" role="dialog" aria-modal="true" aria-labelledby="daily-briefing-title" tabindex="-1">
-          <button class="daily-briefing__close" type="button" data-action="briefing-dismiss" aria-label="Dismiss daily briefing">×</button>
-          <header class="daily-briefing__header">
-            <p class="daily-briefing__eyebrow">Daily Briefing</p>
-            <h2 id="daily-briefing-title" data-field="title">End of day summary</h2>
-            <p class="daily-briefing__lede" data-field="lede">Daily telemetry will appear here once the market closes.</p>
-          </header>
-          <section class="daily-briefing__section">
-            <h3>Key Metrics</h3>
-            <dl class="daily-briefing__metrics" data-region="metrics"></dl>
-          </section>
-          <section class="daily-briefing__section">
-            <h3>Highlights</h3>
-            <div class="daily-briefing__highlights">
-              <article class="daily-briefing__card" data-region="best">
-                <h4>Top Performer</h4>
-                <p class="daily-briefing__placeholder">Awaiting intel…</p>
-              </article>
-              <article class="daily-briefing__card" data-region="worst">
-                <h4>Lagging Asset</h4>
-                <p class="daily-briefing__placeholder">Awaiting intel…</p>
-              </article>
-            </div>
-          </section>
-          <section class="daily-briefing__section">
-            <h3>Notable Signals</h3>
-            <ul class="daily-briefing__events" data-region="events">
-              <li class="daily-briefing__placeholder">No reports yet.</li>
-            </ul>
-          </section>
-          <footer class="daily-briefing__footer">
-            <button class="btn" type="button" data-action="briefing-dismiss">Close Briefing</button>
-            <button class="btn btn-primary" type="button" data-action="briefing-next">Launch Next Day</button>
-          </footer>
-        </div>
-      </div>
-
-      <div id="meta-layer" class="meta-layer" aria-hidden="true">
-        <div class="meta-dialog" role="dialog" aria-modal="true" aria-labelledby="meta-title">
-          <button id="btn-meta-close" class="meta-close" aria-label="Close mission control">×</button>
-          <header class="meta-dialog__header">
-            <h2 id="meta-title">Mission Control</h2>
-            <div class="meta-balance">Research Credits: <span id="meta-balance">0</span></div>
-          </header>
-          <div class="meta-dialog__body">
-            <section class="meta-summary" id="meta-summary"></section>
-            <section class="meta-history" id="meta-history"></section>
-            <section class="meta-upgrades" id="meta-upgrades"></section>
-          </div>
-          <footer class="meta-dialog__footer">
-            <button id="btn-meta-start" class="btn btn-primary">Launch New Run</button>
-            <button id="btn-meta-resume" class="btn">Resume Run</button>
-          </footer>
-        </div>
-      </div>
-
       <footer class="app-footer">
         <p>Prototype v0.1. Prices are simulated. If you lose money here, that’s on your decision-making, not the physics engine.</p>
+      </footer>
+
+    </div>
+  </div>
+
+  <div class="module-dock" data-module-dock aria-hidden="true">
+    <div class="module-dock__backdrop" data-action="close-modules" tabindex="-1"></div>
+    <div class="module-dock__panel" role="dialog" aria-modal="true" aria-labelledby="module-dock-title">
+      <header class="module-dock__header">
+        <h2 id="module-dock-title" data-module-title>Command Module</h2>
+        <button class="module-dock__close" type="button" data-action="close-modules" aria-label="Close module">×</button>
+      </header>
+      <div class="module-dock__body">
+        <section class="module-screen" data-module="events" data-module-screen="events" aria-hidden="true">
+          <header class="module-screen__header">
+            <h3>Situation Room</h3>
+            <p>Story events with lasting market impact.</p>
+          </header>
+          <div class="event-queue" data-region="event-list">
+            <div class="event-empty" data-element="events-empty"><span class="meta">No active scenarios.</span></div>
+          </div>
+        </section>
+        <section class="module-screen" data-module="news" data-module-screen="news" aria-hidden="true">
+          <header class="module-screen__header">
+            <h3>Market Intel</h3>
+            <p>Events apply temporary market effects. Because vibes move prices.</p>
+          </header>
+          <ul class="feed" data-region="news-list" aria-live="polite"></ul>
+          <div class="feed-empty" data-element="news-empty">Waiting for market chatter…</div>
+        </section>
+        <section class="module-screen" data-module="upgrade-shop" data-module-screen="upgrade-shop" aria-hidden="true">
+          <header class="module-screen__header">
+            <h3>Upgrade Hangar</h3>
+            <p>Invest in tech that rewrites the rules mid-run.</p>
+          </header>
+          <div id="insider-banner" class="insider-banner hidden" role="status" aria-live="polite"></div>
+          <div class="upgrade-status is-hidden" data-element="upgrade-status" aria-live="polite"></div>
+          <div class="upgrade-grid" data-region="upgrade-list" data-module-focus></div>
+        </section>
+        <section class="module-screen" data-module="meta-preview" data-module-screen="meta-preview" aria-hidden="true">
+          <header class="module-screen__header">
+            <h3>Mission Brief</h3>
+            <p>Space reserved for tutorials, goals, or meta progression.</p>
+          </header>
+          <div class="meta-preview">
+            <p>Coming soon: guideposts for your next moonshot. Feature packs can mount here without reworking the dashboard layout.</p>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="daily-briefing" class="daily-briefing" aria-hidden="true">
+    <div class="daily-briefing__dialog" role="dialog" aria-modal="true" aria-labelledby="daily-briefing-title" tabindex="-1">
+      <button class="daily-briefing__close" type="button" data-action="briefing-dismiss" aria-label="Dismiss daily briefing">×</button>
+      <header class="daily-briefing__header">
+        <p class="daily-briefing__eyebrow">Daily Briefing</p>
+        <h2 id="daily-briefing-title" data-field="title">End of day summary</h2>
+        <p class="daily-briefing__lede" data-field="lede">Daily telemetry will appear here once the market closes.</p>
+      </header>
+      <section class="daily-briefing__section">
+        <h3>Key Metrics</h3>
+        <dl class="daily-briefing__metrics" data-region="metrics"></dl>
+      </section>
+      <section class="daily-briefing__section">
+        <h3>Highlights</h3>
+        <div class="daily-briefing__highlights">
+          <article class="daily-briefing__card" data-region="best">
+            <h4>Top Performer</h4>
+            <p class="daily-briefing__placeholder">Awaiting intel…</p>
+          </article>
+          <article class="daily-briefing__card" data-region="worst">
+            <h4>Lagging Asset</h4>
+            <p class="daily-briefing__placeholder">Awaiting intel…</p>
+          </article>
+        </div>
+      </section>
+      <section class="daily-briefing__section">
+        <h3>Notable Signals</h3>
+        <ul class="daily-briefing__events" data-region="events">
+          <li class="daily-briefing__placeholder">No reports yet.</li>
+        </ul>
+      </section>
+      <footer class="daily-briefing__footer">
+        <button class="btn" type="button" data-action="briefing-dismiss">Close Briefing</button>
+        <button class="btn btn-primary" type="button" data-action="briefing-next">Launch Next Day</button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="meta-layer" class="meta-layer" aria-hidden="true">
+    <div class="meta-dialog" role="dialog" aria-modal="true" aria-labelledby="meta-title">
+      <button id="btn-meta-close" class="meta-close" aria-label="Close mission control">×</button>
+      <header class="meta-dialog__header">
+        <h2 id="meta-title">Mission Control</h2>
+        <div class="meta-balance">Research Credits: <span id="meta-balance">0</span></div>
+      </header>
+      <div class="meta-dialog__body">
+        <section class="meta-summary" id="meta-summary"></section>
+        <section class="meta-history" id="meta-history"></section>
+        <section class="meta-upgrades" id="meta-upgrades"></section>
+      </div>
+      <footer class="meta-dialog__footer">
+        <button id="btn-meta-start" class="btn btn-primary">Launch New Run</button>
+        <button id="btn-meta-resume" class="btn">Resume Run</button>
       </footer>
     </div>
   </div>
