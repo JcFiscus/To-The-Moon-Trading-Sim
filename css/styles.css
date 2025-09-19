@@ -33,6 +33,11 @@
   --radius-lg: 1rem;
   --radius-xl: 1.25rem;
   --ring: 0 0 0 2px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  --ui-scale: 1;
+  --ui-offset-top: 0px;
+  --ui-offset-left: 0px;
+  --ui-base-width: 1480px;
+  --ui-base-height: 960px;
 }
 
 * {
@@ -115,6 +120,31 @@ noscript {
   opacity: 0.75;
   filter: drop-shadow(0 32px 65px rgba(5, 12, 30, 0.6));
   z-index: -1;
+}
+
+.app-stage {
+  flex: 1 1 auto;
+}
+
+body.is-viewport-scaling .app-stage {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body.is-viewport-scaling .app-frame {
+  position: absolute;
+  top: var(--ui-offset-top, 0px);
+  left: var(--ui-offset-left, 0px);
+  width: var(--ui-base-width, 1480px);
+  min-height: var(--ui-base-height, 960px);
+  transform-origin: top left;
+  transform: scale(var(--ui-scale, 1));
+  will-change: transform;
 }
 
 @media (max-width: 1024px) {
