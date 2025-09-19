@@ -27,8 +27,6 @@ const getViewportBox = () => {
   return { width: window.innerWidth, height: window.innerHeight };
 };
 
-const round = (value) => Math.round(value * 1000) / 1000;
-
 function initViewportScaling() {
   const stage = document.querySelector(STAGE_SELECTOR);
   const frame = document.querySelector(FRAME_SELECTOR);
@@ -71,7 +69,11 @@ function initViewportScaling() {
     if (!width || !height) return;
     const normalizedWidth = Math.max(fallbackWidth, round(width, 1));
     const normalizedHeight = Math.max(fallbackHeight, round(height, 1));
-    if (Math.abs(normalizedWidth - baseWidth) < 1 && Math.abs(normalizedHeight - baseHeight) < 1 && baseSynced) {
+    if (
+      Math.abs(normalizedWidth - baseWidth) < 1 &&
+      Math.abs(normalizedHeight - baseHeight) < 1 &&
+      baseSynced
+    ) {
       return;
     }
 
@@ -80,28 +82,13 @@ function initViewportScaling() {
     frame.style.setProperty("--ui-base-width", `${baseWidth}px`);
     frame.style.setProperty("--ui-base-height", `${baseHeight}px`);
     baseSynced = true;
-  const computedStyle = window.getComputedStyle(frame);
-  const fallbackWidth =
-    Number.parseFloat(computedStyle.getPropertyValue("--ui-base-width")) || frame.offsetWidth || 1480;
-  const fallbackHeight =
-    Number.parseFloat(computedStyle.getPropertyValue("--ui-base-height")) || frame.offsetHeight || 960;
-
-  let baseWidth = Math.max(fallbackWidth, frame.offsetWidth || 0);
-  let baseHeight = Math.max(fallbackHeight, frame.offsetHeight || 0);
-
-  const setBaseDimensions = (width, height) => {
-    if (width <= 0 || height <= 0) return;
-    baseWidth = Math.max(baseWidth, width, fallbackWidth);
-    baseHeight = Math.max(baseHeight, height, fallbackHeight);
-    frame.style.setProperty("--ui-base-width", `${baseWidth}px`);
-    frame.style.setProperty("--ui-base-height", `${baseHeight}px`);
   };
 
   setBaseDimensions(baseWidth, baseHeight);
 
   const applyScale = () => {
     const { width: viewportWidth, height: viewportHeight } = getViewportBox();
-    if (!viewportWidth || !viewportHeight) return;
+    if (!viewportWidth || !viewportHeight || !baseWidth || !baseHeight) return;
 
     let scale = Math.min(viewportWidth / baseWidth, viewportHeight / baseHeight);
     if (!Number.isFinite(scale) || scale <= 0) {
@@ -110,11 +97,6 @@ function initViewportScaling() {
 
     scale = clamp(scale, minScale, maxScale);
 
-    if (baseWidth <= 0 || baseHeight <= 0) return;
-
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const scale = Math.min(1, Math.min(viewportWidth / baseWidth, viewportHeight / baseHeight));
     const scaledWidth = baseWidth * scale;
     const scaledHeight = baseHeight * scale;
     const offsetLeft = Math.max((viewportWidth - scaledWidth) / 2, 0);
@@ -125,32 +107,12 @@ function initViewportScaling() {
     frame.style.setProperty("--ui-offset-left", `${round(offsetLeft)}px`);
     frame.style.setProperty("--ui-offset-top", `${round(offsetTop)}px`);
     root.style.setProperty(ROOT_SCALE_VAR, scaleValue);
-
-    frame.style.setProperty("--ui-scale", scale.toFixed(4));
-    frame.style.setProperty("--ui-offset-left", `${round(offsetLeft)}px`);
-    frame.style.setProperty("--ui-offset-top", `${round(offsetTop)}px`);
   };
 
   const handleResize = () => {
     applyScale();
   };
 
-  const observer =
-    typeof ResizeObserver === "function"
-      ? new ResizeObserver((entries) => {
-          for (const entry of entries) {
-            if (entry.target !== frame) continue;
-            const { width, height } = entry.contentRect;
-            if (!width || !height) continue;
-            setBaseDimensions(width, height);
-            applyScale();
-          }
-        })
-      : null;
-
-  observer?.observe(frame);
-
-  const visualViewport = window.visualViewport;
   const setupObserver = () => {
     if (typeof ResizeObserver !== "function") return null;
 
@@ -158,10 +120,7 @@ function initViewportScaling() {
       for (const entry of entries) {
         if (entry.target !== frame) continue;
         const { width, height } = entry.contentRect;
-        const nextWidth = Math.round(width);
-        const nextHeight = Math.round(height);
-        if (!nextWidth || !nextHeight) continue;
-        if (nextWidth === Math.round(baseWidth) && nextHeight === Math.round(baseHeight)) continue;
+        if (!width || !height) continue;
         setBaseDimensions(width, height);
         applyScale();
       }
@@ -172,6 +131,7 @@ function initViewportScaling() {
   };
 
   const observer = setupObserver();
+  const visualViewport = window.visualViewport;
 
   const activate = () => {
     body.classList.add(BODY_SCALE_CLASS);
@@ -184,14 +144,6 @@ function initViewportScaling() {
     activate();
   } else {
     window.addEventListener("load", activate, { once: true });
-  } else {
-    requestAnimationFrame(() => {
-      if (document.readyState === "loading") {
-        window.addEventListener("load", activate, { once: true });
-      } else {
-        activate();
-      }
-    });
   }
 
   window.addEventListener("resize", handleResize, { passive: true });
