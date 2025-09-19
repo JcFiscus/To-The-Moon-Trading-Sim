@@ -244,12 +244,18 @@ function setupControllers() {
       autoStartNextDay = next;
       saveAutoStartPreference(autoStartNextDay);
       if (controllers.hud) {
+        const holdings = state ? portfolioValue(state) : 0;
+        const equity = state ? state.cash + holdings : 0;
+        const unrealizedValue = state ? unrealizedPL(state) : 0;
+        const totalPL = state ? state.realized + unrealizedValue : 0;
+        const exposure = equity > 0 ? holdings / equity : 0;
         controllers.hud.render({
           day: state?.day,
           cash: state?.cash,
-          equity: state ? state.cash + portfolioValue(state) : 0,
-          totalPL: state ? state.realized + unrealizedPL(state) : 0,
-          unrealized: state ? unrealizedPL(state) : 0,
+          equity,
+          totalPL,
+          unrealized: unrealizedValue,
+          exposure,
           running: engine?.isRunning?.() ?? false,
           dayRemainingMs: state?.dayRemainingMs,
           dayDurationMs: engine?.dayDurationMs,
@@ -446,6 +452,7 @@ function renderAll(currentState) {
   const equity = currentState.cash + holdingsValue;
   const unrealized = unrealizedPL(currentState);
   const totalPL = currentState.realized + unrealized;
+  const exposure = equity > 0 ? holdingsValue / equity : 0;
 
   controllers.hud?.render({
     day: currentState.day,
@@ -453,6 +460,7 @@ function renderAll(currentState) {
     equity,
     totalPL,
     unrealized,
+    exposure,
     running: currentState.running,
     dayRemainingMs: currentState.dayRemainingMs,
     dayDurationMs: engine?.dayDurationMs,
