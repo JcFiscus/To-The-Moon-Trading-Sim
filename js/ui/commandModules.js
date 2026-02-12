@@ -1,5 +1,4 @@
 import { UPGRADE_DEF } from "../core/upgrades.js";
-import { META_CURRENCY_SYMBOL } from "../core/metaProgression.js";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -15,10 +14,6 @@ const formatMoney = (value) => {
   return `$${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 };
 
-const formatCredits = (value) => {
-  const amount = Number.isFinite(value) ? value : 0;
-  return `${amount.toLocaleString()} ${META_CURRENCY_SYMBOL}`.trim();
-};
 
 const getFocusable = (root) => {
   if (!root) return [];
@@ -34,23 +29,6 @@ const summarizeEvent = (event) => {
   return "Scenario awaiting orders.";
 };
 
-const summarizeMeta = (meta) => {
-  if (!meta || typeof meta !== "object") return "Chart long-term upgrades from Mission Control.";
-  if (meta.lastSummary && typeof meta.lastSummary === "object") {
-    const label = meta.lastSummary.label || meta.lastSummary.reason || null;
-    const net = Number.isFinite(meta.lastSummary.netWorth) ? meta.lastSummary.netWorth : null;
-    if (label && net != null) {
-      return `${label} · Net ${formatMoney(net)}`;
-    }
-    if (label) return label;
-  }
-  const runs = Number.isFinite(meta.lifetime?.runs) ? meta.lifetime.runs : 0;
-  if (runs > 0) {
-    const best = Number.isFinite(meta.lifetime?.bestNetWorth) ? meta.lifetime.bestNetWorth : null;
-    return best != null ? `Best run ${formatMoney(best)} · ${runs} logged` : `${runs} runs completed.`;
-  }
-  return "Chart long-term upgrades from Mission Control.";
-};
 
 export function createCommandModulesController() {
   const root = document.querySelector('[data-module="command-modules"]');
@@ -84,8 +62,8 @@ export function createCommandModulesController() {
     newsSummary: root.querySelector('[data-field="command-news-summary"]'),
     upgradesStatus: root.querySelector('[data-field="command-upgrade-status"]'),
     upgradesSummary: root.querySelector('[data-field="command-upgrade-summary"]'),
-    metaStatus: root.querySelector('[data-field="command-meta-status"]'),
-    metaSummary: root.querySelector('[data-field="command-meta-summary"]')
+    operationsStatus: root.querySelector('[data-field="command-operations-status"]'),
+    operationsSummary: root.querySelector('[data-field="command-operations-summary"]')
   };
 
   let openId = null;
@@ -251,16 +229,29 @@ export function createCommandModulesController() {
     }
   };
 
-  const updateMetaSummary = (meta) => {
-    if (fields.metaStatus) {
-      fields.metaStatus.textContent = formatCredits(meta?.currency);
+  const updateOperationsSummary = (operations) => {
+    const active = Number.isFinite(operations?.activeCount) ? operations.activeCount : 0;
+    const claimable = Number.isFinite(operations?.readyToClaim) ? operations.readyToClaim : 0;
+    const rep = Number.isFinite(operations?.reputation) ? operations.reputation : 0;
+
+    if (fields.operationsStatus) {
+      const parts = [`${active} active`, `${rep} REP`];
+      fields.operationsStatus.textContent = parts.join(" · ");
     }
-    if (fields.metaSummary) {
-      fields.metaSummary.textContent = summarizeMeta(meta);
+
+    if (fields.operationsSummary) {
+      if (claimable > 0) {
+        fields.operationsSummary.textContent = `${claimable} contract${claimable === 1 ? "" : "s"} ready to claim.`;
+      } else if (active > 0) {
+        fields.operationsSummary.textContent = "Push trade flow to complete contracts before deadlines.";
+      } else {
+        fields.operationsSummary.textContent = "No contracts assigned";
+      }
     }
-    const tile = buttonMap.get("meta-preview");
+
+    const tile = buttonMap.get("operations");
     if (tile) {
-      if (Number.isFinite(meta?.currency) && meta.currency > 0) {
+      if (claimable > 0) {
         tile.dataset.tone = "alert";
       } else {
         delete tile.dataset.tone;
@@ -269,11 +260,11 @@ export function createCommandModulesController() {
   };
 
   return {
-    render(state, { feed = [], meta } = {}) {
+    render(state, { feed = [], operations } = {}) {
       updateEventsSummary(state);
       updateNewsSummary(feed);
       updateUpgradeSummary(state);
-      updateMetaSummary(meta);
+      updateOperationsSummary(operations);
     },
     open,
     close

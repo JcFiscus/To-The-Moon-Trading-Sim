@@ -1,4 +1,5 @@
 import { createDailySnapshot, normalizeDailyStats } from "./daySummary.js";
+import { createOperationsState, ensureOperationsState } from "./operations.js";
 
 const DEFAULT_SAVE_KEY = "ttm_v0_save";
 const DEFAULT_TICK_INTERVAL = 600;
@@ -85,6 +86,7 @@ export function createInitialState({
       }
     }
   };
+  state.operations = createOperationsState();
   state.dailyStats = createDailySnapshot(state);
   state.previousDailyStats = null;
   state.lastDaySummary = null;
@@ -221,6 +223,36 @@ function normalizeState(raw, { dayDurationMs = DEFAULT_DAY_DURATION_MS } = {}) {
         : {},
     nextScenarioId: Number.isFinite(raw.nextScenarioId) ? raw.nextScenarioId : base.nextScenarioId
   };
+
+  state.operations = raw.operations && typeof raw.operations === "object"
+    ? {
+        ...createOperationsState(),
+        ...raw.operations,
+        contracts: Array.isArray(raw.operations.contracts)
+          ? raw.operations.contracts
+              .map((contract) => {
+                if (!contract || typeof contract !== "object") return null;
+                if (typeof contract.id !== "string") return null;
+                if (typeof contract.assetId !== "string") return null;
+                return {
+                  id: contract.id,
+                  label: typeof contract.label === "string" ? contract.label : "Contract",
+                  assetId: contract.assetId,
+                  side: contract.side === "buy" || contract.side === "sell" ? contract.side : "either",
+                  targetQty: Number.isFinite(contract.targetQty) ? Math.max(1, Math.floor(contract.targetQty)) : 1,
+                  progressQty: Number.isFinite(contract.progressQty) ? Math.max(0, Math.floor(contract.progressQty)) : 0,
+                  rewardCash: Number.isFinite(contract.rewardCash) ? contract.rewardCash : 0,
+                  rewardRep: Number.isFinite(contract.rewardRep) ? contract.rewardRep : 0,
+                  issuedDay: Number.isFinite(contract.issuedDay) ? contract.issuedDay : 1,
+                  dueDay: Number.isFinite(contract.dueDay) ? contract.dueDay : 2,
+                  status: typeof contract.status === "string" ? contract.status : "active"
+                };
+              })
+              .filter(Boolean)
+          : []
+      }
+    : createOperationsState();
+  ensureOperationsState(state);
 
   // Ensure feed entries always have defaults.
   state.feed = state.feed.map((entry) => ({

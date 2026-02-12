@@ -35,6 +35,15 @@ import { createDailySummaryController } from "./ui/dailySummary.js";
 import { createUpgradeShopController } from "./ui/upgrades.js";
 import { updateInsiderBanner } from "./ui/insiderBanner.js";
 import { createCommandModulesController } from "./ui/commandModules.js";
+import { createOperationsController } from "./ui/operations.js";
+import {
+  ensureOperationsState,
+  primeOperationsForDay,
+  recordOperationsTrade,
+  resolveExpiredContracts,
+  claimCompletedContract,
+  summarizeOperations
+} from "./core/operations.js";
 
 const fmtMoney = (n) =>
   (n < 0 ? "-$" : "$") +
@@ -148,7 +157,8 @@ function refreshCommandModules(currentState = state) {
   if (!controllers.commandModules || !currentState) return;
   controllers.commandModules.render(currentState, {
     feed: currentState.feed ?? [],
-    meta: metaState
+    meta: metaState,
+    operations: summarizeOperations(currentState)
   });
 }
 
@@ -270,6 +280,20 @@ function setupControllers() {
 
   controllers.commandModules = createCommandModulesController();
 
+  controllers.operations = createOperationsController({
+    onClaim: (contractId) => {
+      if (!engine || !contractId) return { success: false };
+      let outcome = { success: false };
+      engine.update((draft) => {
+        const result = claimCompletedContract(draft, contractId);
+        if (!result.success) return;
+        outcome = result;
+        bumpNews(`Contract settled: +${fmtMoney(result.cashReward)} and +${result.repReward} REP.`, { state: draft, tone: "good" });
+      }, { save: true });
+      return outcome;
+    }
+  });
+
   window.__TTM_UI__ = {
     hud: controllers.hud,
     market: controllers.market,
@@ -309,6 +333,8 @@ function handleStartNewRun() {
     dayDurationMs: engine.dayDurationMs
   }));
   state = engine.getState();
+  ensureOperationsState(state);
+  primeOperationsForDay(state);
   refreshCommandModules(state);
   refreshDailyMetrics(state);
   eventSystem.bootstrap(state);
@@ -373,6 +399,8 @@ function init() {
 
   engine = createGameEngine({ state: initialState });
   state = engine.getState();
+  ensureOperationsState(state);
+  primeOperationsForDay(state);
   refreshCommandModules(state);
   refreshDailyMetrics(state);
 
@@ -484,6 +512,7 @@ function renderAll(currentState) {
     lastSelectedAssetId = asset?.id ?? null;
   }
 
+  controllers.operations?.render(currentState);
   refreshCommandModules(currentState);
 }
 
@@ -524,6 +553,7 @@ function recordTrade(currentState, { id, side, qty, price, realized = 0 }) {
     tick: Number.isFinite(currentState.tick) ? currentState.tick : 0,
     day: Number.isFinite(currentState.day) ? currentState.day : 0
   });
+  recordOperationsTrade(currentState, { id, side, qty: units });
   recordTradeStats(currentState, {
     side,
     qty: units,
@@ -580,6 +610,13 @@ function handleTick(currentState) {
 }
 
 function handleDayEnd(currentState, context = {}) {
+  const failedContracts = resolveExpiredContracts(currentState);
+  if (failedContracts > 0) {
+    logFeedEntry(currentState, {
+      text: `${failedContracts} contract${failedContracts === 1 ? "" : "s"} expired before settlement.`,
+      kind: "warn"
+    });
+  }
   const steps = Number.isFinite(context.overnightSteps) ? context.overnightSteps : 6;
   const variance = Number.isFinite(context.varianceBoost) ? context.varianceBoost : 1.8;
   stepAll(currentState, steps, variance);
@@ -628,6 +665,7 @@ function handleDayEnd(currentState, context = {}) {
     const advanceState = (draft) => {
       draft.day += 1;
       startNewDay(draft);
+      primeOperationsForDay(draft);
 
       const accrueInterest = window.Upgrades?.accrueDailyInterest;
       if (typeof accrueInterest === "function") {
