@@ -192,12 +192,12 @@
                 <span class="command-tile__meta" data-field="command-upgrade-status">No systems unlocked</span>
                 <span class="command-tile__summary" data-field="command-upgrade-summary">Earn cash to unlock new tech.</span>
               </button>
-              <button class="command-tile" type="button" data-module-target="meta-preview" data-module-label="Mission Brief">
-                <span class="command-tile__icon" aria-hidden="true">📡</span>
-                <span class="command-tile__eyebrow">Meta</span>
-                <span class="command-tile__title">Mission Brief</span>
-                <span class="command-tile__meta" data-field="command-meta-status">0 research credits</span>
-                <span class="command-tile__summary" data-field="command-meta-summary">Chart long-term upgrades from Mission Control.</span>
+              <button class="command-tile" type="button" data-module-target="operations" data-module-label="Operations Board">
+                <span class="command-tile__icon" aria-hidden="true">🧭</span>
+                <span class="command-tile__eyebrow">Contracts</span>
+                <span class="command-tile__title">Operations Board</span>
+                <span class="command-tile__meta" data-field="command-operations-status">No contracts assigned</span>
+                <span class="command-tile__summary" data-field="command-operations-summary">Complete tactical contracts to earn cash and reputation.</span>
               </button>
             </div>
           </section>
@@ -245,13 +245,14 @@
           <div class="upgrade-status is-hidden" data-element="upgrade-status" aria-live="polite"></div>
           <div class="upgrade-grid" data-region="upgrade-list" data-module-focus></div>
         </section>
-        <section class="module-screen" data-module="meta-preview" data-module-screen="meta-preview" aria-hidden="true">
+        <section class="module-screen" data-module="operations" data-module-screen="operations" aria-hidden="true">
           <header class="module-screen__header">
-            <h3>Mission Brief</h3>
-            <p>Space reserved for tutorials, goals, or meta progression.</p>
+            <h3>Operations Board</h3>
+            <p>Contracted logistics objectives that reward tactical trading execution.</p>
           </header>
-          <div class="meta-preview">
-            <p>Coming soon: guideposts for your next moonshot. Feature packs can mount here without reworking the dashboard layout.</p>
+          <div class="operations-summary" data-region="operations-summary"></div>
+          <div class="operations-list" data-region="operations-list" data-module-focus>
+            <div class="operations-empty" data-element="operations-empty">No contracts assigned yet.</div>
           </div>
         </section>
       </div>
