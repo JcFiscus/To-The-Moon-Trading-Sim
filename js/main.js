@@ -23,8 +23,9 @@ import {
   applyRunSummaryToMeta
 } from "./core/metaProgression.js";
 import { initMetaLayer, updateMetaLayer, showMetaLayer, hideMetaLayer } from "./ui/metaProgression.js";
-import { MARGIN_PARAMS } from "./core/margin.js";
-import { purchaseUpgrade, UPGRADE_DEF } from "./core/upgrades.js";
+import { MARGIN_PARAMS, registerMargin, ensureMarginState } from "./core/margin.js";
+import { registerInsider, activeTip, ensureInsiderState } from "./core/insider.js";
+import { purchaseUpgrade, UPGRADE_DEF, registerUpgrades, ensureUpgradeState } from "./core/upgrades.js";
 import { createHudController } from "./ui/hud.js";
 import { createMarketListController } from "./ui/marketList.js";
 import { createAssetDetailController } from "./ui/assetDetail.js";
@@ -35,6 +36,9 @@ import { createDailySummaryController } from "./ui/dailySummary.js";
 import { createUpgradeShopController } from "./ui/upgrades.js";
 import { updateInsiderBanner } from "./ui/insiderBanner.js";
 import { createCommandModulesController } from "./ui/commandModules.js";
+import { createPortfolioLedgerController } from "./ui/portfolioLedger.js";
+import { createRunBriefingController } from "./ui/runBriefing.js";
+import { initWingTabsController } from "./ui/wingTabs.js";
 import { createOperationsController } from "./ui/operations.js";
 import {
   ensureOperationsState,
@@ -45,49 +49,34 @@ import {
   summarizeOperations
 } from "./core/operations.js";
 
-const fmtMoney = (n) =>
-  (n < 0 ? "-$" : "$") +
-  Math.abs(n).toLocaleString(undefined, {
+const fmtMoney = (value) =>
+  `${value < 0 ? "-" : ""}$${Math.abs(Number(value) || 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
-  });
+  })}`;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const parseQty = (value) => {
-  const n = Math.floor(Number(value));
-  return Number.isFinite(n) && n > 0 ? n : 1;
+  const numeric = Math.floor(Number(value));
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
 };
 
 const formatPrice = (price) => {
-  const abs = Math.abs(price);
+  const numeric = Number(price) || 0;
+  const abs = Math.abs(numeric);
   const digits = abs >= 1000 ? 2 : abs >= 1 ? 2 : 4;
-  return (
-    "$" +
-    price.toLocaleString(undefined, {
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits
-    })
-  );
+  return `$${numeric.toLocaleString(undefined, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
+  })}`;
 };
 
-const clock = (currentState) => `D${currentState.day} · T${currentState.tick}`;
-
-const evaluateMaybeFn = (value, payload) => {
-  if (typeof value === "function") {
-    try {
-      return value(payload);
-    } catch (error) {
-      console.error(error);
-      return null;
-    }
-  }
-  return value;
-};
+const clock = (currentState) => `D${currentState.day} | T${currentState.tick}`;
+const AUTO_START_KEY = "ttm_auto_next_day";
 
 let engine = null;
 let state = null;
-let upgradesConfigured = false;
 let marketModel = null;
 let eventSystem = null;
 let metaState = createInitialMetaState();
@@ -95,12 +84,14 @@ let runHistory = [];
 let currentRunConfig = null;
 let hasSavedRun = false;
 let metaLayerReady = false;
+let marginApi = null;
+let insiderApi = null;
+let upgradesApi = null;
 
 const controllers = {};
 let sharedTradeQty = 10;
 let lastSelectedAssetId = null;
-
-const AUTO_START_KEY = "ttm_auto_next_day";
+let autoStartNextDay = loadAutoStartPreference(false);
 
 function loadAutoStartPreference(defaultValue = false) {
   if (typeof localStorage === "undefined") return defaultValue;
@@ -123,30 +114,60 @@ function saveAutoStartPreference(value) {
   }
 }
 
-let autoStartNextDay = loadAutoStartPreference(false);
-
 function hasActiveRun() {
-  if (!state || !state.run) return false;
+  if (!state?.run) return false;
   if (state.run.status === "ended") return false;
   if (state.run.status === "pending" && (state.tick ?? 0) === 0) return false;
   return true;
 }
 
 function canStartNewRun() {
-  if (!state || !state.run) return true;
+  if (!state?.run) return true;
   if (state.run.status === "ended") return true;
   if (state.run.status === "pending" && (state.tick ?? 0) === 0) return true;
   return false;
 }
 
+function hydrateStateSlices(snapshot) {
+  if (!snapshot) return snapshot;
+  ensureUpgradeState(snapshot);
+  ensureMarginState(snapshot);
+  ensureInsiderState(snapshot);
+  ensureOperationsState(snapshot);
+  return snapshot;
+}
+
+function getDebt(currentState) {
+  return Number(currentState?.margin?.debt) || 0;
+}
+
+function getEquity(currentState) {
+  return (Number(currentState?.cash) || 0) + portfolioValue(currentState) - getDebt(currentState);
+}
+
+function createRuntimeSystems(config) {
+  marketModel = createMarketModel(config?.market ?? {});
+  eventSystem = createEventScheduler({
+    engine,
+    logFeed: (inlineState, entry) => {
+      if (!inlineState) return;
+      logFeedEntry(inlineState, entry);
+    },
+    applyEffect: (inlineState, eventDef) => {
+      if (!inlineState || !eventDef) return null;
+      return createEvent(inlineState, eventDef);
+    },
+    random: Math.random,
+    allowedEvents: config?.events?.allowedIds ?? BASE_EVENT_IDS
+  });
+}
+
 function refreshMetaUI({ allowResume = hasActiveRun(), canStart = canStartNewRun() } = {}) {
   if (!metaLayerReady) return;
-  const upgrades = listMetaUpgrades(metaState);
-  const summary = metaState?.lastSummary ?? null;
   updateMetaLayer({
     meta: metaState,
-    upgrades,
-    summary,
+    upgrades: listMetaUpgrades(metaState),
+    summary: metaState?.lastSummary ?? null,
     history: runHistory,
     allowResume,
     canStart
@@ -157,9 +178,76 @@ function refreshCommandModules(currentState = state) {
   if (!controllers.commandModules || !currentState) return;
   controllers.commandModules.render(currentState, {
     feed: currentState.feed ?? [],
-    meta: metaState,
     operations: summarizeOperations(currentState)
   });
+}
+
+function buildBriefingPayload(currentState, selectedAsset) {
+  const operations = summarizeOperations(currentState);
+  const daily = ensureDailyStats(currentState);
+  const marketValue = portfolioValue(currentState);
+  const debt = getDebt(currentState);
+  const buyingPower = marginApi?.buyingPower?.(currentState, marketValue) ?? (currentState.cash || 0);
+  const pendingEvents = Array.isArray(currentState?.pendingEvents) ? currentState.pendingEvents : [];
+  const macro = selectedAsset?.lastTickMeta?.diagnostics?.macro
+    ?? currentState.assets?.[0]?.lastTickMeta?.diagnostics?.macro
+    ?? {};
+  const tip = activeTip(currentState);
+  const urgentContract = operations.claimableContracts?.[0]
+    ?? operations.activeContracts?.slice().sort((left, right) => (left.dueDay ?? 0) - (right.dueDay ?? 0))[0]
+    ?? null;
+
+  let objectiveValue = "Grow equity and build research credits";
+  let objectiveMeta = "No urgent contracts on the board.";
+  if (operations.readyToClaim > 0 && operations.claimableContracts?.[0]) {
+    const claim = operations.claimableContracts[0];
+    objectiveValue = `Claim ${claim.id}`;
+    objectiveMeta = `Reward ${fmtMoney(claim.rewardCash)} and +${claim.rewardRep} REP.`;
+  } else if (urgentContract) {
+    const remaining = Math.max(0, (urgentContract.targetQty || 0) - (urgentContract.progressQty || 0));
+    const verb = urgentContract.side === "either" ? "Trade" : urgentContract.side === "buy" ? "Acquire" : "Offload";
+    objectiveValue = `${verb} ${urgentContract.assetId}`;
+    objectiveMeta = `${remaining} units left before D${urgentContract.dueDay}.`;
+  } else if (pendingEvents.length > 0) {
+    objectiveValue = `Resolve ${pendingEvents.length} active scenario${pendingEvents.length === 1 ? "" : "s"}`;
+    objectiveMeta = pendingEvents[0]?.label || "Active event awaiting your decision.";
+  }
+
+  let headline = `Day ${currentState.day} is live. Balance risk, contracts, and timing.`;
+  if (tip) {
+    headline = `Insider wire is active on ${tip.assetId}. Use the window before it fades.`;
+  } else if (pendingEvents.length > 0) {
+    headline = `${pendingEvents.length} live scenario${pendingEvents.length === 1 ? "" : "s"} can change the run trajectory.`;
+  } else if (operations.readyToClaim > 0) {
+    headline = `${operations.readyToClaim} contract reward${operations.readyToClaim === 1 ? "" : "s"} can be claimed immediately.`;
+  }
+
+  return {
+    title: `Day ${currentState.day} Briefing`,
+    headline,
+    cards: [
+      {
+        label: "Primary Objective",
+        value: objectiveValue,
+        meta: objectiveMeta
+      },
+      {
+        label: "Risk Envelope",
+        value: debt > 0 ? `Debt ${fmtMoney(debt)}` : "Cash only posture",
+        meta: `Buying power ${fmtMoney(buyingPower)}${marginApi?.isUnderMaintenance?.(currentState, marketValue) ? " | Maintenance pressure elevated." : ""}`
+      },
+      {
+        label: "Macro Regime",
+        value: macro.label || "Balanced tape",
+        meta: `Volatility ${(Number(macro.volatilityBias) || 1).toFixed(2)}x baseline. Liquidity ${(Number(macro.effectiveLiquidity ?? macro.liquidity) || 0).toFixed(2)}.`
+      },
+      {
+        label: "Trade Tempo",
+        value: `${daily?.trades?.total ?? 0} trades today`,
+        meta: `Notional ${fmtMoney(daily?.trades?.notional ?? 0)}${tip ? ` | Insider focus ${tip.assetId}` : ""}`
+      }
+    ]
+  };
 }
 
 function handleMetaUpgradePurchase(id) {
@@ -169,19 +257,17 @@ function handleMetaUpgradePurchase(id) {
     refreshMetaUI({ allowResume: hasActiveRun(), canStart: canStartNewRun() });
     refreshCommandModules();
   } else {
-    console.warn("Upgrade locked or insufficient currency", id);
+    console.warn("meta upgrade locked or insufficient currency", id);
   }
 }
 
 function setupControllers() {
   controllers.trade = createTradeControlsController({
     onBuy: (qty) => {
-      if (!state || !state.selected) return;
-      doBuy(state.selected, qty);
+      if (state?.selected) doBuy(state.selected, qty);
     },
     onSell: (qty) => {
-      if (!state || !state.selected) return;
-      doSell(state.selected, qty);
+      if (state?.selected) doSell(state.selected, qty);
     },
     onQtyChange: (qty) => {
       sharedTradeQty = parseQty(qty);
@@ -196,6 +282,11 @@ function setupControllers() {
       sharedTradeQty = parseQty(qty);
       controllers.trade?.setQty(sharedTradeQty);
     },
+    onQuickTrade: (id, side) => {
+      const qty = parseQty(sharedTradeQty);
+      if (side === "sell") doSell(id, qty);
+      else doBuy(id, qty);
+    },
     parseQty
   });
 
@@ -203,9 +294,7 @@ function setupControllers() {
   controllers.news = createNewsFeedController();
   controllers.events = createEventQueueController({
     onResolve: (instanceId, choiceId) => {
-      if (eventSystem) {
-        eventSystem.resolve(instanceId, choiceId);
-      }
+      if (eventSystem) eventSystem.resolve(instanceId, choiceId);
     }
   });
   controllers.dailySummary = createDailySummaryController();
@@ -215,6 +304,7 @@ function setupControllers() {
       let success = false;
       let message = "Unable to purchase upgrade.";
       engine.update((draft) => {
+        hydrateStateSlices(draft);
         success = purchaseUpgrade(draft, id);
         if (success) {
           message = `${UPGRADE_DEF[id]?.name || "Upgrade"} unlocked.`;
@@ -227,19 +317,16 @@ function setupControllers() {
   controllers.hud = createHudController({
     onToggleRun: () => {
       if (!engine) return;
-      if (engine.isRunning()) {
-        engine.pause();
-      } else {
-        engine.start();
-      }
+      if (engine.isRunning()) engine.pause();
+      else engine.start();
     },
     onEndDay: () => {
       if (!engine) return;
       engine.endDay({ overnightSteps: 6, varianceBoost: 1.8, reason: "manual" });
-      bumpNews("Market closed. Overnight risk intensifies. Try not to panic.");
+      bumpNews("Market closed. Overnight volatility is now in play.");
     },
     onReset: () => {
-      if (!confirm("Reset game and clear local save?")) return;
+      if (!confirm("Reset this run and clear the local save?")) return;
       completeRun({ id: "retired", label: RUN_REASON_LABELS.retired });
     },
     onOpenMeta: () => {
@@ -253,33 +340,29 @@ function setupControllers() {
       if (next === autoStartNextDay) return;
       autoStartNextDay = next;
       saveAutoStartPreference(autoStartNextDay);
-      if (controllers.hud) {
-        const holdings = state ? portfolioValue(state) : 0;
-        const equity = state ? state.cash + holdings : 0;
-        const unrealizedValue = state ? unrealizedPL(state) : 0;
-        const totalPL = state ? state.realized + unrealizedValue : 0;
-        const exposure = equity > 0 ? holdings / equity : 0;
+      if (state && controllers.hud) {
         controllers.hud.render({
-          day: state?.day,
-          cash: state?.cash,
-          equity,
-          totalPL,
-          unrealized: unrealizedValue,
-          exposure,
+          day: state.day,
+          cash: state.cash,
+          equity: getEquity(state),
+          totalPL: state.realized + unrealizedPL(state),
+          unrealized: unrealizedPL(state),
+          debt: getDebt(state),
+          rep: summarizeOperations(state).reputation,
+          exposure: getEquity(state) > 0 ? portfolioValue(state) / getEquity(state) : 0,
           running: engine?.isRunning?.() ?? false,
-          dayRemainingMs: state?.dayRemainingMs,
+          dayRemainingMs: state.dayRemainingMs,
           dayDurationMs: engine?.dayDurationMs,
           autoStartNextDay
         });
       }
     }
   });
-
-  controllers.market?.setDefaultQty(sharedTradeQty);
-  controllers.trade?.setQty(sharedTradeQty);
-
   controllers.commandModules = createCommandModulesController();
-
+  controllers.portfolio = createPortfolioLedgerController({
+    onSelectAsset: (id) => setSelected(id)
+  });
+  controllers.briefing = createRunBriefingController();
   controllers.operations = createOperationsController({
     onClaim: (contractId) => {
       if (!engine || !contractId) return { success: false };
@@ -288,11 +371,18 @@ function setupControllers() {
         const result = claimCompletedContract(draft, contractId);
         if (!result.success) return;
         outcome = result;
-        bumpNews(`Contract settled: +${fmtMoney(result.cashReward)} and +${result.repReward} REP.`, { state: draft, tone: "good" });
+        bumpNews(`Contract settled: +${fmtMoney(result.cashReward)} and +${result.repReward} REP.`, {
+          state: draft,
+          tone: "good"
+        });
       }, { save: true });
       return outcome;
     }
   });
+  controllers.wingTabs = initWingTabsController();
+
+  controllers.market?.setDefaultQty(sharedTradeQty);
+  controllers.trade?.setQty(sharedTradeQty);
 
   window.__TTM_UI__ = {
     hud: controllers.hud,
@@ -303,48 +393,41 @@ function setupControllers() {
     upgrades: controllers.upgrades,
     events: controllers.events,
     dailySummary: controllers.dailySummary,
-    commandModules: controllers.commandModules
+    commandModules: controllers.commandModules,
+    portfolio: controllers.portfolio,
+    briefing: controllers.briefing
   };
 }
 
 function handleStartNewRun() {
   if (!engine || !canStartNewRun()) return;
   engine.pause();
-  const config = computeRunConfig(metaState);
-  currentRunConfig = config;
-  marketModel = createMarketModel(config.market ?? {});
-  eventSystem = createEventScheduler({
-    engine,
-    logFeed: (inlineState, entry) => {
-      if (!inlineState) return;
-      logFeedEntry(inlineState, entry);
-    },
-    applyEffect: (inlineState, eventDef) => {
-      if (!inlineState || !eventDef) return null;
-      return createEvent(inlineState, eventDef);
-    },
-    random: Math.random,
-    allowedEvents: config.events?.allowedIds ?? BASE_EVENT_IDS
-  });
+
+  currentRunConfig = computeRunConfig(metaState);
+  createRuntimeSystems(currentRunConfig);
   engine.reset(createInitialState({
-    startingCash: config.startingCash,
-    assetIds: config.assetIds,
-    runConfig: config,
+    startingCash: currentRunConfig.startingCash,
+    assetIds: currentRunConfig.assetIds,
+    runConfig: currentRunConfig,
     dayDurationMs: engine.dayDurationMs
   }));
+  engine.update((draft) => {
+    hydrateStateSlices(draft);
+    primeOperationsForDay(draft);
+  }, { save: false, render: false });
+
   state = engine.getState();
-  ensureOperationsState(state);
-  primeOperationsForDay(state);
-  refreshCommandModules(state);
   refreshDailyMetrics(state);
   eventSystem.bootstrap(state);
   ensureSelection(state);
-  engine.render();
   hasSavedRun = false;
+  controllers.wingTabs?.setActiveWing?.("spine");
+  refreshCommandModules(state);
   refreshMetaUI({ allowResume: hasActiveRun(), canStart: canStartNewRun() });
   hideMetaLayer();
-  bumpNews("Fresh start. Your future mistakes haven’t happened yet.");
+  bumpNews("New run launched. The bridge is clear and your mistakes are still theoretical.");
   pushFeed({ text: "New run launched." });
+  engine.render();
 }
 
 function completeRun(reason) {
@@ -357,20 +440,20 @@ function completeRun(reason) {
 
   engine.pause();
   const summary = createRunSummary(state, { reason });
-  const { meta, reward } = applyRunSummaryToMeta(metaState, summary);
-  metaState = meta;
-  summary.metaReward = reward;
+  const applied = applyRunSummaryToMeta(metaState, summary);
+  metaState = applied.meta;
+  summary.metaReward = applied.reward;
   runHistory = saveRunSummary(summary);
   saveMetaState(metaState);
-  refreshCommandModules(state);
   pushFeed({
-    text: `Run ended — ${summary.label}.`,
-    kind: summary.reason === "bankrupt" ? "bad" : summary.reason === "forced-liquidation" ? "bad" : "neutral"
+    text: `Run ended - ${summary.label}.`,
+    kind: summary.reason === "bankrupt" || summary.reason === "forced-liquidation" ? "bad" : "neutral"
   });
   engine.clearSave();
   hasSavedRun = false;
-  engine.render();
+  refreshCommandModules(state);
   refreshMetaUI({ allowResume: false, canStart: true });
+  engine.render();
   showMetaLayer();
 }
 
@@ -388,46 +471,40 @@ function init() {
 
   const savedState = loadState();
   hasSavedRun = !!savedState;
-
   const nextConfig = computeRunConfig(metaState);
-  const initialState = savedState ??
-    createInitialState({
-      startingCash: nextConfig.startingCash,
-      assetIds: nextConfig.assetIds,
-      runConfig: nextConfig
-    });
-
-  engine = createGameEngine({ state: initialState });
-  state = engine.getState();
-  ensureOperationsState(state);
-  primeOperationsForDay(state);
-  refreshCommandModules(state);
-  refreshDailyMetrics(state);
-
-  currentRunConfig = state.run?.config ?? nextConfig;
-  if (!currentRunConfig) currentRunConfig = computeRunConfig(metaState);
-  if (!currentRunConfig.events || !Array.isArray(currentRunConfig.events.allowedIds)) {
-    const allowed = currentRunConfig.events?.allowedIds ?? [];
-    currentRunConfig.events = { allowedIds: Array.from(new Set([...allowed, ...BASE_EVENT_IDS])) };
+  currentRunConfig = savedState?.run?.config ?? nextConfig;
+  if (!currentRunConfig?.events || !Array.isArray(currentRunConfig.events.allowedIds)) {
+    currentRunConfig = {
+      ...currentRunConfig,
+      events: {
+        allowedIds: Array.from(new Set([...(currentRunConfig?.events?.allowedIds ?? []), ...BASE_EVENT_IDS]))
+      }
+    };
   }
 
-  marketModel = createMarketModel(currentRunConfig.market ?? {});
-  eventSystem = createEventScheduler({
-    engine,
-    logFeed: (inlineState, entry) => {
-      if (!inlineState) return;
-      logFeedEntry(inlineState, entry);
-    },
-    applyEffect: (inlineState, eventDef) => {
-      if (!inlineState || !eventDef) return null;
-      return createEvent(inlineState, eventDef);
-    },
-    random: Math.random,
-    allowedEvents: currentRunConfig.events?.allowedIds ?? BASE_EVENT_IDS
-  });
-  eventSystem.bootstrap(state);
+  const initialState = hydrateStateSlices(savedState ?? createInitialState({
+    startingCash: currentRunConfig.startingCash,
+    assetIds: currentRunConfig.assetIds,
+    runConfig: currentRunConfig
+  }));
 
+  engine = createGameEngine({ state: initialState });
+  upgradesApi = registerUpgrades(engine);
+  marginApi = registerMargin(engine);
+  insiderApi = registerInsider(engine, {
+    getAssetIds: (currentState = engine.getState()) => (currentState.assets || []).map((asset) => asset.id)
+  });
+  engine.update((draft) => {
+    hydrateStateSlices(draft);
+    primeOperationsForDay(draft);
+  }, { save: false, render: false });
+  state = engine.getState();
+
+  createRuntimeSystems(currentRunConfig);
+  eventSystem.bootstrap(state);
   ensureSelection(state);
+  refreshDailyMetrics(state);
+  refreshCommandModules(state);
 
   engine.onStateChange((nextState) => {
     state = nextState;
@@ -443,19 +520,13 @@ function init() {
 
   if (!state.feed || state.feed.length === 0) {
     engine.update((draft) => {
-      logFeedEntry(draft, { text: "Markets booted. Try not to recreate 2008." });
-    }, { save: false });
+      logFeedEntry(draft, { text: "Markets booted. Trade flow is online." });
+    }, { save: false, render: false });
   }
-
-  engine.render();
-
-  configureUpgradesIntegration();
 
   initMetaLayer({
     onStartRun: handleStartNewRun,
-    onResumeRun: () => {
-      hideMetaLayer();
-    },
+    onResumeRun: () => hideMetaLayer(),
     onPurchaseUpgrade: handleMetaUpgradePurchase,
     onClose: () => hideMetaLayer()
   });
@@ -466,21 +537,21 @@ function init() {
   }
 
   exposeEngine();
-  window.dispatchEvent(new CustomEvent("ttm:gameReady", { detail: engine }));
+  engine.render();
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) engine.pause();
   });
-
-  window.addEventListener("load", configureUpgradesIntegration, { once: true });
 }
 
 function renderAll(currentState) {
-  const holdingsValue = portfolioValue(currentState);
-  const equity = currentState.cash + holdingsValue;
+  const marketValue = portfolioValue(currentState);
+  const debt = getDebt(currentState);
+  const equity = getEquity(currentState);
   const unrealized = unrealizedPL(currentState);
-  const totalPL = currentState.realized + unrealized;
-  const exposure = equity > 0 ? holdingsValue / equity : 0;
+  const totalPL = (currentState.realized || 0) + unrealized;
+  const exposure = equity > 0 ? marketValue / equity : 0;
+  const operations = summarizeOperations(currentState);
 
   controllers.hud?.render({
     day: currentState.day,
@@ -488,6 +559,8 @@ function renderAll(currentState) {
     equity,
     totalPL,
     unrealized,
+    debt,
+    rep: operations.reputation,
     exposure,
     running: currentState.running,
     dayRemainingMs: currentState.dayRemainingMs,
@@ -496,23 +569,23 @@ function renderAll(currentState) {
   });
 
   controllers.market?.render(currentState);
-
   const asset = findAsset(currentState, currentState.selected);
   controllers.assetDetail?.render(currentState, asset);
   controllers.events?.render(currentState);
   controllers.news?.render(currentState.feed ?? []);
   controllers.upgrades?.render(currentState);
+  controllers.operations?.render(currentState);
+  controllers.portfolio?.render(currentState);
+  controllers.briefing?.render(buildBriefingPayload(currentState, asset));
   updateInsiderBanner(currentState);
 
   const position = asset ? currentState.positions?.[asset.id] : null;
   controllers.trade?.updateSelection({ asset, position });
-
   if ((asset?.id ?? null) !== lastSelectedAssetId) {
     controllers.trade?.setQty(sharedTradeQty);
     lastSelectedAssetId = asset?.id ?? null;
   }
 
-  controllers.operations?.render(currentState);
   refreshCommandModules(currentState);
 }
 
@@ -521,7 +594,7 @@ function safeRender(renderFn) {
     renderFn();
   } catch (error) {
     console.error(error);
-    showMessage("Render error. Recovered.");
+    showMessage("Render error recovered.", "warn");
   }
 }
 
@@ -531,7 +604,10 @@ function showMessage(text, tone = "info") {
 
 function bumpNews(text, { state: inlineState, tone = "info" } = {}) {
   showMessage(text, tone);
-  const entry = { text, kind: tone === "good" ? "good" : tone === "bad" ? "bad" : tone === "warn" ? "warn" : "neutral" };
+  const entry = {
+    text,
+    kind: tone === "good" ? "good" : tone === "bad" ? "bad" : tone === "warn" ? "warn" : "neutral"
+  };
   if (inlineState) {
     logFeedEntry(inlineState, entry);
   } else {
@@ -542,8 +618,9 @@ function bumpNews(text, { state: inlineState, tone = "info" } = {}) {
 function recordTrade(currentState, { id, side, qty, price, realized = 0 }) {
   if (!currentState || !id || !Number.isFinite(qty) || qty <= 0) return;
   if (!Array.isArray(currentState.recentTrades)) currentState.recentTrades = [];
-  const safePrice = Number.isFinite(price) ? price : 0;
+
   const units = Math.max(1, Math.floor(qty));
+  const safePrice = Number.isFinite(price) ? price : 0;
   currentState.recentTrades.push({
     assetId: id,
     side: side === "sell" ? "sell" : "buy",
@@ -553,15 +630,12 @@ function recordTrade(currentState, { id, side, qty, price, realized = 0 }) {
     tick: Number.isFinite(currentState.tick) ? currentState.tick : 0,
     day: Number.isFinite(currentState.day) ? currentState.day : 0
   });
+
   recordOperationsTrade(currentState, { id, side, qty: units });
-  recordTradeStats(currentState, {
-    side,
-    qty: units,
-    price: safePrice,
-    notional: safePrice * units
-  });
+  recordTradeStats(currentState, { side, qty: units, price: safePrice, notional: safePrice * units });
   trackDailyTrade(currentState, { id, side, qty: units, price: safePrice, realized });
   refreshDailyMetrics(currentState);
+
   if (currentState.recentTrades.length > 200) {
     currentState.recentTrades.splice(0, currentState.recentTrades.length - 200);
   }
@@ -569,8 +643,7 @@ function recordTrade(currentState, { id, side, qty, price, realized = 0 }) {
 
 function decayRecentTrades(currentState, sequence) {
   if (!currentState) return;
-  const seq = Number.isFinite(sequence) ? sequence : currentState.tick ?? 0;
-  const threshold = Math.floor(seq) - 360;
+  const threshold = Math.floor(Number.isFinite(sequence) ? sequence : currentState.tick ?? 0) - 360;
   const currentDay = Number.isFinite(currentState.day) ? currentState.day : 0;
   if (!Array.isArray(currentState.recentTrades)) {
     currentState.recentTrades = [];
@@ -587,17 +660,14 @@ function decayRecentTrades(currentState, sequence) {
 }
 
 function handleTick(currentState) {
-  if (eventSystem) {
-    eventSystem.onTick(currentState);
-  }
-
+  eventSystem?.onTick(currentState);
   cleanupExpiredEvents(currentState);
-  stepAll(currentState, 1, 1.0);
+  stepAll(currentState, 1, 1);
 
   const metrics = updateRunStats(currentState);
-  const portfolio = Number.isFinite(metrics.portfolioValue) ? metrics.portfolioValue : portfolioValue(currentState);
-  const debt = Number.isFinite(metrics.debt) ? metrics.debt : currentState.margin?.debt ?? 0;
-  const maintenanceRequirement = portfolio * (MARGIN_PARAMS?.maintenance ?? 0.25);
+  const marketValue = Number.isFinite(metrics.portfolioValue) ? metrics.portfolioValue : portfolioValue(currentState);
+  const debt = Number.isFinite(metrics.debt) ? metrics.debt : getDebt(currentState);
+  const maintenanceRequirement = marketValue * (MARGIN_PARAMS?.maintenance ?? 0.25);
   const underMaintenance = debt > 0 && metrics.netWorth < maintenanceRequirement;
   noteMaintenanceStrike(currentState, underMaintenance);
   refreshDailyMetrics(currentState);
@@ -606,7 +676,6 @@ function handleTick(currentState) {
   if (outcome) {
     completeRun(outcome);
   }
-
 }
 
 function handleDayEnd(currentState, context = {}) {
@@ -617,82 +686,55 @@ function handleDayEnd(currentState, context = {}) {
       kind: "warn"
     });
   }
-  const steps = Number.isFinite(context.overnightSteps) ? context.overnightSteps : 6;
-  const variance = Number.isFinite(context.varianceBoost) ? context.varianceBoost : 1.8;
-  stepAll(currentState, steps, variance);
+
+  const overnightSteps = Number.isFinite(context.overnightSteps) ? context.overnightSteps : 6;
+  const varianceBoost = Number.isFinite(context.varianceBoost) ? context.varianceBoost : 1.8;
+  stepAll(currentState, overnightSteps, varianceBoost);
   refreshDailyMetrics(currentState);
+
   currentState.previousDailyStats = normalizeDailyStats(currentState.dailyStats, currentState);
-  const daySummary = summarizeDay({ snapshot: currentState.previousDailyStats, state: currentState });
-  if (daySummary && typeof daySummary === "object") {
-    const { snapshot, ...rest } = daySummary;
-    currentState.lastDaySummary = rest;
-  } else {
-    currentState.lastDaySummary = null;
-  }
+  const summary = summarizeDay({ snapshot: currentState.previousDailyStats, state: currentState });
+  currentState.lastDaySummary = summary ? { ...summary } : null;
 
-  const formatSummaryMoney = (value) => {
-    if (!Number.isFinite(value)) return "—";
-    const prefix = value > 0 ? "+" : "";
-    return `${prefix}${fmtMoney(value)}`;
-  };
-
-  const summaryPayload = currentState.lastDaySummary;
-  if (summaryPayload) {
-    const netTone = Number.isFinite(summaryPayload.netChange)
-      ? summaryPayload.netChange > 0
-        ? "good"
-        : summaryPayload.netChange < 0
-          ? "bad"
-          : "neutral"
-      : "neutral";
-    const dayLabel = Number.isFinite(summaryPayload.day) ? summaryPayload.day : currentState.day;
+  if (summary) {
+    const tone = summary.netChange > 0 ? "good" : summary.netChange < 0 ? "bad" : "neutral";
     logFeedEntry(currentState, {
-      text: `Day ${dayLabel} closed ${formatSummaryMoney(summaryPayload.netChange)} (Realized ${formatSummaryMoney(summaryPayload.realizedDelta)}, Unrealized ${formatSummaryMoney(summaryPayload.unrealizedDelta)}).`,
-      kind: netTone
+      text: `Day ${summary.day} closed ${summary.netChange >= 0 ? "+" : ""}${fmtMoney(summary.netChange)}. Realized ${summary.realizedDelta >= 0 ? "+" : ""}${fmtMoney(summary.realizedDelta)}, unrealized ${summary.unrealizedDelta >= 0 ? "+" : ""}${fmtMoney(summary.unrealizedDelta)}.`,
+      kind: tone
     });
   }
 
   const wasRunning = engine?.isRunning?.() ?? false;
-  if (engine) {
-    engine.pause();
-  }
+  engine?.pause();
 
   let advanced = false;
   const continueToNextDay = () => {
     if (advanced) return;
     advanced = true;
+
     let outcome = null;
     const advanceState = (draft) => {
       draft.day += 1;
       startNewDay(draft);
       primeOperationsForDay(draft);
-
-      const accrueInterest = window.Upgrades?.accrueDailyInterest;
-      if (typeof accrueInterest === "function") {
-        accrueInterest({
-          getCash: () => draft.cash,
-          setCash: (value) => {
-            draft.cash = value;
-          }
-        });
-      }
-
       refreshDailyMetrics(draft);
+
       const metrics = updateRunStats(draft, { dayTick: true });
-      const portfolio = Number.isFinite(metrics.portfolioValue) ? metrics.portfolioValue : portfolioValue(draft);
-      const debt = Number.isFinite(metrics.debt) ? metrics.debt : draft.margin?.debt ?? 0;
-      const maintenanceRequirement = portfolio * (MARGIN_PARAMS?.maintenance ?? 0.25);
+      const marketValue = Number.isFinite(metrics.portfolioValue) ? metrics.portfolioValue : portfolioValue(draft);
+      const debt = Number.isFinite(metrics.debt) ? metrics.debt : getDebt(draft);
+      const maintenanceRequirement = marketValue * (MARGIN_PARAMS?.maintenance ?? 0.25);
       const underMaintenance = debt > 0 && metrics.netWorth < maintenanceRequirement;
       noteMaintenanceStrike(draft, underMaintenance);
-      return evaluateEndCondition(draft, { netWorth: metrics.netWorth });
+      outcome = evaluateEndCondition(draft, { netWorth: metrics.netWorth });
     };
 
     if (engine) {
       engine.update((draft) => {
-        outcome = advanceState(draft);
+        hydrateStateSlices(draft);
+        advanceState(draft);
       }, { save: true });
     } else {
-      outcome = advanceState(currentState);
+      advanceState(currentState);
     }
 
     if (outcome) {
@@ -701,19 +743,17 @@ function handleDayEnd(currentState, context = {}) {
     }
 
     if (engine) {
-      if (typeof engine.restartDayTimer === "function") {
-        engine.restartDayTimer();
-      }
-      const shouldAutoLaunch = autoStartNextDay && wasRunning;
-      if (shouldAutoLaunch) {
+      engine.restartDayTimer?.();
+      if (autoStartNextDay && wasRunning) {
         engine.start();
       }
     }
+
     refreshCommandModules(engine ? engine.getState() : currentState);
   };
 
-  if (controllers.dailySummary && typeof controllers.dailySummary.show === "function") {
-    controllers.dailySummary.show(summaryPayload, {
+  if (controllers.dailySummary?.show) {
+    controllers.dailySummary.show(summary ? { ...summary } : null, {
       onDismiss: continueToNextDay,
       onLaunchNextDay: continueToNextDay
     });
@@ -723,38 +763,23 @@ function handleDayEnd(currentState, context = {}) {
 }
 
 function doBuy(id, qty) {
-  if (!id || qty <= 0) return;
+  if (!engine || !id || qty <= 0) return;
   engine.update((draft) => {
+    hydrateStateSlices(draft);
     const asset = findAsset(draft, id);
     if (!asset) return;
 
     const cost = asset.price * qty;
-    const pv = portfolioValue(draft);
-    const marginApi = window.ttm?.margin;
+    const marketValue = portfolioValue(draft);
+    if (marginApi?.isUnderMaintenance?.(draft, marketValue)) {
+      bumpNews("Buy blocked: maintenance margin breached.", { state: draft, tone: "warn" });
+      return;
+    }
 
-    const borrowed = window.Upgrades?.maybeBorrow?.({
-      cost,
-      cash: draft.cash,
-      equity: draft.cash + pv
-    }) ?? 0;
-    draft.cash += borrowed;
-
-    if (marginApi) {
-      if (marginApi.isUnderMaintenance(draft, pv)) {
-        bumpNews("Buy blocked: maintenance margin breached.", { state: draft, tone: "warn" });
-        return;
-      }
-      const ok = marginApi.buyWithMargin(draft, cost, pv);
-      if (!ok) {
-        bumpNews(`Insufficient buying power for ${qty} ${id}.`, { state: draft, tone: "warn" });
-        return;
-      }
-    } else {
-      if (cost > draft.cash + 1e-9) {
-        bumpNews(`Not enough cash to buy ${qty} ${id}.`, { state: draft, tone: "warn" });
-        return;
-      }
-      draft.cash -= cost;
+    const ok = marginApi?.buyWithMargin?.(draft, cost, marketValue);
+    if (!ok) {
+      bumpNews(`Insufficient buying power for ${qty} ${id}.`, { state: draft, tone: "warn" });
+      return;
     }
 
     const existing = draft.positions[id] || { qty: 0, avgCost: 0 };
@@ -763,17 +788,17 @@ function doBuy(id, qty) {
     draft.positions[id] = { qty: newQty, avgCost: newCostBasis };
     recordTrade(draft, { id, side: "buy", qty, price: asset.price });
     draft.selected = id;
-
     bumpNews(`Bought ${qty} ${id} @ ${formatPrice(asset.price)}.`, { state: draft, tone: "good" });
   });
 }
 
 function doSell(id, qty) {
-  if (!id || qty <= 0) return;
+  if (!engine || !id || qty <= 0) return;
   engine.update((draft) => {
+    hydrateStateSlices(draft);
     const position = draft.positions[id];
     if (!position || position.qty <= 0) {
-      bumpNews("You don't own that asset. Imagination doesn’t count as collateral.", { state: draft, tone: "warn" });
+      bumpNews("You do not hold that asset.", { state: draft, tone: "warn" });
       return;
     }
 
@@ -783,48 +808,38 @@ function doSell(id, qty) {
 
     const proceeds = asset.price * actualQty;
     const profit = (asset.price - position.avgCost) * actualQty;
-
-    if (window.ttm?.margin) {
-      window.ttm.margin.applyProceeds(draft, proceeds);
-    } else {
-      draft.cash += proceeds;
-    }
-
+    marginApi?.applyProceeds?.(draft, proceeds);
     draft.realized += profit;
 
     const leftover = position.qty - actualQty;
-    if (leftover <= 0) {
-      delete draft.positions[id];
-    } else {
-      draft.positions[id] = { qty: leftover, avgCost: position.avgCost };
-    }
+    if (leftover <= 0) delete draft.positions[id];
+    else draft.positions[id] = { qty: leftover, avgCost: position.avgCost };
 
     recordTrade(draft, { id, side: "sell", qty: actualQty, price: asset.price, realized: profit });
     draft.selected = id;
-
-    const prefix = profit >= 0 ? "+" : "";
-    const tone = profit >= 0 ? "good" : "warn";
-    bumpNews(`Sold ${actualQty} ${id} @ ${formatPrice(asset.price)} (${prefix}${fmtMoney(profit)}).`, { state: draft, tone });
+    bumpNews(`Sold ${actualQty} ${id} @ ${formatPrice(asset.price)} (${profit >= 0 ? "+" : ""}${fmtMoney(profit)}).`, {
+      state: draft,
+      tone: profit >= 0 ? "good" : "warn"
+    });
   });
 }
 
 function setSelected(id) {
-  if (!id) return;
+  if (!engine || !id) return;
   engine.update((draft) => {
     draft.selected = id;
   }, { save: false });
 }
 
 function findAsset(currentState, id) {
-  return currentState.assets?.find((asset) => asset.id === id) || null;
+  return currentState?.assets?.find((asset) => asset.id === id) || null;
 }
 
 function cleanupExpiredEvents(currentState) {
-  const nowTick = currentState.tick;
-  currentState.events = currentState.events.filter((event) => {
-    const tickOK = event.expiresAtTick == null || nowTick < event.expiresAtTick;
-    const dayOK = event.expiresOnDay == null || currentState.day < event.expiresOnDay;
-    return tickOK && dayOK;
+  currentState.events = (currentState.events || []).filter((event) => {
+    const tickOk = event.expiresAtTick == null || currentState.tick < event.expiresAtTick;
+    const dayOk = event.expiresOnDay == null || currentState.day < event.expiresOnDay;
+    return tickOk && dayOk;
   });
 }
 
@@ -854,29 +869,25 @@ function createEvent(currentState, { label, kind = "neutral", targetId = null, d
 
 function startNewDay(currentState) {
   cleanupExpiredEvents(currentState);
-  if (eventSystem) {
-    eventSystem.onDayStart(currentState);
-  }
+  eventSystem?.onDayStart(currentState);
   currentState.dailyStats = createDailySnapshot(currentState);
   refreshDailyMetrics(currentState);
   pushFeed({ text: `Day ${currentState.day} begins.` }, { state: currentState });
 }
 
-function stepAll(currentState, steps = 1, varianceBoost = 1.0) {
+function stepAll(currentState, steps = 1, varianceBoost = 1) {
   if (!currentState || !Array.isArray(currentState.assets)) return;
-  const assets = currentState.assets;
   const baseTick = Number.isFinite(currentState.tick) ? currentState.tick : 0;
 
-  for (let stepIndex = 0; stepIndex < steps; stepIndex++) {
+  for (let stepIndex = 0; stepIndex < steps; stepIndex += 1) {
     const sequence = baseTick + (steps > 1 ? stepIndex + 1 : 1);
     decayRecentTrades(currentState, sequence);
 
-    for (let index = 0; index < assets.length; index++) {
-      const asset = assets[index];
+    for (let index = 0; index < currentState.assets.length; index += 1) {
+      const asset = currentState.assets[index];
       if (!asset) continue;
 
       asset.prev = asset.price;
-
       const result = marketModel.evaluate({
         asset,
         state: currentState,
@@ -888,15 +899,13 @@ function stepAll(currentState, steps = 1, varianceBoost = 1.0) {
           tick: currentState.tick,
           day: currentState.day,
           assetIndex: index,
-          assetCount: assets.length,
+          assetCount: currentState.assets.length,
           isOvernight: steps > 1
         }
       });
 
-      const boostFn = window.ttm?.insider?.applyInsiderBoost;
       const computedNext = Number.isFinite(result.nextPrice) ? result.nextPrice : asset.price;
-      const nextPrice = Math.max(0.0001, boostFn ? boostFn(currentState, asset.id, computedNext) : computedNext);
-
+      const nextPrice = Math.max(0.0001, insiderApi?.applyInsiderBoost?.(currentState, asset.id, computedNext) ?? computedNext);
       asset.price = nextPrice;
       asset.changePct = asset.prev > 0 ? ((asset.price - asset.prev) / asset.prev) * 100 : 0;
       if (!Array.isArray(asset.history)) asset.history = [];
@@ -915,20 +924,16 @@ function stepAll(currentState, steps = 1, varianceBoost = 1.0) {
       };
       asset.lastInfluences = influences;
 
-      if (Array.isArray(result.news) && result.news.length) {
-        for (const item of result.news) {
-          if (!item || !item.text) continue;
+      if (Array.isArray(result.news)) {
+        result.news.forEach((item) => {
+          if (!item?.text) return;
           logFeedEntry(currentState, {
             text: item.text,
             kind: item.kind ?? "neutral",
             targetId: item.targetId !== undefined ? item.targetId : asset.id,
             effect: item.effect ?? {}
           });
-        }
-      }
-
-      if (window.Upgrades?.applyBiasOnTick) {
-        window.Upgrades.applyBiasOnTick(asset);
+        });
       }
     }
   }
@@ -953,14 +958,14 @@ function pushFeed(entry, { state: inlineState } = {}) {
     logFeedEntry(inlineState, entry);
     return;
   }
-  engine.update((draft) => {
+  engine?.update((draft) => {
     logFeedEntry(draft, entry);
   }, { save: entry.save ?? true });
 }
 
 function portfolioValue(currentState) {
   let sum = 0;
-  for (const [id, position] of Object.entries(currentState.positions || {})) {
+  for (const [id, position] of Object.entries(currentState?.positions || {})) {
     const asset = findAsset(currentState, id);
     if (!asset) continue;
     sum += position.qty * asset.price;
@@ -970,7 +975,7 @@ function portfolioValue(currentState) {
 
 function unrealizedPL(currentState) {
   let sum = 0;
-  for (const [id, position] of Object.entries(currentState.positions || {})) {
+  for (const [id, position] of Object.entries(currentState?.positions || {})) {
     const asset = findAsset(currentState, id);
     if (!asset) continue;
     sum += (asset.price - position.avgCost) * position.qty;
@@ -980,9 +985,8 @@ function unrealizedPL(currentState) {
 
 function ensureDailyStats(currentState) {
   if (!currentState) return null;
-  const normalized = normalizeDailyStats(currentState.dailyStats, currentState);
-  currentState.dailyStats = normalized;
-  return normalized;
+  currentState.dailyStats = normalizeDailyStats(currentState.dailyStats, currentState);
+  return currentState.dailyStats;
 }
 
 function ensureDailyAssetEntry(currentState, assetId, daily = ensureDailyStats(currentState)) {
@@ -994,43 +998,20 @@ function ensureDailyAssetEntry(currentState, assetId, daily = ensureDailyStats(c
   if (!daily.assets[assetId]) {
     const asset = findAsset(currentState, assetId);
     const position = currentState.positions?.[assetId];
-    const baselinePrice = Number.isFinite(daily.priceBaselines?.[assetId])
-      ? daily.priceBaselines[assetId]
-      : Number.isFinite(asset?.price)
-        ? asset.price
-        : 0;
-    const baselineQty = Number.isFinite(daily.positionBaselines?.[assetId]?.qty)
-      ? daily.positionBaselines[assetId].qty
-      : Number.isFinite(position?.qty)
-        ? position.qty
-        : 0;
-    const baselineAvgCost = Number.isFinite(daily.positionBaselines?.[assetId]?.avgCost)
-      ? daily.positionBaselines[assetId].avgCost
-      : Number.isFinite(position?.avgCost)
-        ? position.avgCost
-        : 0;
-
-    const safePrice = Number.isFinite(baselinePrice) ? baselinePrice : 0;
-    const safeQty = Number.isFinite(baselineQty) ? baselineQty : 0;
-    const safeAvgCost = Number.isFinite(baselineAvgCost) ? baselineAvgCost : 0;
+    const safePrice = Number.isFinite(daily.priceBaselines?.[assetId]) ? daily.priceBaselines[assetId] : Number(asset?.price) || 0;
+    const safeQty = Number.isFinite(daily.positionBaselines?.[assetId]?.qty) ? daily.positionBaselines[assetId].qty : Number(position?.qty) || 0;
+    const safeAvgCost = Number.isFinite(daily.positionBaselines?.[assetId]?.avgCost) ? daily.positionBaselines[assetId].avgCost : Number(position?.avgCost) || 0;
 
     daily.priceBaselines[assetId] = safePrice;
-    daily.positionBaselines[assetId] = {
-      qty: safeQty,
-      avgCost: safeAvgCost
-    };
-
-    const startValue = safeQty * safePrice;
-    const startUnrealized = safeQty * (safePrice - safeAvgCost);
-
+    daily.positionBaselines[assetId] = { qty: safeQty, avgCost: safeAvgCost };
     daily.assets[assetId] = {
       id: assetId,
       startPrice: safePrice,
       startQty: safeQty,
-      startValue,
-      currentValue: startValue,
-      startUnrealized,
-      currentUnrealized: startUnrealized,
+      startValue: safeQty * safePrice,
+      currentValue: safeQty * safePrice,
+      startUnrealized: safeQty * (safePrice - safeAvgCost),
+      currentUnrealized: safeQty * (safePrice - safeAvgCost),
       unrealizedChange: 0,
       trades: 0,
       buyVolume: 0,
@@ -1062,22 +1043,17 @@ function ensureDailyAssetEntry(currentState, assetId, daily = ensureDailyStats(c
 function trackDailyTrade(currentState, { id, side, qty, price, realized = 0 }) {
   const daily = ensureDailyStats(currentState);
   if (!daily || !id || !Number.isFinite(qty) || qty <= 0) return;
-
   if (!daily.trades || typeof daily.trades !== "object") {
     daily.trades = { total: 0, buy: 0, sell: 0, volume: 0, notional: 0 };
   }
 
   const units = Math.max(1, Math.floor(qty));
   const notional = Number.isFinite(price) ? price * units : 0;
-
   daily.trades.total = Number.isFinite(daily.trades.total) ? daily.trades.total + 1 : 1;
   daily.trades.volume = Number.isFinite(daily.trades.volume) ? daily.trades.volume + units : units;
   daily.trades.notional = Number.isFinite(daily.trades.notional) ? daily.trades.notional + notional : notional;
-  if (side === "sell") {
-    daily.trades.sell = Number.isFinite(daily.trades.sell) ? daily.trades.sell + 1 : 1;
-  } else {
-    daily.trades.buy = Number.isFinite(daily.trades.buy) ? daily.trades.buy + 1 : 1;
-  }
+  if (side === "sell") daily.trades.sell = Number.isFinite(daily.trades.sell) ? daily.trades.sell + 1 : 1;
+  else daily.trades.buy = Number.isFinite(daily.trades.buy) ? daily.trades.buy + 1 : 1;
 
   const assetEntry = ensureDailyAssetEntry(currentState, id, daily);
   if (!assetEntry) return;
@@ -1086,45 +1062,34 @@ function trackDailyTrade(currentState, { id, side, qty, price, realized = 0 }) {
   if (side === "sell") {
     assetEntry.sellVolume += units;
     assetEntry.sellNotional += notional;
-    if (Number.isFinite(realized)) {
-      assetEntry.realizedDelta += realized;
-    }
+    if (Number.isFinite(realized)) assetEntry.realizedDelta += realized;
   } else {
     assetEntry.buyVolume += units;
     assetEntry.buyNotional += notional;
   }
   assetEntry.lastTradeSide = side === "sell" ? "sell" : "buy";
-  if (Number.isFinite(price)) {
-    assetEntry.lastTradePrice = price;
-  }
-
-  if (Number.isFinite(currentState.tick)) {
-    daily.lastTradeTick = currentState.tick;
-  }
-  if (Number.isFinite(currentState.day)) {
-    daily.lastTradeDay = currentState.day;
-  }
+  if (Number.isFinite(price)) assetEntry.lastTradePrice = price;
+  if (Number.isFinite(currentState.tick)) daily.lastTradeTick = currentState.tick;
+  if (Number.isFinite(currentState.day)) daily.lastTradeDay = currentState.day;
 }
 
 function refreshDailyMetrics(currentState) {
   const daily = ensureDailyStats(currentState);
   if (!daily) return;
 
-  const cash = Number.isFinite(currentState.cash) ? currentState.cash : 0;
-  const portfolio = portfolioValue(currentState);
-  const netWorth = cash + portfolio;
-  const realized = Number.isFinite(currentState.realized) ? currentState.realized : 0;
+  const cash = Number(currentState.cash) || 0;
+  const marketValue = portfolioValue(currentState);
+  const netWorth = cash + marketValue;
+  const realized = Number(currentState.realized) || 0;
   const unrealized = unrealizedPL(currentState);
 
-  if (Number.isFinite(currentState.day)) {
-    daily.day = currentState.day;
-  }
+  if (Number.isFinite(currentState.day)) daily.day = currentState.day;
   daily.currentNetWorth = netWorth;
   daily.netWorthDelta = netWorth - (Number.isFinite(daily.startNetWorth) ? daily.startNetWorth : netWorth);
   daily.realizedDelta = realized - (Number.isFinite(daily.startRealized) ? daily.startRealized : realized);
   daily.unrealizedDelta = unrealized - (Number.isFinite(daily.startUnrealized) ? daily.startUnrealized : unrealized);
   daily.endCash = cash;
-  daily.endPortfolioValue = portfolio;
+  daily.endPortfolioValue = marketValue;
   daily.lastUpdatedTick = Number.isFinite(currentState.tick) ? currentState.tick : daily.lastUpdatedTick ?? 0;
   daily.lastUpdatedDay = Number.isFinite(currentState.day) ? currentState.day : daily.lastUpdatedDay ?? daily.day;
 
@@ -1132,7 +1097,11 @@ function refreshDailyMetrics(currentState) {
   for (const asset of currentState.assets ?? []) {
     if (!asset || typeof asset.id !== "string") continue;
     const entry = ensureDailyAssetEntry(currentState, asset.id, daily);
-    const startPrice = Number.isFinite(entry.startPrice) ? entry.startPrice : Number.isFinite(daily.priceBaselines?.[asset.id]) ? daily.priceBaselines[asset.id] : 0;
+    const startPrice = Number.isFinite(entry.startPrice)
+      ? entry.startPrice
+      : Number.isFinite(daily.priceBaselines?.[asset.id])
+        ? daily.priceBaselines[asset.id]
+        : 0;
     const position = positions[asset.id];
     const currentQty = Number.isFinite(position?.qty) ? position.qty : 0;
     const currentPrice = Number.isFinite(asset.price) ? asset.price : startPrice;
@@ -1158,28 +1127,6 @@ function refreshDailyMetrics(currentState) {
   }
 }
 
-function configureUpgradesIntegration() {
-  if (upgradesConfigured) return;
-  if (!window.Upgrades || typeof window.Upgrades.configure !== "function") return;
-  window.Upgrades.configure({
-    getCash: () => engine.getState().cash,
-    setCash: (value) => {
-      engine.update((draft) => {
-        draft.cash = value;
-      }, { save: true });
-    },
-    getEquity: () => {
-      const current = engine.getState();
-      return current.cash + portfolioValue(current);
-    },
-    listAssetKeys: () => {
-      const assets = engine.getState().assets || [];
-      return assets.map((asset) => asset.id);
-    }
-  });
-  upgradesConfigured = true;
-}
-
 function ensureSelection(currentState) {
   if (!currentState.selected && Array.isArray(currentState.assets) && currentState.assets.length) {
     currentState.selected = currentState.assets[0].id;
@@ -1199,5 +1146,6 @@ function exposeEngine() {
   engine.unrealizedPL = (currentState = engine.getState()) => unrealizedPL(currentState);
   engine.renderAll = () => engine.render();
   engine.pushFeed = (entry) => pushFeed(entry);
+  engine.systems = { marginApi, insiderApi, upgradesApi };
   window.ttmGame = engine;
 }

@@ -40,51 +40,37 @@ function buildReason(asset) {
   const tone = pickTone(changePct);
   const magnitude = Math.abs(changePct);
   const direction = changePct > 0 ? "up" : changePct < 0 ? "down" : "flat";
-  const base =
-    magnitude < 0.001
-      ? "Price steady on the last tick."
-      : `Price ${direction} ${magnitude.toFixed(2)}% on the last tick.`;
+  const base = magnitude < 0.001
+    ? "Price held steady on the last tick."
+    : `Price moved ${direction} ${magnitude.toFixed(2)}% on the last tick.`;
 
-  const meta = asset.lastTickMeta || {};
-  const influences = Array.isArray(meta.influences) ? meta.influences : [];
-  const flags = meta.flags || {};
-
+  const influences = Array.isArray(asset.lastTickMeta?.influences) ? asset.lastTickMeta.influences : [];
   let driver = "";
   if (influences.length) {
     const strongest = influences.reduce((best, current) => {
-      const currentMag = Math.abs(Number(current?.magnitude) || 0);
-      const bestMag = Math.abs(Number(best?.magnitude) || 0);
-      return currentMag > bestMag ? current : best;
+      const currentMagnitude = Math.abs(Number(current?.magnitude) || 0);
+      const bestMagnitude = Math.abs(Number(best?.magnitude) || 0);
+      return currentMagnitude > bestMagnitude ? current : best;
     }, influences[0]);
 
     if (strongest) {
-      const driverLabel = strongest.label || strongest.typeLabel || "market flow";
-      const driverTone = pickTone(strongest.magnitude || 0);
-      driver = ` Primary driver: <span class="detail-reason__driver detail-reason__driver--${driverTone}">${escapeHtml(
-        driverLabel
-      )}</span>.`;
-      if (strongest.description) {
-        driver += ` ${escapeHtml(strongest.description)}`;
-      }
+      const label = strongest.label || strongest.typeLabel || "market flow";
+      driver = ` Primary driver: <span class="detail-reason__driver">${escapeHtml(label)}</span>.`;
+      if (strongest.description) driver += ` ${escapeHtml(strongest.description)}`;
     }
   }
 
-  const flagMessages = [];
-  if (flags.externalOverride) {
-    flagMessages.push("External shock overrode local order flow.");
-  }
-  if (flags.playerDominant) {
-    flagMessages.push("Your trading flow dominated liquidity.");
-  }
-  if (flags.macroShock) {
-    flagMessages.push("Macro turbulence amplified the move.");
-  } else if (flags.highVolRegime) {
-    flagMessages.push("Elevated volatility regime in effect.");
-  }
+  const flags = asset.lastTickMeta?.flags || {};
+  const notes = [];
+  if (flags.externalOverride) notes.push("External catalysts overrode local order flow.");
+  if (flags.playerDominant) notes.push("Your recent flow is steering the tape.");
+  if (flags.macroShock) notes.push("Macro turbulence is amplifying the move.");
+  else if (flags.highVolRegime) notes.push("Volatility is running hot.");
 
-  const suffix = flagMessages.length ? ` ${flagMessages.join(" ")}` : "";
-
-  return { text: `${base}${driver}${suffix}`, tone };
+  return {
+    text: `${base}${driver}${notes.length ? ` ${notes.join(" ")}` : ""}`,
+    tone
+  };
 }
 
 function renderEffects(listEl, state, assetId) {
@@ -97,30 +83,23 @@ function renderEffects(listEl, state, assetId) {
     return;
   }
 
-  const rows = relevant
+  listEl.innerHTML = relevant
     .map((event) => {
       const tone = event.kind || "neutral";
       const expiryBits = [];
       if (event.expiresOnDay != null) expiryBits.push(`D${event.expiresOnDay}`);
       if (event.expiresAtTick != null) expiryBits.push(`T${event.expiresAtTick}`);
-      const expiry = expiryBits.length ? expiryBits.join(" · ") : "—";
+      const expiry = expiryBits.length ? expiryBits.join(" | ") : "-";
 
       const tags = [];
       if (event.effect?.volMult && event.effect.volMult !== 1) {
-        const cls = event.effect.volMult > 1 ? "bad" : "good";
-        tags.push(`<span class="tag tag--${cls}">Vol ×${event.effect.volMult.toFixed(2)}</span>`);
+        tags.push(`<span class="tag tag--${event.effect.volMult > 1 ? "bad" : "good"}">Vol x${event.effect.volMult.toFixed(2)}</span>`);
       }
       if (event.effect?.driftShift) {
-        const cls = event.effect.driftShift > 0 ? "good" : "bad";
-        tags.push(`<span class="tag tag--${cls}">Drift ${event.effect.driftShift > 0 ? "+" : ""}${event.effect.driftShift.toFixed(3)}</span>`);
+        tags.push(`<span class="tag tag--${event.effect.driftShift > 0 ? "good" : "bad"}">Drift ${event.effect.driftShift > 0 ? "+" : ""}${event.effect.driftShift.toFixed(3)}</span>`);
       }
       if (Number.isFinite(event.effect?.liquidityShift) && event.effect.liquidityShift !== 0) {
-        const cls = event.effect.liquidityShift > 0 ? "good" : "bad";
-        tags.push(`<span class="tag tag--${cls}">Liq ${event.effect.liquidityShift > 0 ? "+" : ""}${Math.abs(event.effect.liquidityShift).toFixed(2)}</span>`);
-      }
-      if (Number.isFinite(event.effect?.riskShift) && event.effect.riskShift !== 0) {
-        const cls = event.effect.riskShift > 0 ? "bad" : "good";
-        tags.push(`<span class="tag tag--${cls}">Risk ${event.effect.riskShift > 0 ? "+" : ""}${Math.abs(event.effect.riskShift).toFixed(2)}</span>`);
+        tags.push(`<span class="tag tag--${event.effect.liquidityShift > 0 ? "good" : "bad"}">Liq ${event.effect.liquidityShift > 0 ? "+" : ""}${Math.abs(event.effect.liquidityShift).toFixed(2)}</span>`);
       }
 
       return `
@@ -135,54 +114,42 @@ function renderEffects(listEl, state, assetId) {
       `;
     })
     .join("");
-
-  listEl.innerHTML = rows;
 }
 
 function renderDrivers(listEl, asset) {
   if (!listEl) return;
-  const meta = asset?.lastTickMeta;
-  if (!meta) {
-    listEl.innerHTML = '<li class="effect effect--empty">No price drivers yet — wait for the next tick.</li>';
+  const influences = Array.isArray(asset?.lastTickMeta?.influences) ? asset.lastTickMeta.influences : [];
+  if (!asset?.lastTickMeta) {
+    listEl.innerHTML = '<li class="effect effect--empty">No price drivers yet. Wait for the next tick.</li>';
     return;
   }
-
-  const influences = Array.isArray(meta.influences) ? meta.influences : [];
   if (influences.length === 0) {
     listEl.innerHTML = '<li class="effect effect--empty">No major forces moved this asset on the last update.</li>';
     return;
   }
 
   const extras = [];
-  if (meta.flags?.externalOverride) {
-    extras.push('<li class="effect"><div class="effect__meta">External shocks overrode your order flow.</div></li>');
-  }
-  if (meta.flags?.playerDominant) {
-    extras.push('<li class="effect"><div class="effect__meta">Your trading flow is steering the price.</div></li>');
-  }
-  if (meta.flags?.macroShock) {
-    extras.push('<li class="effect"><div class="effect__meta">Macro turbulence is amplifying the move.</div></li>');
-  } else if (meta.flags?.highVolRegime) {
-    extras.push('<li class="effect"><div class="effect__meta">Volatility is running hotter than usual.</div></li>');
-  }
+  if (asset.lastTickMeta.flags?.externalOverride) extras.push("External shocks overrode your order flow.");
+  if (asset.lastTickMeta.flags?.playerDominant) extras.push("Your flow is dominating liquidity.");
+  if (asset.lastTickMeta.flags?.macroShock) extras.push("Macro turbulence is active.");
 
-  const rows = influences
-    .map((influence) => {
+  listEl.innerHTML = [
+    ...extras.map((text) => `<li class="effect"><div class="effect__meta">${escapeHtml(text)}</div></li>`),
+    ...influences.map((influence) => {
       const label = influence.label || influence.typeLabel || "Influence";
-      const typeClass = influence.type ? `tag--${influence.type}` : "tag--neutral";
       const magnitude = Number(influence.magnitude) || 0;
       const pct = magnitude * 100;
-      const pctLabel = Math.abs(pct) < 0.001 ? "≈0.00%" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`;
+      const pctLabel = `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`;
       const pctTone = pickTone(magnitude);
       const vol = Number(influence.volMult) || 1;
-      const showVol = Math.abs(vol - 1) > 0.05;
-      const volTag = showVol ? `<span class="tag ${vol > 1 ? "tag--bad" : "tag--good"}">Vol ×${vol.toFixed(2)}</span>` : "";
+      const volTag = Math.abs(vol - 1) > 0.05
+        ? `<span class="tag tag--${vol > 1 ? "bad" : "good"}">Vol x${vol.toFixed(2)}</span>`
+        : "";
       const description = influence.description ? `<div class="effect__meta">${escapeHtml(influence.description)}</div>` : "";
-
       return `
         <li class="effect">
           <div class="effect__header">
-            <span class="tag ${typeClass}">${escapeHtml(influence.typeLabel || influence.type || "Driver")}</span>
+            <span class="tag tag--${escapeHtml(influence.type || "neutral")}">${escapeHtml(influence.typeLabel || influence.type || "Driver")}</span>
             <strong>${escapeHtml(label)}</strong>
           </div>
           ${description}
@@ -193,27 +160,24 @@ function renderDrivers(listEl, asset) {
         </li>
       `;
     })
-    .join("");
-
-  listEl.innerHTML = [...extras, rows].join("");
+  ].join("");
 }
 
 function drawChart(canvas, history) {
-  if (!canvas || !canvas.getContext) return;
+  if (!canvas?.getContext) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const series = Array.isArray(history) ? history : [];
-  if (series.length < 2) {
-    return;
-  }
 
-  const width = canvas.width;
-  const height = canvas.height;
-  ctx.fillStyle = "#0d1427";
-  ctx.fillRect(0, 0, width, height);
-  ctx.strokeStyle = "#1f2a47";
-  ctx.strokeRect(0, 0, width, height);
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.max(320, Math.floor(canvas.clientWidth || canvas.width));
+  const height = Math.max(220, Math.floor(canvas.clientHeight || canvas.height));
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const series = Array.isArray(history) ? history : [];
+  if (series.length < 2) return;
 
   const min = Math.min(...series);
   const max = Math.max(...series);
@@ -221,30 +185,54 @@ function drawChart(canvas, history) {
   const yMin = min - pad;
   const yMax = max + pad;
 
+  ctx.strokeStyle = "rgba(97, 215, 255, 0.12)";
+  ctx.lineWidth = 1;
+  for (let index = 1; index <= 4; index += 1) {
+    const y = (height / 5) * index;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, "rgba(243, 185, 77, 0.95)");
+  gradient.addColorStop(1, "rgba(97, 215, 255, 0.95)");
+
   ctx.beginPath();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "#8b5cf6";
   series.forEach((value, index) => {
-    const x = (index / (series.length - 1)) * (width - 12) + 6;
-    const y = height - ((value - yMin) / (yMax - yMin)) * (height - 12) - 6;
+    const x = (index / (series.length - 1)) * (width - 24) + 12;
+    const y = height - ((value - yMin) / (yMax - yMin)) * (height - 24) - 12;
     if (index === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   });
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = 2.4;
   ctx.stroke();
+
+  ctx.lineTo(width - 12, height - 12);
+  ctx.lineTo(12, height - 12);
+  ctx.closePath();
+  const fill = ctx.createLinearGradient(0, 0, 0, height);
+  fill.addColorStop(0, "rgba(97, 215, 255, 0.2)");
+  fill.addColorStop(1, "rgba(97, 215, 255, 0)");
+  ctx.fillStyle = fill;
+  ctx.fill();
 }
 
 export function createAssetDetailController() {
   const root = document.querySelector('[data-module="asset-detail"]');
   if (!root) {
-    return {
-      render() {}
-    };
+    return { render() {} };
   }
 
   const titleEl = root.querySelector('[data-element="detail-title"]');
   const assetEl = root.querySelector('[data-element="detail-asset"]');
   const priceEl = root.querySelector('[data-element="detail-price"]');
+  const changeEl = root.querySelector('[data-element="detail-change"]');
   const positionEl = root.querySelector('[data-element="detail-position"]');
+  const regimeEl = root.querySelector('[data-element="detail-regime"]');
+  const volatilityEl = root.querySelector('[data-element="detail-volatility"]');
   const reasonEl = root.querySelector('[data-element="detail-reason"]');
   const effectsList = root.querySelector('[data-element="effects-list"]');
   const driversList = root.querySelector('[data-element="drivers-list"]');
@@ -253,39 +241,53 @@ export function createAssetDetailController() {
   return {
     render(state, asset) {
       if (!asset) {
-        if (titleEl) titleEl.textContent = "Asset Details";
-        if (assetEl) assetEl.textContent = "—";
-        if (priceEl) priceEl.textContent = "—";
+        if (titleEl) titleEl.textContent = "Asset Detail";
+        if (assetEl) assetEl.textContent = "-";
+        if (priceEl) priceEl.textContent = "-";
+        if (changeEl) changeEl.textContent = "-";
         if (positionEl) positionEl.textContent = "Select an asset to view holdings.";
+        if (regimeEl) regimeEl.textContent = "-";
+        if (volatilityEl) volatilityEl.textContent = "-";
         if (reasonEl) {
           reasonEl.textContent = "Select an asset to inspect market context.";
           reasonEl.dataset.tone = "neutral";
         }
         if (effectsList) effectsList.innerHTML = '<li class="effect effect--empty">No asset selected.</li>';
         if (driversList) driversList.innerHTML = '<li class="effect effect--empty">No asset selected.</li>';
-        if (chartCanvas) drawChart(chartCanvas, []);
+        drawChart(chartCanvas, []);
         return;
       }
 
-      if (titleEl) titleEl.textContent = `Details — ${asset.id}`;
-      if (assetEl) assetEl.textContent = `${asset.id} · ${asset.name}`;
+      const changePct = Number(asset.changePct) || 0;
+      const changeTone = pickTone(changePct);
+      const detailReason = buildReason(asset);
+      const position = state?.positions?.[asset.id];
+      const macro = asset.lastTickMeta?.diagnostics?.macro || {};
+      const volatility = Number(asset.lastTickMeta?.volatility);
+
+      if (titleEl) titleEl.textContent = `Asset Detail - ${asset.id}`;
+      if (assetEl) assetEl.textContent = `${asset.id} | ${asset.name}`;
       if (priceEl) priceEl.textContent = formatPrice(asset.price);
+      if (changeEl) {
+        changeEl.textContent = `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`;
+        changeEl.className = `pl--${changeTone}`;
+      }
 
       if (positionEl) {
-        const position = state?.positions?.[asset.id];
         if (!position || position.qty <= 0) {
           positionEl.textContent = "No active position.";
         } else {
-          const unrl = (asset.price - position.avgCost) * position.qty;
-          const tone = pickTone(unrl);
-          positionEl.innerHTML = `${position.qty} @ ${formatPrice(position.avgCost)} — <span class="pl--${tone}">${formatMoney(unrl)}</span>`;
+          const unrealized = (asset.price - position.avgCost) * position.qty;
+          const tone = pickTone(unrealized);
+          positionEl.innerHTML = `${position.qty} @ ${formatPrice(position.avgCost)} | <span class="pl--${tone}">${formatMoney(unrealized)}</span>`;
         }
       }
 
+      if (regimeEl) regimeEl.textContent = macro.label || "Balanced tape";
+      if (volatilityEl) volatilityEl.textContent = Number.isFinite(volatility) ? `${(volatility * 100).toFixed(2)}%` : "-";
       if (reasonEl) {
-        const reason = buildReason(asset);
-        reasonEl.innerHTML = reason.text;
-        reasonEl.dataset.tone = reason.tone;
+        reasonEl.innerHTML = detailReason.text;
+        reasonEl.dataset.tone = detailReason.tone;
       }
 
       renderEffects(effectsList, state, asset.id);

@@ -25,11 +25,10 @@ export function createTradeControlsController({ onBuy, onSell, onQtyChange, pars
   const readQty = () => coerceQty(qtyInput ? qtyInput.value : 1, parseQty);
 
   const emitQtyChange = () => {
-    if (typeof onQtyChange === "function" && qtyInput) {
-      const qty = readQty();
-      qtyInput.value = String(qty);
-      onQtyChange(qty);
-    }
+    if (!qtyInput || typeof onQtyChange !== "function") return;
+    const qty = readQty();
+    qtyInput.value = String(qty);
+    onQtyChange(qty);
   };
 
   if (qtyInput) {
@@ -38,24 +37,17 @@ export function createTradeControlsController({ onBuy, onSell, onQtyChange, pars
   }
 
   if (buyBtn && typeof onBuy === "function") {
-    buyBtn.addEventListener("click", () => {
-      const qty = readQty();
-      onBuy(qty);
-    });
+    buyBtn.addEventListener("click", () => onBuy(readQty()));
   }
 
   if (sellBtn && typeof onSell === "function") {
-    sellBtn.addEventListener("click", () => {
-      const qty = readQty();
-      onSell(qty);
-    });
+    sellBtn.addEventListener("click", () => onSell(readQty()));
   }
 
-  const controller = {
+  return {
     setQty(value) {
       if (!qtyInput) return;
-      const qty = coerceQty(value, parseQty);
-      qtyInput.value = String(qty);
+      qtyInput.value = String(coerceQty(value, parseQty));
     },
 
     showMessage(message, tone = "info") {
@@ -74,17 +66,14 @@ export function createTradeControlsController({ onBuy, onSell, onQtyChange, pars
     },
 
     updateSelection({ asset, position } = {}) {
-      if (assetLabel) {
-        if (!asset) {
-          assetLabel.textContent = "Select an asset from the market table.";
-        } else {
-          const qty = position?.qty || 0;
-          const suffix = qty > 0 ? ` · Holding ${qty}` : "";
-          assetLabel.textContent = `${asset.id} — ${asset.name}${suffix}`;
-        }
+      if (!assetLabel) return;
+      if (!asset) {
+        assetLabel.textContent = "Select an asset from Market Radar.";
+        return;
       }
+      const qty = position?.qty || 0;
+      const suffix = qty > 0 ? ` | Holding ${qty}` : "";
+      assetLabel.textContent = `${asset.id} - ${asset.name}${suffix}`;
     }
   };
-
-  return controller;
 }
