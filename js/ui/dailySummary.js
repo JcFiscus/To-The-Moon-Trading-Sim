@@ -4,7 +4,7 @@ const FOCUSABLE_SELECTOR =
 const isFiniteNumber = (value) => Number.isFinite(value);
 
 const formatMoney = (value) => {
-  if (!isFiniteNumber(value)) return "—";
+  if (!isFiniteNumber(value)) return "-";
   const prefix = value < 0 ? "-$" : "$";
   return `${prefix}${Math.abs(value).toLocaleString(undefined, {
     minimumFractionDigits: 2,
@@ -13,24 +13,24 @@ const formatMoney = (value) => {
 };
 
 const formatSignedMoney = (value) => {
-  if (!isFiniteNumber(value)) return "—";
+  if (!isFiniteNumber(value)) return "-";
   const base = formatMoney(value);
   return value > 0 ? `+${base}` : base;
 };
 
 const formatPercent = (value) => {
-  if (!isFiniteNumber(value)) return "—";
+  if (!isFiniteNumber(value)) return "-";
   return `${value.toFixed(2)}%`;
 };
 
 const formatSignedPercent = (value) => {
-  if (!isFiniteNumber(value)) return "—";
+  if (!isFiniteNumber(value)) return "-";
   const base = formatPercent(value);
   return value > 0 ? `+${base}` : base;
 };
 
 const formatInteger = (value) => {
-  if (!isFiniteNumber(value)) return "—";
+  if (!isFiniteNumber(value)) return "-";
   return Math.round(value).toLocaleString();
 };
 
@@ -62,7 +62,7 @@ const renderMetrics = (container, summary) => {
   if (!summary) {
     const placeholder = document.createElement("p");
     placeholder.className = "daily-briefing__placeholder";
-    placeholder.textContent = "Awaiting telemetry…";
+    placeholder.textContent = "Awaiting telemetry...";
     container.appendChild(placeholder);
     return;
   }
@@ -73,7 +73,7 @@ const renderMetrics = (container, summary) => {
       value: summary.endNetWorth,
       formatter: formatMoney,
       details: [
-        { label: "Δ", value: summary.netChange, formatter: formatSignedMoney },
+        { label: "Delta", value: summary.netChange, formatter: formatSignedMoney },
         { label: "Start", value: summary.startNetWorth, formatter: formatMoney }
       ]
     },
@@ -158,7 +158,7 @@ const renderAsset = (container, asset, { label, fallback }) => {
   const name = document.createElement("div");
   name.className = "daily-briefing__asset-name";
   const idPart = asset.id ? `${asset.id}` : "";
-  const namePart = asset.name ? ` — ${asset.name}` : "";
+  const namePart = asset.name ? ` | ${asset.name}` : "";
   name.textContent = `${idPart}${namePart}`;
   container.appendChild(name);
 
@@ -171,7 +171,7 @@ const renderAsset = (container, asset, { label, fallback }) => {
 
   const position = document.createElement("div");
   position.className = "daily-briefing__asset-position";
-  position.textContent = `Position ${formatInteger(asset.startQty)} → ${formatInteger(asset.endQty)}`;
+  position.textContent = `Position ${formatInteger(asset.startQty)} -> ${formatInteger(asset.endQty)}`;
   container.appendChild(position);
 
   if (isFiniteNumber(asset.lastTradePrice)) {
@@ -336,7 +336,7 @@ export function createDailySummaryController(options = {}) {
         const endNet = formatMoney(payload.endNetWorth);
         const realized = formatSignedMoney(payload.realizedDelta);
         const unrealized = formatSignedMoney(payload.unrealizedDelta);
-        const deltaSuffix = netDeltaText !== "—" ? ` (${netDeltaText})` : "";
+        const deltaSuffix = netDeltaText !== "-" ? ` (${netDeltaText})` : "";
         ledeEl.textContent = `Net worth ${direction} to ${endNet}${deltaSuffix}. Realized ${realized}, unrealized ${unrealized}.`;
       }
     }

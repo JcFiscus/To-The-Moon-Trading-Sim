@@ -6,14 +6,6 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const formatMoney = (value) => {
-  const absolute = Math.abs(Number(value) || 0);
-  return `${value < 0 ? "-" : ""}$${absolute.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`;
-};
-
 const formatPrice = (price) => {
   const numeric = Number(price) || 0;
   const abs = Math.abs(numeric);
@@ -24,7 +16,7 @@ const formatPrice = (price) => {
   })}`;
 };
 
-const pickTone = (value) => {
+const toneForValue = (value) => {
   if (value > 0.0001) return "good";
   if (value < -0.0001) return "bad";
   return "neutral";
@@ -89,35 +81,28 @@ export function createMarketListController({
   }
 
   function renderRow(asset, state) {
-    const positions = state.positions || {};
+    const positions = state?.positions || {};
     const position = positions[asset.id] || { qty: 0, avgCost: 0 };
-    const qty = Number(position.qty) || 0;
-    const avg = Number(position.avgCost) || 0;
-    const unrealized = qty > 0 ? (asset.price - avg) * qty : 0;
-    const change = Number(asset.changePct) || 0;
-    const tone = pickTone(change);
-    const badge = `<span class="badge badge--${tone}">${change >= 0 ? "+" : ""}${change.toFixed(2)}%</span>`;
-    const plTone = pickTone(unrealized);
-    const hasPosition = qty > 0;
-    const qtyLabel = hasPosition ? qty.toLocaleString() : "-";
-    const positionMeta = hasPosition ? `Avg ${formatPrice(avg)}` : "No holdings";
-    const holdBadge = hasPosition ? '<span class="ticker__status">Held</span>' : "";
-    const plDisplay = hasPosition ? `<span class="pl--${plTone}">${formatMoney(unrealized)}</span>` : "-";
+    const heldQty = Number(position.qty) || 0;
+    const sessionEntry = state?.dailyStats?.assets?.[asset.id] || {};
+    const sessionChange = Number(sessionEntry.priceChangePct) || 0;
+    const tone = toneForValue(sessionChange);
+    const badge = `<span class="badge badge--${tone}">${sessionChange >= 0 ? "+" : ""}${sessionChange.toFixed(2)}%</span>`;
+    const selected = asset.id === lastSelectedId ? ' data-selected="true"' : "";
+    const holdBadge = heldQty > 0 ? '<span class="ticker__status">Held</span>' : "";
 
     return `
-      <tr data-id="${escapeHtml(asset.id)}" data-clickable="true" ${asset.id === lastSelectedId ? 'data-selected="true"' : ""}>
-        <td class="ticker">
-          <span class="ticker__symbol">${escapeHtml(asset.id)}</span>
-          ${holdBadge}
+      <tr data-id="${escapeHtml(asset.id)}" data-clickable="true"${selected}>
+        <td>
+          <div class="ticker">
+            <span class="ticker__symbol">${escapeHtml(asset.id)}</span>
+            <span class="ticker__name">${escapeHtml(asset.name)}</span>
+            ${holdBadge}
+          </div>
         </td>
-        <td class="name">${escapeHtml(asset.name)}</td>
         <td class="num">${formatPrice(asset.price)}</td>
-        <td class="change">${badge}</td>
-        <td class="position">
-          <span class="position__qty">${qtyLabel}</span>
-          <span class="position__meta">${positionMeta}</span>
-        </td>
-        <td class="num">${plDisplay}</td>
+        <td class="num">${badge}</td>
+        <td class="num">${heldQty > 0 ? heldQty.toLocaleString() : "-"}</td>
         <td class="num">
           <div class="quick-actions">
             <button class="quick-action quick-action--buy" type="button" data-id="${escapeHtml(asset.id)}" data-quick-action="buy">Buy</button>

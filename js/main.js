@@ -62,6 +62,12 @@ const parseQty = (value) => {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
 };
 
+const parseRiskPercent = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+  return clamp(Math.round(numeric * 10) / 10, 0, 250);
+};
+
 const formatPrice = (price) => {
   const numeric = Number(price) || 0;
   const abs = Math.abs(numeric);
@@ -128,12 +134,33 @@ function canStartNewRun() {
   return false;
 }
 
+function ensureTradePlanState(snapshot) {
+  if (!snapshot?.tradePlans || typeof snapshot.tradePlans !== "object") {
+    snapshot.tradePlans = {};
+  }
+  return snapshot.tradePlans;
+}
+
+function normalizeTradePlan(plan = {}) {
+  return {
+    stopLossPct: parseRiskPercent(plan?.stopLossPct),
+    takeProfitPct: parseRiskPercent(plan?.takeProfitPct)
+  };
+}
+
+function getTradePlan(currentState, assetId) {
+  if (!assetId) return normalizeTradePlan();
+  const plan = currentState?.tradePlans?.[assetId];
+  return normalizeTradePlan(plan);
+}
+
 function hydrateStateSlices(snapshot) {
   if (!snapshot) return snapshot;
   ensureUpgradeState(snapshot);
   ensureMarginState(snapshot);
   ensureInsiderState(snapshot);
   ensureOperationsState(snapshot);
+  ensureTradePlanState(snapshot);
   return snapshot;
 }
 
@@ -183,68 +210,110 @@ function refreshCommandModules(currentState = state) {
 }
 
 function buildBriefingPayload(currentState, selectedAsset) {
-  const operations = summarizeOperations(currentState);
   const daily = ensureDailyStats(currentState);
   const marketValue = portfolioValue(currentState);
-  const debt = getDebt(currentState);
   const buyingPower = marginApi?.buyingPower?.(currentState, marketValue) ?? (currentState.cash || 0);
-  const pendingEvents = Array.isArray(currentState?.pendingEvents) ? currentState.pendingEvents : [];
   const macro = selectedAsset?.lastTickMeta?.diagnostics?.macro
     ?? currentState.assets?.[0]?.lastTickMeta?.diagnostics?.macro
     ?? {};
   const tip = activeTip(currentState);
-  const urgentContract = operations.claimableContracts?.[0]
-    ?? operations.activeContracts?.slice().sort((left, right) => (left.dueDay ?? 0) - (right.dueDay ?? 0))[0]
-    ?? null;
+  const assets = Array.isArray(currentState?.assets) ? currentState.assets : [];
+  const selectedPosition = selectedAsset ? currentState.positions?.[selectedAsset.id] : null;
+  const selectedPlan = selectedAsset ? getTradePlan(currentState, selectedAsset.id) : normalizeTradePlan();
+  const rankedAssets = assets
+    .map((asset) => ({
+      asset,
+      sessionChangePct: Number(daily?.assets?.[asset.id]?.priceChangePct) || 0
+    }))
+    .sort((left, right) => right.sessionChangePct - left.sessionChangePct);
 
-  let objectiveValue = "Grow equity and build research credits";
-  let objectiveMeta = "No urgent contracts on the board.";
-  if (operations.readyToClaim > 0 && operations.claimableContracts?.[0]) {
-    const claim = operations.claimableContracts[0];
-    objectiveValue = `Claim ${claim.id}`;
-    objectiveMeta = `Reward ${fmtMoney(claim.rewardCash)} and +${claim.rewardRep} REP.`;
-  } else if (urgentContract) {
-    const remaining = Math.max(0, (urgentContract.targetQty || 0) - (urgentContract.progressQty || 0));
-    const verb = urgentContract.side === "either" ? "Trade" : urgentContract.side === "buy" ? "Acquire" : "Offload";
-    objectiveValue = `${verb} ${urgentContract.assetId}`;
-    objectiveMeta = `${remaining} units left before D${urgentContract.dueDay}.`;
-  } else if (pendingEvents.length > 0) {
-    objectiveValue = `Resolve ${pendingEvents.length} active scenario${pendingEvents.length === 1 ? "" : "s"}`;
-    objectiveMeta = pendingEvents[0]?.label || "Active event awaiting your decision.";
+  const leader = rankedAssets[0] || null;
+  const selectedSession = selectedAsset
+    ? rankedAssets.find((entry) => entry.asset.id === selectedAsset.id) || null
+    : null;
+  const bestAlternative = selectedAsset
+    ? rankedAssets.find((entry) => entry.asset.id !== selectedAsset.id) || null
+    : leader;
+
+  let headline = selectedAsset
+    ? `Trade ${selectedAsset.id} with a plan. If the tape cools off, rotate instead of hoping.`
+    : "Select an asset, read the session, and decide where to deploy cash.";
+  if (tip) {
+    headline = `Insider wire is active on ${tip.assetId}. The edge decays in seconds, not minutes.`;
+  } else if (leader) {
+    headline = `${leader.asset.id} is leading the session. Sitting in weaker names now has a real cost.`;
   }
 
-  let headline = `Day ${currentState.day} is live. Balance risk, contracts, and timing.`;
-  if (tip) {
-    headline = `Insider wire is active on ${tip.assetId}. Use the window before it fades.`;
-  } else if (pendingEvents.length > 0) {
-    headline = `${pendingEvents.length} live scenario${pendingEvents.length === 1 ? "" : "s"} can change the run trajectory.`;
-  } else if (operations.readyToClaim > 0) {
-    headline = `${operations.readyToClaim} contract reward${operations.readyToClaim === 1 ? "" : "s"} can be claimed immediately.`;
+  let opportunityValue = `${fmtMoney(currentState.cash || 0)} in cash`;
+  let opportunityMeta = `Buying power ${fmtMoney(buyingPower)}. Cash keeps rotation flexible.`;
+  if (selectedAsset && selectedPosition?.qty > 0) {
+    if (bestAlternative && selectedSession && bestAlternative.sessionChangePct > selectedSession.sessionChangePct) {
+      const gap = bestAlternative.sessionChangePct - selectedSession.sessionChangePct;
+      opportunityValue = `${bestAlternative.asset.id} ahead by ${gap.toFixed(2)}%`;
+      opportunityMeta = `Capital in ${selectedAsset.id} is lagging the session leader.`;
+    } else if (selectedSession) {
+      opportunityValue = `${selectedAsset.id} is still competitive`;
+      opportunityMeta = `Current position is keeping pace with the best intraday move.`;
+    }
+  } else if (leader) {
+    opportunityValue = `${leader.asset.id} ${leader.sessionChangePct >= 0 ? "+" : ""}${leader.sessionChangePct.toFixed(2)}%`;
+    opportunityMeta = `No position is open. Dry powder can step into the session leader instantly.`;
+  }
+
+  let exitPlanValue = "No exits armed";
+  let exitPlanMeta = "Use stop loss and take profit levels to automate discipline.";
+  if (selectedAsset && (selectedPlan.stopLossPct > 0 || selectedPlan.takeProfitPct > 0)) {
+    if (selectedPosition?.qty > 0) {
+      const parts = [];
+      if (selectedPlan.stopLossPct > 0) {
+        parts.push(`Stop ${formatPrice(selectedPosition.avgCost * (1 - selectedPlan.stopLossPct / 100))}`);
+      }
+      if (selectedPlan.takeProfitPct > 0) {
+        parts.push(`Take ${formatPrice(selectedPosition.avgCost * (1 + selectedPlan.takeProfitPct / 100))}`);
+      }
+      exitPlanValue = parts.join(" | ");
+      exitPlanMeta = "Rules trigger on the full position when price crosses the threshold.";
+    } else {
+      exitPlanValue = "Rules saved for next entry";
+      exitPlanMeta = "The next position in this asset will inherit the configured exits.";
+    }
+  }
+
+  let edgeValue = tip ? `${tip.assetId} bias window live` : "No active edge";
+  let edgeMeta = tip
+    ? `${Math.max(0, Math.ceil((tip.expiresAt - Date.now()) / 1000))}s left on the signal.`
+    : currentState?.upgrades?.owned?.insider
+      ? "Insider wire is unlocked but currently idle."
+      : "Insider wire remains a future unlock for this run.";
+  if (!tip && macro?.label) {
+    edgeMeta = `${macro.label}. Volatility ${(Number(macro.volatilityBias) || 1).toFixed(2)}x baseline.`;
   }
 
   return {
-    title: `Day ${currentState.day} Briefing`,
+    title: `Day ${currentState.day} Edge Board`,
     headline,
     cards: [
       {
-        label: "Primary Objective",
-        value: objectiveValue,
-        meta: objectiveMeta
+        label: "Session Leader",
+        value: leader
+          ? `${leader.asset.id} ${leader.sessionChangePct >= 0 ? "+" : ""}${leader.sessionChangePct.toFixed(2)}%`
+          : "Waiting for the open",
+        meta: leader ? leader.asset.name : "No price action has separated yet."
       },
       {
-        label: "Risk Envelope",
-        value: debt > 0 ? `Debt ${fmtMoney(debt)}` : "Cash only posture",
-        meta: `Buying power ${fmtMoney(buyingPower)}${marginApi?.isUnderMaintenance?.(currentState, marketValue) ? " | Maintenance pressure elevated." : ""}`
+        label: "Opportunity Cost",
+        value: opportunityValue,
+        meta: opportunityMeta
       },
       {
-        label: "Macro Regime",
-        value: macro.label || "Balanced tape",
-        meta: `Volatility ${(Number(macro.volatilityBias) || 1).toFixed(2)}x baseline. Liquidity ${(Number(macro.effectiveLiquidity ?? macro.liquidity) || 0).toFixed(2)}.`
+        label: "Exit Plan",
+        value: exitPlanValue,
+        meta: exitPlanMeta
       },
       {
-        label: "Trade Tempo",
-        value: `${daily?.trades?.total ?? 0} trades today`,
-        meta: `Notional ${fmtMoney(daily?.trades?.notional ?? 0)}${tip ? ` | Insider focus ${tip.assetId}` : ""}`
+        label: "Edge",
+        value: edgeValue,
+        meta: edgeMeta
       }
     ]
   };
@@ -272,6 +341,19 @@ function setupControllers() {
     onQtyChange: (qty) => {
       sharedTradeQty = parseQty(qty);
       controllers.market?.setDefaultQty(sharedTradeQty);
+    },
+    onRiskChange: (plan) => {
+      if (!engine || !state?.selected) return;
+      const assetId = state.selected;
+      engine.update((draft) => {
+        hydrateStateSlices(draft);
+        const nextPlan = normalizeTradePlan(plan);
+        if (!nextPlan.stopLossPct && !nextPlan.takeProfitPct) {
+          delete draft.tradePlans[assetId];
+        } else {
+          draft.tradePlans[assetId] = nextPlan;
+        }
+      }, { save: true });
     },
     parseQty
   });
@@ -413,6 +495,7 @@ function handleStartNewRun() {
   }));
   engine.update((draft) => {
     hydrateStateSlices(draft);
+    if (draft.run) draft.run.status = "active";
     primeOperationsForDay(draft);
   }, { save: false, render: false });
 
@@ -420,6 +503,7 @@ function handleStartNewRun() {
   refreshDailyMetrics(state);
   eventSystem.bootstrap(state);
   ensureSelection(state);
+  lastSelectedAssetId = null;
   hasSavedRun = false;
   controllers.wingTabs?.setActiveWing?.("spine");
   refreshCommandModules(state);
@@ -532,7 +616,9 @@ function init() {
   });
   metaLayerReady = true;
   refreshMetaUI({ allowResume: hasActiveRun(), canStart: canStartNewRun() });
-  if (!hasSavedRun || state.run?.status === "ended") {
+  if (!hasSavedRun) {
+    handleStartNewRun();
+  } else if (state.run?.status === "ended") {
     showMetaLayer();
   }
 
@@ -580,9 +666,11 @@ function renderAll(currentState) {
   updateInsiderBanner(currentState);
 
   const position = asset ? currentState.positions?.[asset.id] : null;
-  controllers.trade?.updateSelection({ asset, position });
+  const plan = asset ? getTradePlan(currentState, asset.id) : normalizeTradePlan();
+  controllers.trade?.updateSelection({ asset, position, plan });
   if ((asset?.id ?? null) !== lastSelectedAssetId) {
     controllers.trade?.setQty(sharedTradeQty);
+    controllers.trade?.setRiskPlan(plan, { force: true });
     lastSelectedAssetId = asset?.id ?? null;
   }
 
@@ -762,6 +850,86 @@ function handleDayEnd(currentState, context = {}) {
   }
 }
 
+function sellPosition(currentState, id, qty, { message, tone } = {}) {
+  if (!currentState || !id || qty <= 0) return { success: false };
+
+  const position = currentState.positions?.[id];
+  if (!position || position.qty <= 0) {
+    return { success: false };
+  }
+
+  const actualQty = clamp(qty, 1, position.qty);
+  const asset = findAsset(currentState, id);
+  if (!asset) return { success: false };
+
+  const proceeds = asset.price * actualQty;
+  const profit = (asset.price - position.avgCost) * actualQty;
+  marginApi?.applyProceeds?.(currentState, proceeds);
+  currentState.realized += profit;
+
+  const leftover = position.qty - actualQty;
+  if (leftover <= 0) delete currentState.positions[id];
+  else currentState.positions[id] = { qty: leftover, avgCost: position.avgCost };
+
+  recordTrade(currentState, { id, side: "sell", qty: actualQty, price: asset.price, realized: profit });
+  currentState.selected = id;
+
+  if (message) {
+    const payload = { actualQty, asset, profit, position };
+    const text = typeof message === "function" ? message(payload) : message;
+    const messageTone = typeof tone === "function" ? tone(payload) : tone;
+    bumpNews(text, {
+      state: currentState,
+      tone: messageTone ?? (profit >= 0 ? "good" : "warn")
+    });
+  }
+
+  return { success: true, actualQty, asset, profit, position };
+}
+
+function resolveTradePlans(currentState) {
+  if (!currentState) return;
+  ensureTradePlanState(currentState);
+
+  const triggers = [];
+  for (const [id, position] of Object.entries(currentState.positions || {})) {
+    if (!position || !Number.isFinite(position.qty) || position.qty <= 0) continue;
+
+    const asset = findAsset(currentState, id);
+    if (!asset) continue;
+
+    const plan = getTradePlan(currentState, id);
+    if (!plan.stopLossPct && !plan.takeProfitPct) continue;
+
+    const stopPrice = plan.stopLossPct > 0 ? position.avgCost * (1 - plan.stopLossPct / 100) : null;
+    const takePrice = plan.takeProfitPct > 0 ? position.avgCost * (1 + plan.takeProfitPct / 100) : null;
+
+    if (stopPrice != null && asset.price <= stopPrice) {
+      triggers.push({ id, type: "stop", triggerPrice: stopPrice });
+      continue;
+    }
+
+    if (takePrice != null && asset.price >= takePrice) {
+      triggers.push({ id, type: "take", triggerPrice: takePrice });
+    }
+  }
+
+  triggers.forEach((trigger) => {
+    const openQty = currentState.positions?.[trigger.id]?.qty;
+    if (!Number.isFinite(openQty) || openQty <= 0) return;
+
+    sellPosition(currentState, trigger.id, openQty, {
+      message: ({ actualQty, asset, profit }) => {
+        if (trigger.type === "stop") {
+          return `Stop loss hit on ${asset.id}. Sold ${actualQty} @ ${formatPrice(asset.price)} after the ${formatPrice(trigger.triggerPrice)} trigger.`;
+        }
+        return `Take profit hit on ${asset.id}. Sold ${actualQty} @ ${formatPrice(asset.price)} (${profit >= 0 ? "+" : ""}${fmtMoney(profit)}).`;
+      },
+      tone: trigger.type === "stop" ? "warn" : "good"
+    });
+  });
+}
+
 function doBuy(id, qty) {
   if (!engine || !id || qty <= 0) return;
   engine.update((draft) => {
@@ -796,31 +964,14 @@ function doSell(id, qty) {
   if (!engine || !id || qty <= 0) return;
   engine.update((draft) => {
     hydrateStateSlices(draft);
-    const position = draft.positions[id];
-    if (!position || position.qty <= 0) {
-      bumpNews("You do not hold that asset.", { state: draft, tone: "warn" });
-      return;
-    }
-
-    const actualQty = clamp(qty, 1, position.qty);
-    const asset = findAsset(draft, id);
-    if (!asset) return;
-
-    const proceeds = asset.price * actualQty;
-    const profit = (asset.price - position.avgCost) * actualQty;
-    marginApi?.applyProceeds?.(draft, proceeds);
-    draft.realized += profit;
-
-    const leftover = position.qty - actualQty;
-    if (leftover <= 0) delete draft.positions[id];
-    else draft.positions[id] = { qty: leftover, avgCost: position.avgCost };
-
-    recordTrade(draft, { id, side: "sell", qty: actualQty, price: asset.price, realized: profit });
-    draft.selected = id;
-    bumpNews(`Sold ${actualQty} ${id} @ ${formatPrice(asset.price)} (${profit >= 0 ? "+" : ""}${fmtMoney(profit)}).`, {
-      state: draft,
-      tone: profit >= 0 ? "good" : "warn"
+    const result = sellPosition(draft, id, qty, {
+      message: ({ actualQty, asset, profit }) =>
+        `Sold ${actualQty} ${asset.id} @ ${formatPrice(asset.price)} (${profit >= 0 ? "+" : ""}${fmtMoney(profit)}).`,
+      tone: ({ profit }) => (profit >= 0 ? "good" : "warn")
     });
+    if (!result.success) {
+      bumpNews("You do not hold that asset.", { state: draft, tone: "warn" });
+    }
   });
 }
 
@@ -936,6 +1087,8 @@ function stepAll(currentState, steps = 1, varianceBoost = 1) {
         });
       }
     }
+
+    resolveTradePlans(currentState);
   }
 }
 

@@ -22,7 +22,7 @@ const formatEffectTags = (effect) => {
   }
   if (Number.isFinite(effect.volMult) && effect.volMult !== 1) {
     const tone = effect.volMult > 1 ? "bad" : "good";
-    tags.push(`<span class="tag tag--${tone}">Vol ×${effect.volMult.toFixed(2)}</span>`);
+    tags.push(`<span class="tag tag--${tone}">Vol x${effect.volMult.toFixed(2)}</span>`);
   }
   if (Number.isFinite(effect.liquidityShift) && effect.liquidityShift !== 0) {
     const tone = effect.liquidityShift > 0 ? "good" : "bad";

@@ -56,6 +56,7 @@ export function createInitialState({
     realized: 0,
     assets,
     positions: {},
+    tradePlans: {},
     recentTrades: [],
     running: false,
     selected: initialSelected,
@@ -151,6 +152,19 @@ function normalizeState(raw, { dayDurationMs = DEFAULT_DAY_DURATION_MS } = {}) {
       ? raw.assets.map(normalizeAsset)
       : base.assets,
     positions: raw.positions && typeof raw.positions === "object" ? { ...raw.positions } : {},
+    tradePlans:
+      raw.tradePlans && typeof raw.tradePlans === "object"
+        ? Object.fromEntries(
+            Object.entries(raw.tradePlans)
+              .map(([assetId, plan]) => {
+                if (typeof assetId !== "string" || !plan || typeof plan !== "object") return null;
+                const stopLossPct = Number.isFinite(plan.stopLossPct) ? Math.max(0, plan.stopLossPct) : 0;
+                const takeProfitPct = Number.isFinite(plan.takeProfitPct) ? Math.max(0, plan.takeProfitPct) : 0;
+                return [assetId, { stopLossPct, takeProfitPct }];
+              })
+              .filter(Boolean)
+          )
+        : {},
     recentTrades: Array.isArray(raw.recentTrades)
       ? raw.recentTrades
           .map(normalizeTrade)
