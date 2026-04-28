@@ -1,5 +1,6 @@
 import { createDailySnapshot, normalizeDailyStats } from "./daySummary.js";
 import { createOperationsState, ensureOperationsState } from "./operations.js";
+import { createRunCommandState, normalizeRunCommandState } from "./runCommand.js";
 
 const DEFAULT_SAVE_KEY = "ttm_v0_save";
 const DEFAULT_TICK_INTERVAL = 600;
@@ -88,6 +89,7 @@ export function createInitialState({
     }
   };
   state.operations = createOperationsState();
+  state.command = createRunCommandState(state);
   state.dailyStats = createDailySnapshot(state);
   state.previousDailyStats = null;
   state.lastDaySummary = null;
@@ -317,6 +319,7 @@ function normalizeState(raw, { dayDurationMs = DEFAULT_DAY_DURATION_MS } = {}) {
     config: runConfig,
     stats: rawRun.stats && typeof rawRun.stats === "object" ? { ...rawRun.stats } : {}
   };
+  state.command = normalizeRunCommandState(raw.command, state);
 
   state.dailyStats = normalizeDailyStats(raw.dailyStats, state);
   state.previousDailyStats = raw.previousDailyStats

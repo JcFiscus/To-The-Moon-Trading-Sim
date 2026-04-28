@@ -218,7 +218,8 @@ export function calculateMetaReward(summary) {
   const base = Math.max(0, Math.floor(netWorth / 5000));
   const profitBonus = Math.max(0, Math.floor(realized / 7500));
   const survivalBonus = Math.max(0, Math.floor(days / 3));
-  return base + profitBonus + survivalBonus;
+  const stageBonus = Math.max(0, Math.floor((Number(summary.commandStage) || 1) - 1) * 3);
+  return base + profitBonus + survivalBonus + stageBonus;
 }
 
 export function applyRunSummaryToMeta(meta, summary) {

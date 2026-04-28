@@ -146,6 +146,8 @@ export function createRunSummary(state, { reason, metaReward = 0 } = {}) {
     maxNetWorth: stats.maxNetWorth ?? netWorth,
     minNetWorth: stats.minNetWorth ?? netWorth,
     maintenanceStrikes: stats.maintenanceStrikes || 0,
+    commandStage: Number.isFinite(state?.command?.stage) ? state.command.stage : 1,
+    maxDrawdownPct: Number.isFinite(state?.command?.drawdownPct) ? state.command.drawdownPct : 0,
     metaReward
   };
 
